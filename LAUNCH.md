@@ -113,9 +113,16 @@ shipping without at least one makes the paid tiers thin.
 - **Email** (fallback): create a Resend account, verify `meeme.xyz` as a sending
   domain, set `RESEND_API_KEY` and `ALERT_FROM_EMAIL`.
 
-Set up the two mailboxes the legal pages promise, or forward them somewhere you
-read: `support@meeme.xyz` and `privacy@meeme.xyz`. A privacy policy naming an
-address that bounces is a worse look than not having one.
+The legal pages list `clujkeebs@aol.com` as the contact address, so there is no
+mailbox to create — but note that it is now published on four public pages and
+will be scraped. If you would rather not hand a personal inbox to spammers,
+create `support@meeme.xyz` as a forwarding alias to it (most registrars include
+email forwarding free with the domain) and change `CONTACT_EMAIL` in
+`components/legal.tsx` — one line, and every page follows.
+
+Separately, `ALERT_FROM_EMAIL` is the *sending* address for alerts and must stay
+on a domain you control (`alerts@meeme.xyz`), because Resend requires a verified
+sending domain and AOL will not let a third party send as you.
 
 ---
 

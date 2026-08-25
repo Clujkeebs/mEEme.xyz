@@ -68,6 +68,11 @@ export function Callout({ children }: { children: ReactNode }) {
  * A single place to change the contact address. Every policy has to name a
  * way to reach a human — a policy with no contact route is not a policy, it
  * is a wall.
+ *
+ * Both point at the same inbox today. The two names are kept apart anyway
+ * because they carry different obligations: PRIVACY_EMAIL is the address a
+ * data-protection request has to reach within 30 days, and if that ever moves
+ * to a dedicated mailbox it should move without touching four policy pages.
  */
-export const CONTACT_EMAIL = 'support@meeme.xyz';
-export const PRIVACY_EMAIL = 'privacy@meeme.xyz';
+export const CONTACT_EMAIL = 'clujkeebs@aol.com';
+export const PRIVACY_EMAIL = CONTACT_EMAIL;
