@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'sonner';
 import { SiteHeader } from '@/components/site-header';
 import { Providers } from '@/components/providers';
+import { appOrigin } from '@/lib/stripe';
 import './globals.css';
 
 const title = 'mEEme — the Exit Engine';
@@ -9,7 +10,7 @@ const description =
   'Every memecoin tool is built for the entry. Entry is a race you cannot win. mEEme reads who still has to sell, and tells you when to get out.';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
+  metadataBase: appOrigin(),
   title: { default: title, template: '%s · mEEme' },
   description,
   applicationName: 'mEEme',

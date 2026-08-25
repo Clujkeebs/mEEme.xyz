@@ -28,11 +28,36 @@ export function getStripe(): Stripe | null {
   return client;
 }
 
-/** The public origin, used for Stripe redirect URLs. */
+/**
+ * The public origin.
+ *
+ * Deliberately paranoid: this feeds `metadataBase`, which Next evaluates while
+ * prerendering, so a malformed value does not degrade a page — it fails the
+ * whole build. An environment variable that exists but is blank or mistyped is
+ * an ordinary deployment mistake and must not be able to do that.
+ */
+export function appOrigin(): URL {
+  const candidates = [
+    process.env.NEXTAUTH_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    'http://localhost:3000',
+  ];
+
+  for (const candidate of candidates) {
+    const trimmed = candidate?.trim();
+    if (!trimmed) continue;
+    try {
+      return new URL(trimmed);
+    } catch {
+      // Set but unusable — try the next source rather than take the build down.
+      console.warn(`[config] ignoring unparseable origin: ${trimmed}`);
+    }
+  }
+
+  return new URL('http://localhost:3000');
+}
+
+/** The public origin as a string, with no trailing slash. */
 export function appUrl(): string {
-  const raw =
-    process.env.NEXTAUTH_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-    'http://localhost:3000';
-  return raw.replace(/\/+$/, '');
+  return appOrigin().toString().replace(/\/+$/, '');
 }

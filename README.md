@@ -122,6 +122,11 @@ If neither is set, alerts are written to the database and nobody ever sees them
 
 ---
 
+## Deploying
+
+**[DEPLOYING.md](DEPLOYING.md) is the go-live checklist** — every key you need,
+where to get it, and what breaks without it, in the order that matters.
+
 ## Deploying to Vercel
 
 1. Push this branch and import the repo.
