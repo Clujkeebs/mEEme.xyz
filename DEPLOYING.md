@@ -89,25 +89,43 @@ curl -X POST https://<your-domain>/api/telegram/setup \
 Optional email fallback: [resend.com](https://resend.com) → API key →
 `RESEND_API_KEY`, and `ALERT_FROM_EMAIL` on a domain you have verified there.
 
-## 7. Stripe — 15 min
+## 7. Stripe — most of it is done; two things need your hand on the dashboard
 
-Without this: everyone stays free and the upgrade buttons explain why.
+The product catalogue, prices, and webhook are provisioned via the Stripe MCP —
+**live mode**, since that was the only mode this Stripe connection exposed:
 
-1. [dashboard.stripe.com](https://dashboard.stripe.com) → **Product catalogue**.
-2. Two products, each with a **recurring monthly** price:
-   - Degen — $4.99/mo
-   - Apex — $19.99/mo
-3. Copy each **price ID** (`price_...`, not the product ID) into
-   `STRIPE_PRICE_DEGEN` and `STRIPE_PRICE_APEX`.
-4. `STRIPE_SECRET_KEY` from **Developers → API keys**.
-5. **Developers → Webhooks → Add endpoint**:
-   - URL: `https://<your-domain>/api/stripe/webhook`
-   - Events: `checkout.session.completed`, `customer.subscription.created`,
-     `customer.subscription.updated`, `customer.subscription.deleted`,
-     `invoice.payment_failed`
-   - Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+| | |
+|---|---|
+| Degen | `prod_V8jbvt4j5uBwEo` — $4.99/mo — `price_1U8S81LoNTf2Sutm46pDyqQv` |
+| Apex | `prod_V8jbgEyBfawHRd` — $19.99/mo — `price_1U8S83LoNTf2Sutm9iXWkRvP` |
+| Webhook | `we_1U8S8CLoNTf2SutmV89bcDT2` → `https://meeme-web-production.up.railway.app/api/stripe/webhook` |
 
-Test with card `4242 4242 4242 4242` in test mode before switching to live keys.
+`STRIPE_PRICE_DEGEN`, `STRIPE_PRICE_APEX`, and `STRIPE_WEBHOOK_SECRET` are
+already set on Railway. Two things could not be done through the API, both for
+reasons worth knowing rather than working around:
+
+1. **`STRIPE_SECRET_KEY`.** Stripe never returns a secret key through the API
+   after it is created — there is no endpoint that hands one back, by design.
+   Get it from **[dashboard.stripe.com](https://dashboard.stripe.com) →
+   Developers → API keys → reveal the live secret key**, then set it on
+   Railway:
+   ```bash
+   # or paste it directly in the Railway dashboard → meeme-web → Variables
+   ```
+   Nothing charges until this is set — `stripeConfigured()` checks for it, and
+   the pricing page shows upgrade buttons as inert until it is present.
+
+2. **Activate the customer portal.** The write endpoint for portal
+   configuration is not exposed via the API in live mode — Stripe requires a
+   human to activate it once from **[dashboard.stripe.com/settings/billing/portal](https://dashboard.stripe.com/settings/billing/portal)
+   → Activate**. Until then, `/api/stripe/portal` (the "manage billing" link)
+   returns an error instead of a portal session. Checkout itself is unaffected.
+
+This account had no test mode available through the MCP connection, so nothing
+here was validated against a `4242 4242 4242 4242` test card before going live.
+**Run one real subscription through end to end** — sign up for Degen yourself,
+confirm the webhook flips your tier, then cancel from the portal — before
+telling anyone else the button works.
 
 ## 8. Scheduling — ✅ done
 

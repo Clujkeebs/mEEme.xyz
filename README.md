@@ -119,7 +119,7 @@ If neither is set, alerts are written to the database and nobody ever sees them
 | Variable | Without it |
 |---|---|
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Sign-in is disabled; Target Lock still works. Redirect URI: `{NEXTAUTH_URL}/api/auth/callback/google` |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_DEGEN`, `STRIPE_PRICE_APEX` | Everyone stays on the free tier and upgrade buttons explain why they are inert. |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_DEGEN`, `STRIPE_PRICE_APEX` | Everyone stays on the free tier and upgrade buttons explain why they are inert. Products, prices and the webhook are already provisioned in live mode — see [DEPLOYING.md](DEPLOYING.md) for what is left. |
 
 ---
 
