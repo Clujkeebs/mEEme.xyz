@@ -160,6 +160,23 @@ describe('buildLadder', () => {
     expect(ladder.rungs[0]!.priceUsd).toBe(0.01);
     expect(ladder.rungs[0]!.rationale).toMatch(/no room/i);
   });
+
+  it('never tells an entry call to sell at market', () => {
+    // "This is the setup — now take 31% off at market" is incoherent: there is
+    // no position yet, and the ladder is a plan for later. A stop with no room
+    // is a sizing warning on an entry, not a sell trigger.
+    const snap = snapshot({ priceUsd: 0.01 });
+    const noRoom = coilOf({ coilScore: 0.05, trapdoorUsd: 0.0099 });
+
+    for (const verdict of ['APEX_ENTRY', 'SCALE_IN'] as const) {
+      const ladder = buildLadder(snap, noRoom, verdict, null);
+      expect(ladder.stopQuality).toBe('inside-noise');
+      expect(ladder.rungs[0]!.priceUsd).toBeGreaterThan(snap.priceUsd);
+      expect(ladder.rungs[0]!.rationale).not.toMatch(/market/i);
+      // The warning still has to reach the trader somewhere.
+      expect(ladder.stopNote).toMatch(/size down/i);
+    }
+  });
 });
 
 describe('decideVerdict', () => {

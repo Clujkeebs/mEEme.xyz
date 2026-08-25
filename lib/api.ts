@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { prisma } from './db';
+import { databaseConfigured, prisma } from './db';
 import { utcDay } from './quota';
 
 /** Shared helpers for route handlers. */
@@ -38,7 +38,26 @@ export interface AnonQuota {
 
 /** Same atomic claim-then-roll-back shape as the signed-in quota. */
 export async function consumeAnonLock(ipHash: string, now: Date = new Date()): Promise<AnonQuota> {
+  // A deployment with no database yet should still demo the product rather than
+  // return a 500 on the first click. There is nowhere to count, so nothing is
+  // counted — and without a database there is no account to protect either.
+  if (!databaseConfigured()) {
+    return { allowed: true, used: 0, limit: ANON_DAILY_LOCKS, remaining: ANON_DAILY_LOCKS };
+  }
+
   const day = utcDay(now);
+  try {
+    return await claimAnonLock(ipHash, day);
+  } catch (err) {
+    // A quota table that cannot be reached must not take the product down with
+    // it. Fail open: the alternative is refusing service to everyone because
+    // one row could not be written.
+    console.warn('[quota] anonymous claim failed, failing open:', err instanceof Error ? err.message : err);
+    return { allowed: true, used: 0, limit: ANON_DAILY_LOCKS, remaining: ANON_DAILY_LOCKS };
+  }
+}
+
+async function claimAnonLock(ipHash: string, day: string): Promise<AnonQuota> {
   const row = await prisma.anonUsage.upsert({
     where: { ipHash_day: { ipHash, day } },
     create: { ipHash, day, locks: 1 },

@@ -167,17 +167,30 @@ export function buildLadder(
   // is in front of you rather than what you hoped for.
   const compression = 1 - 0.5 * clamp(coil.coilScore, 0, 1);
 
-  // A position with no room is itself urgent, whatever the coil says.
   const noRoom = stop.quality === 'inside-noise';
+
+  // Entry-side calls never sell at market. "This is the setup, now take 31% off
+  // at market" is incoherent — there is no position to take off yet, and the
+  // ladder is a plan for later. On those verdicts a stop with no room is a
+  // sizing warning, carried in stopNote, not a reason to sell.
+  const entrySide = verdict === 'APEX_ENTRY' || verdict === 'SCALE_IN';
   const urgentNow =
-    verdict === 'EXIT_IMMEDIATELY' || verdict === 'SCALE_OUT_NOW' || verdict === 'NO_TOUCH' || noRoom;
+    !entrySide &&
+    (verdict === 'EXIT_IMMEDIATELY' ||
+      verdict === 'SCALE_OUT_NOW' ||
+      verdict === 'NO_TOUCH' ||
+      noRoom);
 
   const rungCount = coil.coilScore > 0.8 ? 2 : coil.coilScore > 0.5 ? 3 : 3;
   const ladderBudget = 1 - runner;
 
   // Front-load in proportion to threat, and harder still when there is no stop
-  // worth setting.
-  const firstWeight = clamp(0.3 + 0.45 * coil.coilScore + (noRoom ? 0.15 : 0), 0.3, 0.75);
+  // worth setting — but not on an entry call, where there is nothing to front-load.
+  const firstWeight = clamp(
+    0.3 + 0.45 * coil.coilScore + (noRoom && !entrySide ? 0.15 : 0),
+    0.3,
+    0.75,
+  );
   const weights: number[] = [];
   if (rungCount === 2) {
     weights.push(firstWeight, 1 - firstWeight);
