@@ -97,13 +97,22 @@ Full annotated list in [`.env.example`](.env.example). The short version:
 | `NEXTAUTH_SECRET` | `openssl rand -base64 32`. Also salts anonymous rate limiting. |
 | `CRON_SECRET` | `openssl rand -hex 32`. The cron routes **refuse to run** without it rather than sit open. |
 
-### Market data — all optional, each degrades rather than breaks
+### Market data
 | Variable | What you lose without it |
 |---|---|
 | *(none)* — DexScreener | Nothing to set. Price, liquidity, volume, order flow. Required for any live read. |
 | *(none)* — RugCheck | Nothing to set. Mint/freeze authority, LP lock, top holders, insider priors. |
-| `HELIUS_API_KEY` | **The important one.** Holder balances and swap history — the inputs to cost basis. Without it there is no coil at all, only structural analysis, and the app says so on screen. |
-| `BIRDEYE_API_KEY` | The chart, and the volatility term in the stop. |
+| `BIRDEYE_API_KEY` | **The important one.** Price history is what the cost-basis distribution is built from. Without it there is no coil — only structural analysis — and the app says so on screen. |
+| `HELIUS_API_KEY` | Insider cost basis, the holder book, and wallet import. The read still works without it; it just cannot tell you what the deployer-linked cluster paid. |
+
+### Alert delivery — this is what the paid tiers actually sell
+| Variable | Without it |
+|---|---|
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | No Telegram alerts. Create the bot with [@BotFather](https://t.me/BotFather) (`/newbot`), then `POST /api/telegram/setup` once with your `CRON_SECRET` to register the webhook. |
+| `RESEND_API_KEY`, `ALERT_FROM_EMAIL` | No email fallback. |
+
+If neither is set, alerts are written to the database and nobody ever sees them
+— which makes "the engine watches while you sleep" untrue. Set at least one.
 
 ### Auth and payments — optional
 | Variable | Without it |
@@ -128,10 +137,23 @@ The build runs `prisma generate` before `next build`, so no extra build command
 is needed.
 
 ### Cron jobs
+
+Vercel's **Hobby plan caps cron at two jobs running once per day**, which is
+useless for a sweep whose purpose is catching a stop as it breaks. Scheduling
+therefore runs from GitHub Actions ([`.github/workflows/cron.yml`](.github/workflows/cron.yml)),
+which is free and runs on any schedule. Add two repository secrets under
+**Settings → Secrets and variables → Actions**:
+
+- `MEEME_APP_URL` — your deployment URL, no trailing slash
+- `MEEME_CRON_SECRET` — the same value as `CRON_SECRET` in Vercel
+
 | Path | Schedule | Job |
 |---|---|---|
-| `/api/cron/sweep` | every 5 min | Re-reads watched tokens and open positions; fires alerts on **crossings**, not levels, with a one-hour per-kind cooldown. |
-| `/api/cron/score` | hourly | Grades signals that are four hours past their call into the public track record. |
+| `/api/cron/sweep` | every 5 min | Re-reads watched tokens and open positions, fires alerts on **crossings** (not levels, with a one-hour per-kind cooldown), then delivers everything undelivered. |
+| `/api/cron/score` | hourly | Grades signals four hours past their call into the public track record. |
+| `/api/cron/scan` | every 30 min | Reads live tokens autonomously so the ledger accumulates real graded calls without waiting for traffic. |
+
+On Vercel Pro, delete the workflow and put the same schedules in `vercel.json`.
 
 ---
 
@@ -154,34 +176,77 @@ trust argument and the marketing.
 
 ---
 
+## The public API (Apex)
+
+```bash
+curl -H "Authorization: Bearer meeme_live_..." \
+  "https://your-app/api/v1/lock?address=<mint>"
+
+# with your position, for a ladder read from your entry
+  ...&entry=0.0000042&size=1200000
+```
+
+Keys are issued from the watchtower and stored only as SHA-256 hashes — a
+database dump yields nothing usable, and there is no code path, including ours,
+that can reproduce a key after issuance. 5,000 calls/day.
+
+---
+
 ## Architecture
 
 ```
 lib/engine/          Pure math. No I/O, no clock, no randomness.
   types.ts           The normalized TokenSnapshot every provider produces.
+  distribution.ts    Cost-basis distribution: volume profile + wallet overlay.
   coil.ts            Coiled/trapped supply, shelves, velocity, structural risk.
-  cluster.ts         Cost-basis reconstruction and insider-cluster detection.
+  cluster.ts         Per-wallet reconstruction and insider-cluster detection.
   ladder.ts          Ladder construction and stop resolution.
   verdict.ts         Seven calls, conviction, and the reasoning behind each.
 
 lib/providers/       Adapters. Every one is allowed to fail.
   http.ts            Timeouts, bounded retries, zod validation on every response.
-  dexscreener.ts     Price, liquidity, flow.   (no key)
-  rugcheck.ts        Authorities, LP lock.     (no key)
-  helius.ts          Holder book, swap history.(key)
-  birdeye.ts         Candles, SOL price.       (key)
+  dexscreener.ts     Price, liquidity, flow.        (no key)
+  rugcheck.ts        Authorities, LP lock.          (no key)
+  birdeye.ts         Price history — feeds the distribution. (key)
+  helius.ts          Holder book, per-wallet history.        (key)
+  wallet.ts          Public-address position discovery.      (key)
+  discover.ts        Candidate tokens for the autonomous scan.
   demo.ts            Deterministic synthetic tokens.
-  index.ts           Assembly, degradation, honest dataQuality reporting.
+  index.ts           Assembly, degradation, honest coverage reporting.
+
+lib/notify/          Telegram and email delivery, quiet hours, retries.
+lib/apikey.ts        Hashed API keys for the Apex tier.
 
 app/api/lock/        The whole product in one request.
+app/api/v1/lock/     The same thing, for someone else's bot.
 app/api/cron/        The half that works while you are asleep.
 ```
+
+### How the mechanic gets its data
+
+Reconstructing cost basis by replaying a token's whole trade history does not
+work: a live memecoin has tens of thousands of swaps and no free API pages
+through them inside a request. A truncated replay produces wallets whose
+reconstructed balance disagrees with the chain, which the engine then correctly
+refuses to price — so the distribution comes back empty and the mechanic
+silently produces nothing.
+
+So the float's cost basis comes from price history instead. Each candle records
+`volume / price` tokens changing hands at that price; under a random-reselection
+model the share still held is `exp(-turnover_since / float)`. Walking backwards
+from spot gives the distribution from OHLCV alone. Per-wallet reconstruction is
+kept only for the insider cluster — a few dozen addresses whose individual
+histories are genuinely short — and overlaid on top.
+
+`CoilReport.method` reports which path produced a given read (`wallet`,
+`hybrid`, `volume-profile`, `none`), and the UI shows it, because it changes
+what the numbers mean.
 
 The engine never touches the network, which is what makes it testable and what
 makes the numbers reproducible. Providers produce a snapshot; the engine reads it.
 
 ```bash
-npm test        # 114 tests
+npm test        # 148 tests
 npm run typecheck
 npm run lint
 ```
@@ -196,25 +261,31 @@ These are real, and the app is built to state them rather than hide them.
    The environment this was built in could not reach `api.dexscreener.com`,
    `api.rugcheck.xyz` or the other market-data hosts — outbound egress policy
    blocked them — so the zod schemas were written from documentation and are
-   deliberately lenient. **Run `/api/diagnostics` on first deploy.** If a shape
-   has drifted, the parse fails loudly in the logs and that provider degrades
-   rather than corrupting a read. Nothing silently invents data.
+   deliberately lenient. **Run `/api/diagnostics` on first deploy.** It makes a
+   real call to every configured provider and reports whether the response
+   parsed. If a shape has drifted, the parse fails loudly in the logs and that
+   provider degrades rather than corrupting a read. Nothing silently invents data.
 
-2. **Cost basis is an approximation.** Swap USD value is derived by attributing
-   a transaction's whole native leg to its token leg. Where reconstructed
-   balances drift more than 25% from the on-chain balance, the engine **refuses
-   to report a cost basis** for that wallet rather than guess — which is why
-   `supplyCovered` is on screen and why confidence falls when it is low.
+2. **The volume profile is a model, not a measurement.** It assumes tokens are
+   reselected for trading at random, which is wrong in the specific way that
+   matters: insiders trade more than the average holder. That is precisely why
+   the insider cluster is priced per wallet and overlaid rather than left to the
+   model. Where the profile carries the read alone, `method` says
+   `volume-profile` and confidence is discounted for it.
 
-3. **Holder and history pagination is capped** (5 pages each) so requests finish
-   inside a serverless timeout. On a token with hundreds of thousands of holders
-   the top wallets are covered and the tail is not; coverage is reported and
-   confidence is discounted accordingly.
+3. **Insider cost basis is an approximation.** Swap USD value attributes a
+   transaction's whole native leg to its token leg. Where a reconstructed
+   balance drifts more than 25% from the on-chain balance, the engine **refuses
+   to report a cost basis** for that wallet rather than guess.
 
-4. **Solana only.** The types carry a `chain` field and the engine is
+4. **Wallet-entry reconstruction only sees recent history** (300 transactions).
+   A trader whose buys predate that window gets their positions listed without
+   an entry price, and is told so rather than shown a fabricated one.
+
+5. **Solana only.** The types carry a `chain` field and the engine is
    chain-agnostic, but only Solana providers are implemented.
 
-5. **The engine has never been backtested against realized outcomes.** The
+6. **The engine has never been backtested against realized outcomes.** The
    weights and thresholds encode reasoning about trader psychology, not fitted
    parameters. That is exactly why the track record exists and why it is public
    from day one — it is the instrument for finding out whether the thesis holds.

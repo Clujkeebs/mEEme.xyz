@@ -2,7 +2,10 @@ import { ArrowRight, Crosshair, Radar, ShieldCheck, TrendingDown } from 'lucide-
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { WorkedExample } from '@/components/worked-example';
 import { prisma } from '@/lib/db';
+import { runAlphaEngine } from '@/lib/engine';
+import { buildDemoSnapshot, buildSnapshot } from '@/lib/providers';
 import { summarize } from '@/lib/scoring';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +25,34 @@ async function headlineStats() {
   }
 }
 
+/**
+ * The example is a real engine run, not a mockup. It prefers the most recent
+ * high-conviction live call so the landing page shows the product working on an
+ * actual token; with no live data it falls back to the pinned demo scenario and
+ * labels it, rather than quietly passing synthetic output off as real.
+ */
+async function exampleSignal(): Promise<{ signal: Awaited<ReturnType<typeof runAlphaEngine>>; demo: boolean }> {
+  const DEMO_ADDRESS = 'mEEmeDUMP1111111111111111111111111111111111';
+  try {
+    const recent = await prisma.signal.findFirst({
+      where: { synthetic: false, conviction: { gte: 0.4 } },
+      orderBy: { createdAt: 'desc' },
+      select: { tokenAddress: true },
+    });
+    if (recent) {
+      const result = await buildSnapshot(recent.tokenAddress);
+      if (result.mode === 'live') {
+        return { signal: runAlphaEngine(result.snapshot), demo: false };
+      }
+    }
+  } catch {
+    // Fall through to the demo scenario.
+  }
+  return { signal: runAlphaEngine(buildDemoSnapshot(DEMO_ADDRESS)), demo: true };
+}
+
 export default async function HomePage() {
-  const stats = await headlineStats();
+  const [stats, example] = await Promise.all([headlineStats(), exampleSignal()]);
 
   return (
     <div className="space-y-24 py-10">
@@ -72,6 +101,16 @@ export default async function HomePage() {
             graded calls · every one of them public, wins and losses.
           </p>
         )}
+      </section>
+
+      {/* ── Evidence, before any more claims ──────────────────────────────── */}
+      <section>
+        <h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">what you actually get</h2>
+        <p className="mb-6 mt-2 max-w-2xl text-muted-foreground">
+          Not a score out of ten. A call, the evidence behind it, and the exact prices to act on.
+          This is a live run of the same engine that serves the app.
+        </p>
+        <WorkedExample signal={example.signal} demo={example.demo} />
       </section>
 
       {/* ── The mechanic ──────────────────────────────────────────────────── */}

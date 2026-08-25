@@ -184,13 +184,27 @@ export function SupplyProfile({
               >
                 {formatPrice(shelf.priceUsd)}
               </text>
-              <text
-                x={Math.min(LABEL_WIDTH + barWidth + 6, LABEL_WIDTH + BAR_AREA + 6)}
-                y={barY + 3}
-                className="fill-muted-foreground/80 font-mono text-[9px]"
-              >
-                {formatPct(shelf.supplyFraction, 1)}
-              </text>
+              {/* A long bar would push its label into the right gutter and
+                  collide with the trapdoor and ceiling names, so past a certain
+                  length the label moves inside the bar instead. */}
+              {barWidth > BAR_AREA * 0.82 ? (
+                <text
+                  x={LABEL_WIDTH + barWidth - 5}
+                  y={barY + 3}
+                  textAnchor="end"
+                  className="fill-background font-mono text-[9px] font-semibold"
+                >
+                  {formatPct(shelf.supplyFraction, 1)}
+                </text>
+              ) : (
+                <text
+                  x={LABEL_WIDTH + barWidth + 6}
+                  y={barY + 3}
+                  className="fill-muted-foreground/80 font-mono text-[9px]"
+                >
+                  {formatPct(shelf.supplyFraction, 1)}
+                </text>
+              )}
             </g>
           );
         })}

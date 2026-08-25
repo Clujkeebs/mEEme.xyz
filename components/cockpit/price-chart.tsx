@@ -48,6 +48,12 @@ export function PriceChart({
     const container = containerRef.current;
     if (!container || candles.length === 0) return;
 
+    // Every price line costs an axis label, and axis labels stack. On a phone
+    // there is room for the two that decide an action — where it breaks and
+    // where you are out — and showing the rest just buries them.
+    const NARROW_PX = 520;
+    const narrow = container.clientWidth > 0 && container.clientWidth < NARROW_PX;
+
     // Memecoin prices run from $40 to $0.000000000012, so precision has to be
     // derived from the data. A fixed 10 decimals makes the axis unreadable and,
     // worse, gives the tick generator a minMove of 1e-10 — which is what makes
@@ -122,7 +128,7 @@ export function PriceChart({
       });
     }
 
-    if (ceilingUsd !== null && ceilingUsd > 0) {
+    if (ceilingUsd !== null && ceilingUsd > 0 && !narrow) {
       series.createPriceLine({
         price: ceilingUsd,
         color: '#2f6fed',
@@ -133,7 +139,7 @@ export function PriceChart({
       });
     }
 
-    if (entryUsd && entryUsd > 0) {
+    if (entryUsd && entryUsd > 0 && !narrow) {
       series.createPriceLine({
         price: entryUsd,
         color: '#7cf7d4',
@@ -145,7 +151,8 @@ export function PriceChart({
     }
 
     if (ladder) {
-      ladder.rungs.forEach((rung, i) => {
+      const rungs = narrow ? [] : ladder.rungs;
+      rungs.forEach((rung, i) => {
         // A market rung sits exactly at spot; drawing it just stacks a second
         // label on top of the current-price label.
         const atSpot = Math.abs(rung.priceUsd - (candles.at(-1)?.close ?? 0)) < 1e-12;
@@ -211,6 +218,9 @@ export function PriceChart({
         {trapdoorUsd !== null && <span className="text-coil">— trapdoor {formatPrice(trapdoorUsd)}</span>}
         {ceilingUsd !== null && <span className="text-trap">-- ceiling {formatPrice(ceilingUsd)}</span>}
         {ladder && <span className="text-warn">== stop {formatPrice(ladder.hardStopUsd)}</span>}
+        {ladder && ladder.rungs.length > 0 && (
+          <span className="text-primary sm:hidden">rungs listed in the ladder below</span>
+        )}
       </div>
     </div>
   );
