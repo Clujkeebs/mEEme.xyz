@@ -104,6 +104,18 @@ export async function GET() {
           : '';
       return { ok: true, detail: `Answered. ${holders} top holders parsed${caveat}.` };
     }),
+    probe('geckoterminal', true, async () => {
+      const { fetchDexScreenerMarket } = await import('@/lib/providers/dexscreener');
+      const market = await fetchDexScreenerMarket(PROBE_MINT);
+      if (!market?.pairAddress) {
+        return { ok: false, detail: 'Could not resolve a pool address to ask about.' };
+      }
+      const { fetchGeckoCandles } = await import('@/lib/providers/geckoterminal');
+      const candles = await fetchGeckoCandles(market.pairAddress, market.ageMinutes);
+      return candles
+        ? { ok: true, detail: `Answered. ${candles.length} candles — the cost-basis distribution has data.` }
+        : { ok: false, detail: 'No candles. Without price history there is no coil, only structural analysis.' };
+    }),
     probe('helius', heliusConfigured(), async () => {
       const { fetchAsset } = await import('@/lib/providers/helius');
       const asset = await fetchAsset(PROBE_MINT);

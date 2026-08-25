@@ -35,17 +35,20 @@ and set on Railway. `NEXTAUTH_URL` points at the Railway domain — **change it
 when you add your own domain**, and update the Google redirect URI and Stripe
 webhook to match.
 
-## 3. Birdeye — the one that turns the mechanic on
+## 3. Price history — ✅ done, no key needed
 
-Without this: no price history, so no cost-basis distribution, so no coil. The
-app degrades to structural analysis only and says so on screen.
+Price history is what the cost-basis distribution is built from, so without it
+there is no coil at all. This used to require a Birdeye key.
 
-1. [birdeye.so](https://birdeye.so) → Data Services → sign up → create an API key.
-2. Set `BIRDEYE_API_KEY`.
+It no longer does: GeckoTerminal serves the same OHLCV for Solana pools with no
+key, and DexScreener already resolves the pool address to ask about. The
+mechanic works out of the box.
 
-The free tier is rate-limited. If `/api/diagnostics` shows Birdeye failing under
-load, that is the limit, not a bug — the paid tier starts around $99/mo and is
-the first thing worth spending money on.
+**Birdeye is now an optional upgrade.** The keyless tier is roughly 30
+requests/minute, which is fine for on-demand reads and a 12-token scan every 30
+minutes. If `/api/diagnostics` starts showing GeckoTerminal rate-limited as
+traffic grows, that is when to add `BIRDEYE_API_KEY` — it is preferred
+automatically when present, no code change.
 
 ## 4. Helius — insider forensics and wallet import
 
@@ -132,12 +135,11 @@ Telegram setup call.
 ## Order of operations, if you only do some of it
 
 1. ~~Database + secrets~~ — done.
-2. **Birdeye** — this is what turns the mechanic on. Until it is set, the
-   product is a structural scanner, and there are free ones of those. Do this
-   one first.
-3. **Telegram** — without delivery there is nothing to charge for.
+2. ~~Price history~~ — done, and keyless. The mechanic is on.
+3. **Telegram** — without delivery there is nothing to charge for. Start here.
 4. **Google + Stripe** — you cannot take money without both.
-5. **Helius** — sharpens the read and unlocks wallet import.
+5. **Helius** — sharpens insider cost basis and unlocks wallet import.
+6. **Birdeye** — only once GeckoTerminal's rate limit starts biting.
 
 ## First-run checks
 

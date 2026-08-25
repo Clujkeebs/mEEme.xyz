@@ -1,6 +1,7 @@
 import { reconstructHolders, summarizeCoverage } from '@/lib/engine/cluster';
-import type { HolderPosition, TokenSnapshot } from '@/lib/engine/types';
+import type { Candle, HolderPosition, TokenSnapshot } from '@/lib/engine/types';
 import { birdeyeConfigured, fetchCandles, fetchSolPriceUsd } from './birdeye';
+import { fetchGeckoCandles } from './geckoterminal';
 import { buildDemoSnapshot } from './demo';
 import { fetchDexScreenerMarket } from './dexscreener';
 import { fetchAsset, fetchHolderBalances, fetchWalletHistories, heliusConfigured } from './helius';
@@ -87,19 +88,17 @@ export async function buildSnapshot(
 
   const decimals = rugcheck?.decimals ?? 6;
 
-  const [candles, solPrice, asset] = await Promise.all([
-    // Resolution is chosen from the token's age — see intervalForAge.
-    fetchCandles(tokenAddress, market.ageMinutes, nowMs),
+  const [candleResult, solPrice, asset] = await Promise.all([
+    fetchPriceHistory(tokenAddress, market.pairAddress, market.ageMinutes, nowMs),
     fetchSolPriceUsd(),
     heliusConfigured() ? fetchAsset(tokenAddress) : Promise.resolve(null),
   ]);
 
-  if (candles) sources.push('birdeye:ohlcv');
+  const candles = candleResult.candles;
+  if (candles) sources.push(candleResult.source);
   else {
     missing.push(
-      birdeyeConfigured()
-        ? 'birdeye:ohlcv'
-        : 'birdeye (no key — no price history, so no cost-basis distribution)',
+      'price history (no candles from any source — without it there is no cost-basis distribution)',
     );
   }
   if (asset) sources.push('helius:asset');
@@ -232,6 +231,36 @@ export async function buildSnapshot(
 }
 
 /**
+ * Price history, from whichever source can supply it.
+ *
+ * Candles are not chart decoration: the cost-basis distribution is derived from
+ * where volume actually traded, so no candles means no coil. Birdeye is
+ * preferred when a key exists because its rate limits suit scheduled polling;
+ * GeckoTerminal needs no key at all, which is what makes a zero-config
+ * deployment a working product rather than a structural scanner.
+ */
+async function fetchPriceHistory(
+  tokenAddress: string,
+  poolAddress: string | null,
+  ageMinutes: number,
+  nowMs: number,
+): Promise<{ candles: Candle[] | null; source: string }> {
+  if (birdeyeConfigured()) {
+    const candles = await fetchCandles(tokenAddress, ageMinutes, nowMs);
+    if (candles) return { candles, source: 'birdeye:ohlcv' };
+  }
+
+  // GeckoTerminal is keyed by pool, and DexScreener already resolved the
+  // deepest pool for this token.
+  if (poolAddress) {
+    const candles = await fetchGeckoCandles(poolAddress, ageMinutes);
+    if (candles) return { candles, source: 'geckoterminal:ohlcv' };
+  }
+
+  return { candles: null, source: 'none' };
+}
+
+/**
  * Choose which wallets are worth spending a history request on.
  *
  * Ranked by how much their exact cost basis moves the call: the deployer and
@@ -281,10 +310,16 @@ export function providerStatus(): { name: string; configured: boolean; required:
       note: 'Holder balances and swap history. Without it there is no cost basis, so no coil — structural analysis only.',
     },
     {
+      name: 'geckoterminal',
+      configured: true,
+      required: false,
+      note: 'No key needed. Price history, which is what the cost-basis distribution is built from.',
+    },
+    {
       name: 'birdeye',
       configured: birdeyeConfigured(),
       required: false,
-      note: 'OHLCV candles and SOL price. Without it the chart is empty and the stop uses a default range.',
+      note: 'Optional upgrade over GeckoTerminal: same candles, rate limits that suit scheduled polling, plus SOL price for insider cost basis.',
     },
   ];
 }

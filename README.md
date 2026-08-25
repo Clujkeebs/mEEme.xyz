@@ -102,7 +102,8 @@ Full annotated list in [`.env.example`](.env.example). The short version:
 |---|---|
 | *(none)* — DexScreener | Nothing to set. Price, liquidity, volume, order flow. Required for any live read. |
 | *(none)* — RugCheck | Nothing to set. Mint/freeze authority, LP lock, top holders, insider priors. |
-| `BIRDEYE_API_KEY` | **The important one.** Price history is what the cost-basis distribution is built from. Without it there is no coil — only structural analysis — and the app says so on screen. |
+| *(none)* — GeckoTerminal | Nothing to set. **Price history, which is what the cost-basis distribution is built from.** This is why the mechanic works with zero configuration. |
+| `BIRDEYE_API_KEY` | Optional upgrade. Same candles as GeckoTerminal, but rate limits that suit scheduled polling — the keyless tier is roughly 30 req/min. Preferred automatically when present. |
 | `HELIUS_API_KEY` | Insider cost basis, the holder book, and wallet import. The read still works without it; it just cannot tell you what the deployer-linked cluster paid. |
 
 ### Alert delivery — this is what the paid tiers actually sell
