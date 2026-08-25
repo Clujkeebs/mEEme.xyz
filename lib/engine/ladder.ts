@@ -3,6 +3,7 @@ import type {
   CoilReport,
   ExitLadder,
   LadderRung,
+  StopQuality,
   TokenSnapshot,
   UserPosition,
   Verdict,
@@ -16,8 +17,14 @@ import type {
  * realized volatility only where it does not — never from round numbers.
  */
 
-/** Fallback stop distance when no coiled shelf gives us a structural one. */
-const FALLBACK_STOP_PCT = 0.35;
+/**
+ * A stop further away than this is not a stop, it is a prayer. When the nearest
+ * coiled shelf sits below this bound we keep the tighter volatility stop and
+ * say so, rather than handing back a number nobody would ever honour.
+ */
+const MAX_STOP_DISTANCE_PCT = 0.45;
+/** Nor is a stop inside the token's own noise. */
+const MIN_STOP_DISTANCE_PCT = 0.15;
 /** Snap a computed target onto a real shelf if it sits within this distance. */
 const SHELF_SNAP_TOLERANCE = 0.2;
 /** Volatility multiples for the three default rungs. */
@@ -71,13 +78,69 @@ function snapToShelf(target: number, coil: CoilReport, spot: number): { price: n
  * Structural stop. The trapdoor is the price at which the largest block of
  * currently-profitable supply goes to breakeven — the level where paper gains
  * turn into a stampede for the door.
+ *
+ * Structure proposes, tradability disposes: the level is clamped into a band
+ * derived from the token's own volatility, so it is never inside the noise and
+ * never so far away that honouring it would be indistinguishable from holding.
  */
-export function resolveHardStop(snapshot: TokenSnapshot, coil: CoilReport): number {
-  if (coil.trapdoorUsd !== null && coil.trapdoorUsd > 0 && coil.trapdoorUsd < snapshot.priceUsd) {
+export function resolveHardStop(
+  snapshot: TokenSnapshot,
+  coil: CoilReport,
+): { priceUsd: number; quality: StopQuality; note: string } {
+  const spot = snapshot.priceUsd;
+  const atr = atrPercent(snapshot);
+
+  // Give the token room to breathe — three average ranges — inside a hard band.
+  const bandPct = clamp(3 * atr, MIN_STOP_DISTANCE_PCT, MAX_STOP_DISTANCE_PCT);
+  const volatilityFloor = spot * (1 - bandPct);
+
+  if (coil.trapdoorUsd !== null && coil.trapdoorUsd > 0 && coil.trapdoorUsd < spot) {
     // Sit just under the shelf: you want to be out before the cascade, not in it.
-    return coil.trapdoorUsd * 0.97;
+    const structural = coil.trapdoorUsd * 0.97;
+    const distancePct = (spot - structural) / spot;
+
+    if (distancePct < atr) {
+      // The cascade level is closer than a single average candle. A stop here
+      // is noise; a stop below it means holding through the cascade. Neither is
+      // a plan — the honest read is that the position has no room.
+      return {
+        priceUsd: structural,
+        quality: 'inside-noise',
+        note:
+          `The trapdoor sits ${(distancePct * 100).toFixed(1)}% away, inside this token's average ` +
+          `${(atr * 100).toFixed(0)}% candle. There is no stop that survives the noise and still ` +
+          `protects you — size down instead of relying on one.`,
+      };
+    }
+
+    if (structural < volatilityFloor) {
+      // The shelf is further than the band allows. Honouring it is barely
+      // different from having no stop at all.
+      return {
+        priceUsd: volatilityFloor,
+        quality: 'volatility',
+        note:
+          `Nearest cascade level is ${(((spot - structural) / spot) * 100).toFixed(0)}% down — too far to be a ` +
+          `real stop, so this is a volatility stop at ${(bandPct * 100).toFixed(0)}% (3× average range).`,
+      };
+    }
+
+    return {
+      priceUsd: structural,
+      quality: 'structural',
+      note:
+        `Structural: ${((coil.trapdoorUsd / spot - 1) * -100).toFixed(0)}% below spot, just under the shelf ` +
+        `where the largest block of in-profit supply goes breakeven.`,
+    };
   }
-  return snapshot.priceUsd * (1 - FALLBACK_STOP_PCT);
+
+  // No coiled shelf below us: nothing structural to lean on, so the token's own
+  // volatility is the only honest basis for a stop.
+  return {
+    priceUsd: volatilityFloor,
+    quality: 'volatility',
+    note: `No coiled shelf below spot to lean on — volatility stop at ${(bandPct * 100).toFixed(0)}% (3× average range).`,
+  };
 }
 
 /**
@@ -96,7 +159,7 @@ export function buildLadder(
   position: UserPosition | null,
 ): ExitLadder {
   const spot = snapshot.priceUsd;
-  const hardStop = resolveHardStop(snapshot, coil);
+  const stop = resolveHardStop(snapshot, coil);
   const runner = runnerFraction(coil.coilScore);
   const atr = atrPercent(snapshot);
 
@@ -104,13 +167,17 @@ export function buildLadder(
   // is in front of you rather than what you hoped for.
   const compression = 1 - 0.5 * clamp(coil.coilScore, 0, 1);
 
-  const urgentNow = verdict === 'EXIT_IMMEDIATELY' || verdict === 'SCALE_OUT_NOW' || verdict === 'NO_TOUCH';
+  // A position with no room is itself urgent, whatever the coil says.
+  const noRoom = stop.quality === 'inside-noise';
+  const urgentNow =
+    verdict === 'EXIT_IMMEDIATELY' || verdict === 'SCALE_OUT_NOW' || verdict === 'NO_TOUCH' || noRoom;
 
   const rungCount = coil.coilScore > 0.8 ? 2 : coil.coilScore > 0.5 ? 3 : 3;
   const ladderBudget = 1 - runner;
 
-  // Front-load in proportion to threat.
-  const firstWeight = clamp(0.3 + 0.45 * coil.coilScore, 0.3, 0.75);
+  // Front-load in proportion to threat, and harder still when there is no stop
+  // worth setting.
+  const firstWeight = clamp(0.3 + 0.45 * coil.coilScore + (noRoom ? 0.15 : 0), 0.3, 0.75);
   const weights: number[] = [];
   if (rungCount === 2) {
     weights.push(firstWeight, 1 - firstWeight);
@@ -134,7 +201,9 @@ export function buildLadder(
       rationale =
         verdict === 'EXIT_IMMEDIATELY'
           ? 'Market. The distribution is already running; price is the only thing you still control.'
-          : 'Market. Insider supply is converting to cash — you do not want to be the last fill.';
+          : noRoom
+            ? 'Market. You are sitting on top of a cascade level with no room for a stop — take the size off instead.'
+            : 'Market. Insider supply is converting to cash — you do not want to be the last fill.';
     } else {
       const multiple = RUNG_VOLATILITY_MULTIPLES[i] ?? RUNG_VOLATILITY_MULTIPLES[2];
       const raw = spot * (1 + atr * multiple * compression);
@@ -164,9 +233,16 @@ export function buildLadder(
   }
 
   const takenNow = rungs[0] && urgentNow ? rungs[0].fraction : 0;
-  const summary = buildSummary({ rungs, runner, hardStop, takenNow, position, spot });
+  const summary = buildSummary({ rungs, runner, hardStop: stop.priceUsd, takenNow, position, spot });
 
-  return { rungs, runnerFraction: runner, hardStopUsd: hardStop, summary };
+  return {
+    rungs,
+    runnerFraction: runner,
+    hardStopUsd: stop.priceUsd,
+    stopQuality: stop.quality,
+    stopNote: stop.note,
+    summary,
+  };
 }
 
 function shelfFractionAt(coil: CoilReport, priceUsd: number): number {

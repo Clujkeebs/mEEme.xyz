@@ -1,0 +1,259 @@
+// mEEme.xyz schema.
+//
+// Deliberately portable: no enums, no native arrays, no Json columns. Those are
+// Postgres-only, and the whole point is that `DATABASE_URL=file:./dev.db` runs
+// the same schema locally that Postgres runs in production. Structured values
+// are stored as JSON strings and parsed at the edge of the DB layer.
+// scripts/setup.sh rewrites the provider below to match your DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ——— auth (NextAuth) ———
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  // "FREE" | "DEGEN" | "APEX"
+  tier               String    @default("FREE")
+  stripeCustomerId   String?   @unique
+  stripeSubId        String?   @unique
+  // "active" | "trialing" | "past_due" | "canceled" | "incomplete"
+  stripeStatus       String?
+  subscriptionEndsAt DateTime?
+
+  // Referral loop: every user gets a code, every share carries it.
+  referralCode   String  @unique @default(cuid())
+  referredByCode String?
+
+  accounts  Account[]
+  sessions  Session[]
+  positions Position[]
+  watches   Watch[]
+  signals   Signal[]
+  usage     UsageDay[]
+  alerts    Alert[]
+
+  @@index([referredByCode])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ——— trading ———
+
+/// A token the user actually holds. Drives the ladder and the exit alerts.
+model Position {
+  id            String   @id @default(cuid())
+  userId        String
+  tokenAddress  String
+  chain         String   @default("solana")
+  symbol        String
+  /// Token units held.
+  size          Float
+  /// USD cost per token.
+  entryPriceUsd Float
+  openedAt      DateTime @default(now())
+  closedAt      DateTime?
+  /// Realized USD PnL once closed.
+  realizedPnlUsd Float?
+  notes         String?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@index([userId, closedAt])
+  @@index([tokenAddress])
+}
+
+/// A token under active surveillance, held or not.
+model Watch {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenAddress String
+  chain        String   @default("solana")
+  symbol       String
+  createdAt    DateTime @default(now())
+  /// Fire an alert when the coil score crosses this.
+  coilThreshold Float   @default(0.68)
+  /// Last coil score seen by the sweep, so we alert on crossings, not levels.
+  lastCoilScore Float?
+  lastSweptAt   DateTime?
+  active        Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tokenAddress])
+  @@index([active, lastSweptAt])
+}
+
+/// Every call the engine has ever made. Immutable. This is the track record.
+model Signal {
+  id           String   @id @default(cuid())
+  userId       String?
+  tokenAddress String
+  chain        String   @default("solana")
+  symbol       String
+  createdAt    DateTime @default(now())
+
+  verdict     String
+  conviction  Float
+  coilScore   Float
+  confidence  Float
+  headline    String
+
+  coiledSupply         Float
+  trappedSupply        Float
+  insiderCoil          Float
+  insiderRealized      Float
+  velocityOfRealization Float
+
+  priceAtSignal Float
+  trapdoorUsd   Float?
+  ceilingUsd    Float?
+  halfLifeMin   Int    @default(15)
+
+  /// JSON: string[] of reasoning lines.
+  reasoningJson String
+  /// JSON: ExitLadder, or null.
+  ladderJson    String?
+  /// True for demo-mode reads. Excluded from the public track record, always.
+  synthetic     Boolean @default(false)
+  /// Public share slug for the Exit Card.
+  shareSlug     String  @unique @default(cuid())
+
+  outcome SignalOutcome?
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tokenAddress, createdAt])
+  @@index([userId, createdAt])
+  @@index([synthetic, createdAt])
+}
+
+/// Resolved after the fact by the scoring cron. Scored against a rule fixed in
+/// code before the call was made — see lib/scoring.ts.
+model SignalOutcome {
+  id       String @id @default(cuid())
+  signalId String @unique
+
+  price15m  Float?
+  price1h   Float?
+  price4h   Float?
+  price24h  Float?
+
+  /// Best/worst price seen inside the 24h window — did the ladder actually fill?
+  maxPrice24h Float?
+  minPrice24h Float?
+
+  /// "correct" | "incorrect" | "neutral" | "pending"
+  grade      String   @default("pending")
+  /// Return the call would have produced, as a fraction. Signed for direction.
+  edgePct    Float?
+  resolvedAt DateTime?
+  updatedAt  DateTime @updatedAt
+
+  signal Signal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@index([grade, resolvedAt])
+}
+
+/// Fired when a watch crosses its threshold, or a position hits a rung/stop.
+model Alert {
+  id           String   @id @default(cuid())
+  userId       String
+  positionId   String?
+  tokenAddress String
+  symbol       String
+  /// "COIL_CROSS" | "RUNG_HIT" | "STOP_HIT" | "INSIDER_DUMP"
+  kind         String
+  message      String
+  priceUsd     Float
+  createdAt    DateTime @default(now())
+  readAt       DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+}
+
+/// Daily quota ledger. One row per user per UTC day.
+model UsageDay {
+  id       String @id @default(cuid())
+  userId   String
+  /// UTC date, "YYYY-MM-DD".
+  day      String
+  locks    Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+}
+
+/// Snapshot cache. Upstream APIs are rate-limited and slow; the engine is not.
+model TokenCache {
+  tokenAddress String   @id
+  chain        String   @default("solana")
+  symbol       String
+  /// JSON: TokenSnapshot.
+  snapshotJson String
+  priceUsd     Float
+  fetchedAt    DateTime @default(now())
+  /// Seconds this entry stays fresh — short for young tokens, long for settled ones.
+  ttlSeconds   Int      @default(60)
+
+  @@index([fetchedAt])
+}
+
+/// Idempotency for Stripe. Webhooks are delivered at least once, not exactly once.
+model ProcessedWebhook {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+}

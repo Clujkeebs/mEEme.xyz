@@ -262,17 +262,14 @@ export function computeConfidence(snapshot: TokenSnapshot): number {
 }
 
 /**
- * The main event. Partition the float around a reference price and measure
- * both sides.
+ * The main event. Partition the float around spot and measure both sides.
  *
- * @param referencePriceUsd  Defaults to spot. Pass the trader's own entry to
- *                           see the book from where they actually stand.
+ * Deliberately takes no reference price. Profit and loss that drive selling are
+ * measured against the price a holder can actually sell at right now, so the
+ * whole report is objective market structure. Where the *trader* stands is a
+ * separate question, answered in the reasoning and the ladder.
  */
-export function analyzeCoil(
-  snapshot: TokenSnapshot,
-  referencePriceUsd?: number,
-): CoilReport {
-  const reference = referencePriceUsd && referencePriceUsd > 0 ? referencePriceUsd : snapshot.priceUsd;
+export function analyzeCoil(snapshot: TokenSnapshot): CoilReport {
   const float = tradableSupply(snapshot);
   const spot = snapshot.priceUsd;
 
@@ -304,9 +301,9 @@ export function analyzeCoil(
     }
   }
 
-  const shelves = computeShelves(snapshot, reference);
-  const trapdoor = selectShelf(shelves, reference, 'coiled');
-  const ceiling = selectShelf(shelves, reference, 'trapped');
+  const shelves = computeShelves(snapshot, spot);
+  const trapdoor = selectShelf(shelves, spot, 'coiled');
+  const ceiling = selectShelf(shelves, spot, 'trapped');
 
   const vor = velocityOfRealization(snapshot);
   const { risk, flags } = structuralRisk(snapshot);

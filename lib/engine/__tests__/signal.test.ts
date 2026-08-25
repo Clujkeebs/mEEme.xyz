@@ -54,20 +54,39 @@ describe('runnerFraction', () => {
 });
 
 describe('resolveHardStop', () => {
-  it('places the stop just under the trapdoor', () => {
-    const stop = resolveHardStop(snapshot({ priceUsd: 0.01 }), coilOf({ trapdoorUsd: 0.005 }));
-    expect(stop).toBeLessThan(0.005);
-    expect(stop).toBeGreaterThan(0.0045);
+  it('places the stop just under a usable trapdoor', () => {
+    // snapshot() candles give ~11% ATR, so a 25%-away shelf is inside the band.
+    const stop = resolveHardStop(snapshot({ priceUsd: 0.01 }), coilOf({ trapdoorUsd: 0.0075 }));
+    expect(stop.quality).toBe('structural');
+    expect(stop.priceUsd).toBeLessThan(0.0075);
+    expect(stop.priceUsd).toBeGreaterThan(0.007);
   });
 
   it('falls back to a volatility stop when no trapdoor exists', () => {
     const stop = resolveHardStop(snapshot({ priceUsd: 0.01 }), coilOf({ trapdoorUsd: null }));
-    expect(stop).toBeCloseTo(0.0065, 6);
+    expect(stop.quality).toBe('volatility');
+    expect(stop.priceUsd).toBeLessThan(0.01);
+    expect(stop.priceUsd).toBeGreaterThan(0.005);
   });
 
   it('ignores a trapdoor that is not actually below spot', () => {
     const stop = resolveHardStop(snapshot({ priceUsd: 0.01 }), coilOf({ trapdoorUsd: 0.05 }));
-    expect(stop).toBeLessThan(0.01);
+    expect(stop.priceUsd).toBeLessThan(0.01);
+    expect(stop.quality).toBe('volatility');
+  });
+
+  it('refuses to pretend a shelf inside the noise is a usable stop', () => {
+    // Trapdoor 2% below spot, ATR ~11%: any stop there is noise.
+    const stop = resolveHardStop(snapshot({ priceUsd: 0.01 }), coilOf({ trapdoorUsd: 0.0102 * 0.98 }));
+    expect(stop.quality).toBe('inside-noise');
+    expect(stop.note).toMatch(/size down/i);
+  });
+
+  it('downgrades a shelf that is too far away to be honoured', () => {
+    const stop = resolveHardStop(snapshot({ priceUsd: 0.01 }), coilOf({ trapdoorUsd: 0.002 }));
+    expect(stop.quality).toBe('volatility');
+    // Volatility band caps the distance rather than handing back an 80% stop.
+    expect(stop.priceUsd).toBeGreaterThan(0.005);
   });
 });
 
@@ -123,10 +142,21 @@ describe('buildLadder', () => {
     expect(ladder.summary).toMatch(/5\.00× on entry/);
   });
 
-  it('always states a hard stop', () => {
+  it('always states a hard stop with its provenance', () => {
     const ladder = buildLadder(snapshot(), coilOf(), 'HOLD_THROUGH_NOISE', null);
     expect(ladder.hardStopUsd).toBeGreaterThan(0);
     expect(ladder.summary).toMatch(/hard stop/i);
+    expect(ladder.stopQuality).toBeTruthy();
+    expect(ladder.stopNote.length).toBeGreaterThan(10);
+  });
+
+  it('takes size at market when the position has no room for a stop', () => {
+    const snap = snapshot({ priceUsd: 0.01 });
+    const noRoom = coilOf({ coilScore: 0.3, trapdoorUsd: 0.0099 });
+    const ladder = buildLadder(snap, noRoom, 'HOLD_THROUGH_NOISE', null);
+    expect(ladder.stopQuality).toBe('inside-noise');
+    expect(ladder.rungs[0]!.priceUsd).toBe(0.01);
+    expect(ladder.rungs[0]!.rationale).toMatch(/no room/i);
   });
 });
 

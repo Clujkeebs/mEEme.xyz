@@ -144,12 +144,25 @@ export interface LadderRung {
   rationale: string;
 }
 
+/**
+ * Where the stop came from, and whether it is actually usable.
+ *
+ * 'inside-noise' is the interesting one: the trapdoor is real but sits closer
+ * than the token's own average candle range, so any stop honouring it gets
+ * wicked out on noise. That is not a stop problem, it is a position problem —
+ * the trader is sitting directly on top of a cascade level with no room.
+ */
+export type StopQuality = 'structural' | 'volatility' | 'inside-noise';
+
 export interface ExitLadder {
   rungs: LadderRung[];
   /** Fraction left to run after all rungs, 0..1. */
   runnerFraction: number;
   /** Structural stop — the price where profitable supply flips to breakeven and cascades. */
   hardStopUsd: number;
+  stopQuality: StopQuality;
+  /** Why the stop is where it is, in one sentence. */
+  stopNote: string;
   /** Plain-language summary of the plan. */
   summary: string;
 }

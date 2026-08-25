@@ -16,6 +16,6 @@ export function runAlphaEngine(
   snapshot: TokenSnapshot,
   position: UserPosition | null = null,
 ): AlphaSignal {
-  const coil = analyzeCoil(snapshot, position?.entryPriceUsd);
+  const coil = analyzeCoil(snapshot);
   return buildSignal(snapshot, coil, position);
 }
