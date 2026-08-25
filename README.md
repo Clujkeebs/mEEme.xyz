@@ -127,6 +127,29 @@ If neither is set, alerts are written to the database and nobody ever sees them
 **[DEPLOYING.md](DEPLOYING.md) is the go-live checklist** — every key you need,
 where to get it, and what breaks without it, in the order that matters.
 
+### Which host
+
+**Railway is the better fit**, and the reasons are specific rather than
+preference:
+
+| | Vercel | Railway |
+|---|---|---|
+| Process model | serverless — Prisma reconnects after every idle period | persistent, connections stay warm |
+| Cron | Hobby allows 2 jobs, **once per day** | any schedule, or the in-process scheduler below |
+| Function ceiling | 60s | none |
+| Postgres | separate provider | one click, or point at Supabase |
+
+The cold-start difference is not cosmetic here: a Target Lock that waits on a
+database handshake is a Target Lock the trader is watching a candle through.
+
+On a persistent host, set `ENABLE_INTERNAL_CRON=true` and the app schedules its
+own jobs in-process — no external pinger, no shared secret over the wire, no
+best-effort scheduler skipping ticks. The HTTP cron endpoints still exist and
+run the same code, so nothing is lost by using them instead.
+
+Vercel works, and is the right choice if you want preview deployments per
+branch. Use the GitHub Actions workflow for scheduling there.
+
 ## Deploying to Vercel
 
 1. Push this branch and import the repo.
@@ -297,6 +320,30 @@ These are real, and the app is built to state them rather than hide them.
    Treat early accuracy numbers as a small sample.
 
 ---
+
+## Security posture
+
+`npm audit` is clean of everything fixable inside the current major versions.
+Two findings remain, against `next` and `postcss`, and npm resolves both only
+by upgrading to **next@16** — a major version bump that this codebase targets
+Next 14 by design.
+
+They are recorded here rather than carried silently. Nearly all are denial of
+service or cache-poisoning classes that assume a self-hosted image optimizer, a
+custom server, or middleware rewrites — none of which this app uses. That makes
+them low exposure for this deployment, not absent.
+
+The upgrade to Next 16 is a real piece of work (App Router APIs, `next/image`,
+middleware signatures) and wants doing deliberately rather than as a
+side effect of an audit run. Until then:
+
+```bash
+npm audit --omit=dev   # see exactly what is outstanding
+```
+
+Railway's builder refuses a deploy on HIGH-severity advisories, which is how the
+original `next@14.2.33` CVEs were caught — Vercel had built the same commit
+without complaint. Worth keeping in mind when choosing where this runs.
 
 ## Not financial advice
 

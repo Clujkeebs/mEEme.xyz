@@ -4,6 +4,7 @@ import { databaseConfigured, prisma } from '@/lib/db';
 import { birdeyeConfigured } from '@/lib/providers/birdeye';
 import { heliusConfigured } from '@/lib/providers/helius';
 import { demoModeForced, providerStatus } from '@/lib/providers';
+import { discoverCandidates } from '@/lib/providers/discover';
 import { stripeConfigured } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
@@ -19,10 +20,33 @@ export const dynamic = 'force-dynamic';
  * whether the response parsed.
  */
 
-const PROBE_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC — always exists.
+/**
+ * Fallback probe target. USDC always exists, which makes it a safe liveness
+ * check — but it is not a memecoin, so RugCheck has little to say about it and
+ * the probe reported "0 top holders parsed" on a working integration. That
+ * reads as a broken parser when nothing is broken.
+ *
+ * So the probe prefers a token the app would actually be asked about, and only
+ * falls back to USDC when discovery itself is down.
+ */
+const FALLBACK_PROBE_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+async function resolveProbeMint(): Promise<{ mint: string; representative: boolean }> {
+  try {
+    const candidates = await discoverCandidates(1);
+    const first = candidates[0];
+    if (first) return { mint: first.address, representative: true };
+  } catch {
+    // Discovery being down is itself worth knowing, and the checks below will
+    // show it — do not let it stop the rest of the probe.
+  }
+  return { mint: FALLBACK_PROBE_MINT, representative: false };
+}
 
 export async function GET() {
   const checks: { name: string; ok: boolean; detail: string }[] = [];
+  const probeTarget = await resolveProbeMint();
+  const PROBE_MINT = probeTarget.mint;
 
   // Database
   let dbOk = false;
@@ -68,9 +92,17 @@ export async function GET() {
     probe('rugcheck', true, async () => {
       const { fetchRugcheckReport } = await import('@/lib/providers/rugcheck');
       const report = await fetchRugcheckReport(PROBE_MINT);
-      return report
-        ? { ok: true, detail: `Answered. ${report.balances.size} top holders parsed.` }
-        : { ok: false, detail: 'No usable response. Structural flags and insider priors unavailable.' };
+      if (!report) {
+        return { ok: false, detail: 'No usable response. Structural flags and insider priors unavailable.' };
+      }
+      // An empty holder list on a token RugCheck simply does not track is not a
+      // parser failure, and saying so avoids a false alarm.
+      const holders = report.balances.size;
+      const caveat =
+        holders === 0 && !probeTarget.representative
+          ? ' (probe token is not a memecoin, so an empty holder list here is expected)'
+          : '';
+      return { ok: true, detail: `Answered. ${holders} top holders parsed${caveat}.` };
     }),
     probe('helius', heliusConfigured(), async () => {
       const { fetchAsset } = await import('@/lib/providers/helius');
@@ -89,6 +121,7 @@ export async function GET() {
   ]);
 
   return jsonOk({
+    probeToken: { mint: PROBE_MINT, representative: probeTarget.representative },
     demoModeForced: demoModeForced(),
     cronSecretSet: Boolean((process.env.CRON_SECRET ?? '').trim()),
     checks: [...checks, ...probes],
