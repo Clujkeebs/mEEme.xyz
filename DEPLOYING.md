@@ -98,7 +98,7 @@ The product catalogue, prices, and webhook are provisioned via the Stripe MCP �
 |---|---|
 | Degen | `prod_V8jbvt4j5uBwEo` — $4.99/mo — `price_1U8S81LoNTf2Sutm46pDyqQv` |
 | Apex | `prod_V8jbgEyBfawHRd` — $19.99/mo — `price_1U8S83LoNTf2Sutm9iXWkRvP` |
-| Webhook | `we_1U8S8CLoNTf2SutmV89bcDT2` → `https://meeme-web-production.up.railway.app/api/stripe/webhook` |
+| Webhook | `we_1U8SuhLoNTf2SutmUFkyFR7C` → `https://meeme-web-production.up.railway.app/api/stripe/webhook`, pinned to API version `2025-02-24.acacia` (matches the installed `stripe` SDK's types exactly, so a Stripe API upgrade elsewhere on the account can never change the shape of what this webhook receives) |
 
 `STRIPE_PRICE_DEGEN`, `STRIPE_PRICE_APEX`, and `STRIPE_WEBHOOK_SECRET` are
 already set on Railway. Two things could not be done through the API, both for
