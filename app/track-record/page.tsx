@@ -12,8 +12,10 @@ export const metadata: Metadata = {
   description: 'Every call mEEme has made, graded by a rule fixed in code before the call was made.',
 };
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Public, session-independent data that only changes via the cron jobs
+// (sweep every 5 min, score hourly, scan every 30 min), so there is no
+// reason for every page view to run its own 200-row query against Postgres.
+export const revalidate = 60;
 
 export default async function TrackRecordPage() {
   let rows: {

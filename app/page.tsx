@@ -8,8 +8,14 @@ import { runAlphaEngine } from '@/lib/engine';
 import { buildDemoSnapshot, buildSnapshot } from '@/lib/providers';
 import { summarize } from '@/lib/scoring';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// This page calls buildSnapshot() below, which hits live price providers
+// (DexScreener/GeckoTerminal/Birdeye) over the network. Rendering it
+// force-dynamic meant every homepage visit — the highest-traffic page in the
+// app — made its own live fetch, adding avoidable latency to every load and
+// risking GeckoTerminal's keyless rate limit (~30 req/min) under nothing more
+// than organic browsing. ISR caps that to at most one fetch per window,
+// however many visitors land on it in between.
+export const revalidate = 120;
 
 async function headlineStats() {
   try {
