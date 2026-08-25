@@ -194,8 +194,18 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
             className="h-14 flex-1 rounded-lg font-mono text-[15px]"
             aria-label="Contract address"
           />
-          <Button type="submit" size="lg" disabled={loading} className="h-14 rounded-lg text-base sm:w-44">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+          <Button
+            type="submit"
+            size="lg"
+            disabled={loading}
+            aria-busy={loading}
+            className="h-14 rounded-lg text-base sm:w-44"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Radar className="h-4 w-4" aria-hidden="true" />
+            )}
             {loading ? 'Reading…' : 'Lock it'}
           </Button>
         </div>
@@ -203,13 +213,15 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
         <button
           type="button"
           onClick={() => setShowPosition((v) => !v)}
+          aria-expanded={showPosition}
+          aria-controls="position-fields"
           className="mt-3 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           {showPosition ? '− Hide my position' : '+ I already hold this — read it from my entry'}
         </button>
 
         {showPosition && (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div id="position-fields" className="mt-3 grid gap-2 sm:grid-cols-2">
             <div>
               <label className="hud-label mb-1 block" htmlFor="entry">
                 your entry price (usd)

@@ -172,3 +172,53 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .font-display { font-family: var(--font-display); }
 }
+
+/*
+ * Reduced motion.
+ *
+ * The cockpit leans on continuous motion — a scanline sweeping an urgent
+ * verdict, pulsing glows, animated gauges. For a visitor with a vestibular
+ * disorder that is not decoration, it is a symptom trigger, and WCAG 2.1
+ * treats honouring this preference as a requirement rather than a nicety.
+ *
+ * Everything is reduced to a single near-instant step instead of being
+ * removed outright: a state change still registers, so nothing that was
+ * communicated by motion becomes invisible. `animation: none` on an infinite
+ * sweep would be fine, but on a one-shot entrance animation it can leave an
+ * element stuck at its starting opacity, which is how "accessible" versions
+ * of pages end up with content nobody can see.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Purely decorative sweeps have nothing to communicate — drop them. */
+  .scanline {
+    display: none !important;
+  }
+}
+
+/*
+ * Focus visibility.
+ *
+ * Interactive components define their own focus-visible ring, but links in
+ * prose, table controls and anything rendered as a bare anchor did not have
+ * one. A keyboard user who cannot see where focus currently sits cannot use
+ * the site at all, so this is the floor rather than a refinement.
+ */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The ring is drawn by :focus-visible above; avoid doubling it. */
+:focus:not(:focus-visible) {
+  outline: none;
+}

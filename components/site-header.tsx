@@ -22,8 +22,8 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
-        <Link href="/" className="group flex items-baseline gap-2.5">
-          <span className="text-[19px] font-extrabold tracking-tight">
+        <Link href="/" className="group flex items-baseline gap-2.5" aria-label="mEEme.xyz home">
+          <span aria-hidden="true" className="text-[19px] font-extrabold tracking-tight">
             m<span className="text-primary text-glow">EE</span>me
             <span className="text-muted-foreground/70">.xyz</span>
           </span>
@@ -32,21 +32,28 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="no-scrollbar -mx-1 flex flex-1 items-center gap-1 overflow-x-auto">
-          {NAV.map((item) => (
+        <nav
+          aria-label="Main"
+          className="no-scrollbar -mx-1 flex flex-1 items-center gap-1 overflow-x-auto"
+        >
+          {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
             <Link
               key={item.href}
               href={item.href}
+              // Conveys "you are here" to a screen reader, which otherwise gets
+              // only the background colour — i.e. nothing.
+              aria-current={active ? 'page' : undefined}
               className={cn(
                 'whitespace-nowrap rounded px-2.5 py-1.5 text-sm transition-colors',
-                pathname === item.href || pathname.startsWith(`${item.href}/`)
-                  ? 'bg-secondary text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
+                active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
             >
               {item.label}
             </Link>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -60,7 +67,7 @@ export function SiteHeader() {
               </Button>
             </>
           ) : status === 'loading' ? (
-            <div className="h-8 w-20 animate-pulse rounded bg-secondary" />
+            <div className="h-8 w-20 animate-pulse rounded bg-secondary" aria-hidden="true" />
           ) : (
             <Button size="sm" onClick={() => void signIn('google')}>
               Sign in
