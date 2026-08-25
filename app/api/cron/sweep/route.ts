@@ -2,6 +2,7 @@ import { cronAuthorized, jsonError, jsonOk } from '@/lib/api';
 import { writeCachedSnapshot } from '@/lib/cache';
 import { prisma } from '@/lib/db';
 import { runAlphaEngine } from '@/lib/engine';
+import { flushPendingAlerts } from '@/lib/notify';
 import { buildSnapshot } from '@/lib/providers';
 
 export const runtime = 'nodejs';
@@ -123,7 +124,15 @@ export async function GET(request: Request) {
     }
   }
 
-  return jsonOk({ swept, tokens: addresses.size, alertsFired: alerts.length });
+  // Everything above only wrote rows. This is the part that makes them alerts.
+  const delivery = await flushPendingAlerts();
+
+  return jsonOk({
+    swept,
+    tokens: addresses.size,
+    alertsFired: alerts.length,
+    delivery,
+  });
 }
 
 /**

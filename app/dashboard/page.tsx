@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Watchtower } from '@/components/watchtower';
 import { getViewer, googleConfigured } from '@/lib/auth';
+import { emailConfigured, telegramConfigured } from '@/lib/notify';
 import { prisma } from '@/lib/db';
 import { getQuota } from '@/lib/quota';
 import { TIERS } from '@/lib/tiers';
@@ -17,7 +18,7 @@ export default async function DashboardPage({
   const viewer = await getViewer();
   if (!viewer) redirect(googleConfigured() ? '/signin' : '/lock');
 
-  const [positions, watches, alerts, quota] = await Promise.all([
+  const [positions, watches, alerts, quota, account] = await Promise.all([
     prisma.position.findMany({
       where: { userId: viewer.id, closedAt: null },
       orderBy: { openedAt: 'desc' },
@@ -32,6 +33,18 @@ export default async function DashboardPage({
       take: 30,
     }),
     getQuota(viewer.id, viewer.tier),
+    prisma.user.findUnique({
+      where: { id: viewer.id },
+      select: {
+        email: true,
+        telegramChatId: true,
+        telegramUsername: true,
+        notifyTelegram: true,
+        notifyEmail: true,
+        quietFromHourUtc: true,
+        quietToHourUtc: true,
+      },
+    }),
   ]);
 
   return (
@@ -70,7 +83,19 @@ export default async function DashboardPage({
         message: a.message,
         priceUsd: a.priceUsd,
         createdAt: a.createdAt.toISOString(),
+        deliveredVia: a.deliveredVia,
       }))}
+      alertPrefs={{
+        telegramLinked: Boolean(account?.telegramChatId),
+        telegramUsername: account?.telegramUsername ?? null,
+        notifyTelegram: account?.notifyTelegram ?? true,
+        notifyEmail: account?.notifyEmail ?? false,
+        quietFromHourUtc: account?.quietFromHourUtc ?? null,
+        quietToHourUtc: account?.quietToHourUtc ?? null,
+        email: account?.email ?? null,
+      }}
+      telegramAvailable={telegramConfigured()}
+      emailAvailable={emailConfigured()}
       prefill={searchParams.add ? { address: searchParams.add, symbol: searchParams.symbol ?? '' } : null}
     />
   );

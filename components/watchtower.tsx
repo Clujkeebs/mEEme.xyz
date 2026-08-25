@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colorForCoil } from '@/components/cockpit/coil-gauge';
+import { AlertSettings, type AlertPrefs } from '@/components/alert-settings';
 import type { Tier } from '@/lib/tiers';
 import { cn, formatPrice, shortAddress } from '@/lib/utils';
 
@@ -37,6 +38,7 @@ interface AlertRow {
   message: string;
   priceUsd: number;
   createdAt: string;
+  deliveredVia: string | null;
 }
 
 export interface WatchtowerProps {
@@ -48,6 +50,9 @@ export interface WatchtowerProps {
   watches: WatchRow[];
   alerts: AlertRow[];
   prefill: { address: string; symbol: string } | null;
+  alertPrefs: AlertPrefs;
+  telegramAvailable: boolean;
+  emailAvailable: boolean;
 }
 
 export function Watchtower({
@@ -59,6 +64,9 @@ export function Watchtower({
   watches,
   alerts,
   prefill,
+  alertPrefs,
+  telegramAvailable,
+  emailAvailable,
 }: WatchtowerProps) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -164,6 +172,7 @@ export function Watchtower({
                 <span className="font-semibold">${a.symbol}</span>
                 <span className="flex-1 text-sm text-foreground/85">{a.message}</span>
                 <span className="font-mono text-[10px] text-muted-foreground">
+                  {a.deliveredVia ? `sent via ${a.deliveredVia} · ` : ''}
                   {new Date(a.createdAt).toLocaleString()}
                 </span>
               </li>
@@ -249,7 +258,13 @@ export function Watchtower({
           </section>
         </div>
 
-        <aside>
+        <aside className="space-y-6">
+          <AlertSettings
+            initial={alertPrefs}
+            telegramAvailable={telegramAvailable}
+            emailAvailable={emailAvailable}
+          />
+
           <form onSubmit={addPosition} className="hud-panel corner-bracket space-y-3 p-5">
             <h2 className="hud-label flex items-center gap-2">
               <Plus className="h-3 w-3" /> track a position

@@ -37,6 +37,19 @@ model User {
   referralCode   String  @unique @default(cuid())
   referredByCode String?
 
+  // ── Alert delivery ────────────────────────────────────────────────────────
+  // An alert that only exists in a database is not an alert. Telegram is where
+  // this audience already is, so it is the primary channel; email is the fallback.
+  telegramChatId   String?  @unique
+  telegramUsername String?
+  /// Short-lived code the user carries into the bot via a deep link.
+  telegramLinkCode String?  @unique
+  notifyTelegram   Boolean  @default(true)
+  notifyEmail      Boolean  @default(false)
+  /// Quiet hours, UTC hour 0-23. When both are set, alerts inside the window are held.
+  quietFromHourUtc Int?
+  quietToHourUtc   Int?
+
   accounts  Account[]
   sessions  Session[]
   positions Position[]
@@ -217,10 +230,20 @@ model Alert {
   createdAt    DateTime @default(now())
   readAt       DateTime?
 
+  /// Set once the alert has actually left the building. Null means undelivered,
+  /// which is what the delivery sweep looks for — so a failed send is retried
+  /// rather than silently lost.
+  deliveredAt   DateTime?
+  /// Comma-separated channels that accepted it, e.g. "telegram,email".
+  deliveredVia  String?
+  deliveryError String?
+  attempts      Int       @default(0)
+
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   position Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
 
   @@index([userId, readAt, createdAt])
+  @@index([deliveredAt, attempts])
 }
 
 /// Daily quota ledger. One row per user per UTC day.
