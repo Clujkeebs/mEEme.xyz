@@ -2,7 +2,7 @@
   "name": "meeme-xyz",
   "version": "1.0.0",
   "private": true,
-  "description": "mEEme.xyz \u2014 the Exit Engine. Coiled Supply Analysis for memecoin traders.",
+  "description": "mEEme.xyz — the Exit Engine. Coiled Supply Analysis for memecoin traders.",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -33,7 +33,7 @@
     "clsx": "^2.1.1",
     "lightweight-charts": "^4.2.3",
     "lucide-react": "^0.475.0",
-    "next": "^14.2.33",
+    "next": "^14.2.35",
     "next-auth": "^4.24.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -48,13 +48,13 @@
     "@types/react-dom": "^18.3.5",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.33",
+    "eslint-config-next": "^14.2.35",
     "postcss": "^8.5.1",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
+    "typescript": "5.9.3",
     "vitest": "^2.1.9"
   },
   "engines": {
