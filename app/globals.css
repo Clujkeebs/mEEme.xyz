@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 160 84% 39%;
+    --radius: 0.5rem;
+  }
+
+  /* mEEme is a cockpit. Dark is the design, not a mode. */
+  .dark, :root {
+    --background: 222 33% 5%;
+    --foreground: 180 12% 92%;
+    --card: 222 30% 7%;
+    --card-foreground: 180 12% 92%;
+    --popover: 222 32% 6%;
+    --popover-foreground: 180 12% 92%;
+    --primary: 162 100% 44%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 222 24% 12%;
+    --secondary-foreground: 180 12% 92%;
+    --muted: 222 24% 11%;
+    --muted-foreground: 215 15% 58%;
+    --accent: 222 24% 13%;
+    --accent-foreground: 180 12% 92%;
+    --destructive: 4 90% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 22% 15%;
+    --input: 220 22% 15%;
+    --ring: 162 100% 44%;
+  }
+
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02','cv03','cv04','cv11';
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 224, 138, 0.07), transparent),
+      linear-gradient(rgba(124, 247, 212, 0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 247, 212, 0.022) 1px, transparent 1px);
+    background-size: 100% 100%, 44px 44px, 44px 44px;
+    background-attachment: fixed;
+  }
+
+  ::selection { background: rgba(0, 224, 138, 0.28); }
+
+  /* Tabular numbers everywhere numbers matter. */
+  .tnum { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .hud-panel {
+    @apply relative rounded-lg border border-border/80 bg-card/60 backdrop-blur-sm;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 8px 32px -16px rgba(0,0,0,0.9);
+  }
+  .hud-label {
+    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
+  }
+  .corner-bracket::before,
+  .corner-bracket::after {
+    content: '';
+    @apply pointer-events-none absolute h-3 w-3 border-primary/45;
+  }
+  .corner-bracket::before { @apply left-0 top-0 border-l border-t rounded-tl-lg; }
+  .corner-bracket::after  { @apply bottom-0 right-0 border-b border-r rounded-br-lg; }
+
+  .scanline {
+    @apply pointer-events-none absolute inset-x-0 h-px opacity-40;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
+  }
+}
+
+@layer utilities {
+  .text-glow { text-shadow: 0 0 18px rgba(0, 224, 138, 0.45); }
+  .text-glow-red { text-shadow: 0 0 18px rgba(255, 59, 48, 0.45); }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
