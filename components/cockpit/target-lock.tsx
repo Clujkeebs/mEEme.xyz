@@ -177,26 +177,26 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
           e.preventDefault();
           void run(address);
         }}
-        className="hud-panel corner-bracket relative overflow-hidden p-5"
+        className="hud-panel corner-bracket relative overflow-hidden p-6"
       >
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-2">
           <Crosshair className="h-4 w-4 text-primary" />
-          <span className="hud-label">target lock</span>
+          <span className="hud-label !text-[11px] !text-primary/90">target lock</span>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2.5 sm:flex-row">
           <Input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Paste a Solana contract address"
             spellCheck={false}
             autoComplete="off"
-            className="h-12 flex-1 font-mono text-sm"
+            className="h-14 flex-1 rounded-lg font-mono text-[15px]"
             aria-label="Contract address"
           />
-          <Button type="submit" size="lg" disabled={loading} className="h-12 sm:w-40">
+          <Button type="submit" size="lg" disabled={loading} className="h-14 rounded-lg text-base sm:w-44">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
-            {loading ? 'Reading…' : 'Lock'}
+            {loading ? 'Reading…' : 'Lock it'}
           </Button>
         </div>
 
@@ -239,8 +239,8 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-          <span className="hud-label">try one:</span>
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
+          <span className="hud-label">try one</span>
           {DEMO_ADDRESSES.map((d) => (
             <button
               key={d.address}
@@ -249,7 +249,7 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
                 setAddress(d.address);
                 void run(d.address);
               }}
-              className="rounded border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              className="rounded-md border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/[0.06] hover:text-primary"
             >
               {d.label}
             </button>
@@ -296,12 +296,17 @@ function LockResult({
         conviction={signal.conviction}
         headline={signal.headline}
         halfLifeMinutes={signal.halfLifeMinutes}
+        coilScore={coil.coilScore}
+        confidence={coil.confidence}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
-          <section className="hud-panel p-5">
-            <h3 className="hud-label mb-3">price · with engine levels</h3>
+          <section className="hud-panel p-6">
+            <h3 className="section-title">Price, with the engine&rsquo;s levels on it</h3>
+            <p className="section-note mb-5">
+              The plan and the price in one picture, instead of two tabs.
+            </p>
             <PriceChart
               candles={token.candles}
               trapdoorUsd={coil.trapdoorUsd}
@@ -311,10 +316,10 @@ function LockResult({
             />
           </section>
 
-          <section className="hud-panel p-5">
-            <h3 className="hud-label mb-1">supply profile</h3>
-            <p className="mb-4 text-xs text-muted-foreground">
-              Who holds this, what they paid, and which side of your exit they are on.
+          <section className="hud-panel p-6">
+            <h3 className="section-title">Who still has to sell</h3>
+            <p className="section-note mb-5">
+              Every holder&rsquo;s cost basis, and which side of your exit it puts them on.
             </p>
             <SupplyProfile
               shelves={coil.shelves}
@@ -333,17 +338,29 @@ function LockResult({
         </div>
 
         <aside className="space-y-6">
-          <div className="hud-panel flex flex-col items-center p-5">
-            <CoilGauge score={coil.coilScore} confidence={coil.confidence} />
-            <div className="mt-4 grid w-full grid-cols-2 gap-3">
-              <Metric label="coiled" value={formatPct(coil.coiledSupply)} tone="coil" />
-              <Metric label="trapped" value={formatPct(coil.trappedSupply)} tone="trap" />
-              <Metric label="insider coil" value={formatPct(coil.insiderCoil)} tone="warn" />
-              <Metric label="insider sold" value={formatPct(coil.insiderRealized)} tone="warn" />
+          <div className="hud-panel p-6">
+            <h3 className="section-title">The book</h3>
+            <p className="section-note mb-4">Where the float sits relative to spot.</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <Metric label="coiled" value={formatPct(coil.coiledSupply)} tone="coil"
+                hint="in profit — can sell into you" />
+              <Metric label="trapped" value={formatPct(coil.trappedSupply)} tone="trap"
+                hint="underwater — structural support" />
+              <Metric label="insider coil" value={formatPct(coil.insiderCoil)} tone="warn"
+                hint="held by the linked cluster" />
+              <Metric label="insider sold" value={formatPct(coil.insiderRealized)} tone="warn"
+                hint="of their bag, already gone" />
               <Metric
                 label="realization"
                 value={coil.velocityOfRealization.toFixed(2)}
                 tone={coil.velocityOfRealization > 0.15 ? 'coil' : coil.velocityOfRealization < -0.15 ? 'apex' : 'muted'}
+                hint={
+                  coil.velocityOfRealization > 0.15
+                    ? 'profitable supply is converting to cash'
+                    : coil.velocityOfRealization < -0.15
+                      ? 'flow is accumulating, not distributing'
+                      : 'no decisive flow either way'
+                }
                 className="col-span-2"
               />
             </div>
@@ -395,30 +412,32 @@ function TokenHeader({ token }: { token: LockResponse['token'] }) {
   ];
 
   return (
-    <div className="hud-panel flex flex-wrap items-center justify-between gap-4 p-4">
+    <div className="hud-panel flex flex-wrap items-center justify-between gap-x-8 gap-y-5 p-6">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-bold tracking-tight">${token.symbol}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+          <h1 className="font-display text-2xl font-bold tracking-tight">${token.symbol}</h1>
           <span className="font-mono text-[11px] text-muted-foreground">
             {shortAddress(token.address, 6)}
           </span>
+        </div>
+        <p className="mt-1 truncate text-sm text-muted-foreground">{token.name}</p>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
           {flags.map((f) => (
             <Badge key={f.label} variant={f.bad ? 'danger' : 'muted'}>
               {f.label}
             </Badge>
           ))}
         </div>
-        <p className="mt-0.5 truncate text-sm text-muted-foreground">{token.name}</p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
+      <div className="flex flex-wrap items-end gap-x-7 gap-y-3">
         <Stat label="price" value={formatPrice(token.priceUsd)} big />
         <Stat
           label="1h"
           value={formatSignedPct(token.priceChangePct.h1)}
           tone={token.priceChangePct.h1 >= 0 ? 'apex' : 'coil'}
         />
-        <Stat label="liq" value={formatUsd(token.liquidityUsd)} />
+        <Stat label="liquidity" value={formatUsd(token.liquidityUsd)} />
         <Stat label="fdv" value={formatUsd(token.fdvUsd)} />
         <Stat label="age" value={formatAge(token.ageMinutes)} />
         <Stat label="holders" value={token.holderCount.toLocaleString('en-US')} />
@@ -443,10 +462,10 @@ function Stat({
       <div className="hud-label">{label}</div>
       <div
         className={cn(
-          'tnum font-mono font-semibold',
-          big ? 'text-lg' : 'text-sm',
-          tone === 'apex' && 'text-primary',
-          tone === 'coil' && 'text-destructive',
+          'tnum mt-1 font-semibold leading-none',
+          big ? 'text-2xl text-foreground' : 'text-[15px] text-foreground/90',
+          tone === 'apex' && '!text-primary',
+          tone === 'coil' && '!text-destructive',
         )}
       >
         {value}
@@ -459,11 +478,13 @@ function Metric({
   label,
   value,
   tone,
+  hint,
   className,
 }: {
   label: string;
   value: string;
   tone: 'coil' | 'trap' | 'warn' | 'apex' | 'muted';
+  hint?: string;
   className?: string;
 }) {
   const toneClass = {
@@ -471,26 +492,35 @@ function Metric({
     trap: 'text-trap',
     warn: 'text-warn',
     apex: 'text-primary',
-    muted: 'text-muted-foreground',
+    muted: 'text-hud',
   }[tone];
 
   return (
-    <div className={cn('rounded border border-border/70 bg-background/40 px-3 py-2', className)}>
+    <div
+      className={cn(
+        'rounded-lg border border-border/60 bg-background/50 px-3.5 py-3 transition-colors hover:border-border',
+        className,
+      )}
+    >
       <div className="hud-label">{label}</div>
-      <div className={cn('tnum font-mono text-sm font-semibold', toneClass)}>{value}</div>
+      <div className={cn('tnum mt-1 text-xl font-bold leading-none', toneClass)}>{value}</div>
+      {hint && <div className="mt-1.5 text-[11px] leading-snug text-muted-foreground/85">{hint}</div>}
     </div>
   );
 }
 
 function ReasoningPanel({ reasoning }: { reasoning: string[] }) {
   return (
-    <section className="hud-panel p-5">
-      <h3 className="hud-label mb-3">why · show your work</h3>
-      <ul className="space-y-2.5">
+    <section className="hud-panel p-6">
+      <h3 className="section-title">Why — the evidence</h3>
+      <p className="section-note mb-5">
+        A tool that says sell without saying why is a coin flip with a logo.
+      </p>
+      <ul className="space-y-3.5">
         {reasoning.map((line, i) => (
-          <li key={i} className="flex gap-3 text-sm leading-relaxed">
-            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary/70" />
-            <span className="text-foreground/85">{line}</span>
+          <li key={i} className="flex gap-3.5">
+            <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/80" />
+            <span className="text-[14px] leading-relaxed text-foreground/90">{line}</span>
           </li>
         ))}
       </ul>
@@ -572,9 +602,10 @@ function DataQualityPanel({ result }: { result: LockResponse }) {
   const method = METHOD_COPY[coil.method] ?? METHOD_COPY.none!;
 
   return (
-    <div className="hud-panel p-4">
-      <h3 className="hud-label mb-2">how this was derived</h3>
-      <dl className="space-y-1.5 text-xs">
+    <div className="hud-panel p-6">
+      <h3 className="section-title">How this was derived</h3>
+      <p className="section-note mb-4">What the numbers rest on.</p>
+      <dl className="space-y-2 text-[13px]">
         <Row label="method" value={method.label} />
         <Row label="float priced" value={formatPct(coil.supplyCovered)} />
         <Row label="wallets resolved" value={`${q.holdersResolved} / ${q.holdersResolved + q.holdersUnresolved}`} />

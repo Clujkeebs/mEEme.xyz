@@ -7,8 +7,9 @@ export function SignInPanel({ googleEnabled }: { googleEnabled: boolean }) {
   return (
     <div className="mx-auto max-w-md py-20">
       <div className="hud-panel corner-bracket p-8 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-2xl font-extrabold tracking-tight">
           m<span className="text-primary text-glow">EE</span>me
+          <span className="text-muted-foreground/70">.xyz</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Sign in to track positions, keep your signal history, and get exit alerts while you sleep.

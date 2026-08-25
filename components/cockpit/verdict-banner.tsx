@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowDownRight, Crosshair, Hand, ShieldOff, TrendingUp, Zap } from 'lucide-react';
 import * as React from 'react';
+import { CoilGauge } from './coil-gauge';
 import { VERDICT_META } from '@/lib/engine/verdict';
 import type { Verdict } from '@/lib/engine/types';
 import { cn, formatCountdown } from '@/lib/utils';
@@ -16,12 +17,42 @@ const ICONS: Record<Verdict, React.ComponentType<{ className?: string }>> = {
   NO_TOUCH: ShieldOff,
 };
 
-const TONE_STYLES = {
-  apex: 'border-primary/50 bg-primary/[0.07] text-primary',
-  good: 'border-primary/35 bg-primary/[0.05] text-primary',
-  neutral: 'border-hud/35 bg-hud/[0.05] text-hud',
-  warn: 'border-warn/45 bg-warn/[0.07] text-warn',
-  danger: 'border-destructive/50 bg-destructive/[0.08] text-destructive',
+/**
+ * Each tone carries its own surface, not just a text colour. A trader glancing
+ * at this mid-position should know the answer from the colour of the card
+ * before a single word is read.
+ */
+const TONE = {
+  apex: {
+    text: 'text-primary',
+    border: 'border-primary/45',
+    surface: 'from-primary/[0.13] via-primary/[0.04] to-transparent',
+    glow: 'shadow-[0_0_90px_-30px_rgba(0,240,160,0.75)]',
+  },
+  good: {
+    text: 'text-primary',
+    border: 'border-primary/35',
+    surface: 'from-primary/[0.09] via-primary/[0.03] to-transparent',
+    glow: 'shadow-[0_0_80px_-34px_rgba(0,240,160,0.6)]',
+  },
+  neutral: {
+    text: 'text-hud',
+    border: 'border-hud/35',
+    surface: 'from-hud/[0.08] via-hud/[0.02] to-transparent',
+    glow: '',
+  },
+  warn: {
+    text: 'text-warn',
+    border: 'border-warn/45',
+    surface: 'from-warn/[0.12] via-warn/[0.04] to-transparent',
+    glow: 'shadow-[0_0_80px_-32px_rgba(255,176,32,0.6)]',
+  },
+  danger: {
+    text: 'text-destructive',
+    border: 'border-destructive/50',
+    surface: 'from-destructive/[0.15] via-destructive/[0.05] to-transparent',
+    glow: 'shadow-[0_0_90px_-28px_rgba(255,70,60,0.75)]',
+  },
 } as const;
 
 export interface VerdictBannerProps {
@@ -29,6 +60,9 @@ export interface VerdictBannerProps {
   conviction: number;
   headline: string;
   halfLifeMinutes: number;
+  /** When supplied, the gauge sits inside the verdict rather than in a separate card. */
+  coilScore?: number;
+  confidence?: number;
   className?: string;
 }
 
@@ -37,38 +71,68 @@ export function VerdictBanner({
   conviction,
   headline,
   halfLifeMinutes,
+  coilScore,
+  confidence,
   className,
 }: VerdictBannerProps) {
   const meta = VERDICT_META[verdict];
   const Icon = ICONS[verdict];
-  const tone = TONE_STYLES[meta.tone];
+  const tone = TONE[meta.tone];
   const urgent = meta.tone === 'danger';
+  const showGauge = coilScore !== undefined && confidence !== undefined;
 
   return (
-    <div className={cn('corner-bracket relative overflow-hidden rounded-lg border p-5', tone, className)}>
-      {urgent && (
-        <div className="scanline top-0 animate-sweep" aria-hidden />
+    <section
+      className={cn(
+        'hud-panel-hero corner-bracket relative overflow-hidden border',
+        tone.border,
+        tone.glow,
+        className,
       )}
+      aria-label={`Verdict: ${meta.label}`}
+    >
+      <div className={cn('absolute inset-0 bg-gradient-to-br', tone.surface)} aria-hidden />
+      {urgent && <div className="scanline top-0 animate-sweep" aria-hidden />}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Icon className={cn('mt-0.5 h-7 w-7 shrink-0', urgent && 'animate-flicker')} />
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{meta.label}</h2>
-            <p className="mt-1 max-w-xl text-sm opacity-90">{meta.imperative}</p>
+      <div className="relative flex flex-col gap-7 p-6 sm:p-8 lg:flex-row lg:items-center lg:gap-10">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2.5">
+            <Icon className={cn('h-5 w-5 shrink-0', tone.text, urgent && 'animate-flicker')} />
+            <span className={cn('hud-label !text-[11px]', tone.text, '!opacity-90')}>the call</span>
           </div>
+
+          <h2
+            className={cn(
+              'mt-2.5 font-display text-[2.1rem] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[2.75rem]',
+              tone.text,
+            )}
+          >
+            {meta.label}
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-foreground/90">
+            {meta.imperative}
+          </p>
+
+          <p className="mt-4 border-t border-white/[0.07] pt-4 text-[15px] leading-relaxed text-muted-foreground">
+            {headline}
+          </p>
         </div>
 
-        <div className="text-right">
-          <div className="hud-label">conviction</div>
-          <div className="tnum text-2xl font-bold">{(conviction * 100).toFixed(0)}%</div>
-          <div className="mt-1 font-mono text-[10px] uppercase tracking-wider opacity-70">
-            re-check in {formatCountdown(halfLifeMinutes)}
+        <div className="flex shrink-0 items-center gap-7 lg:flex-col lg:items-end lg:gap-5">
+          {showGauge && <CoilGauge score={coilScore} confidence={confidence} size={158} />}
+
+          <div className="lg:text-right">
+            <div className="hud-label">conviction</div>
+            <div className={cn('tnum text-3xl font-bold leading-none', tone.text)}>
+              {(conviction * 100).toFixed(0)}%
+            </div>
+            <div className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              re-check in {formatCountdown(halfLifeMinutes)}
+            </div>
           </div>
         </div>
       </div>
-
-      <p className="mt-4 border-t border-current/15 pt-3 text-sm text-foreground/85">{headline}</p>
-    </div>
+    </section>
   );
 }

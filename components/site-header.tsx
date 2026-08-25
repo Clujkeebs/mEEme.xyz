@@ -22,11 +22,12 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
-        <Link href="/" className="group flex items-baseline gap-2">
-          <span className="text-lg font-bold tracking-tight">
+        <Link href="/" className="group flex items-baseline gap-2.5">
+          <span className="text-[19px] font-extrabold tracking-tight">
             m<span className="text-primary text-glow">EE</span>me
+            <span className="text-muted-foreground/70">.xyz</span>
           </span>
-          <span className="hidden font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground sm:inline">
+          <span className="hidden font-mono text-[9px] uppercase tracking-[0.22em] text-primary/60 sm:inline">
             exit engine
           </span>
         </Link>

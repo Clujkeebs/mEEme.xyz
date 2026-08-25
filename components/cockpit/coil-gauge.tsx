@@ -36,10 +36,10 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, sweepDeg: 
 }
 
 export function colorForCoil(score: number): string {
-  if (score >= 0.68) return '#ff3b30';
+  if (score >= 0.68) return '#ff4a3d';
   if (score >= 0.5) return '#ffb020';
   if (score >= 0.28) return '#7cf7d4';
-  return '#00e08a';
+  return '#00f0a0';
 }
 
 export function CoilGauge({ score, confidence, size = 168, className }: CoilGaugeProps) {
@@ -60,7 +60,7 @@ export function CoilGauge({ score, confidence, size = 168, className }: CoilGaug
           d={arcPath(cx, cy, r, ARC_START, ARC_SWEEP)}
           fill="none"
           stroke="hsl(var(--border))"
-          strokeWidth={9}
+          strokeWidth={10}
           strokeLinecap="round"
         />
         {/* Threshold ticks at the verdict boundaries, so the number has meaning. */}
@@ -85,11 +85,11 @@ export function CoilGauge({ score, confidence, size = 168, className }: CoilGaug
           d={arcPath(cx, cy, r, ARC_START, ARC_SWEEP)}
           fill="none"
           stroke={color}
-          strokeWidth={9}
+          strokeWidth={10}
           strokeLinecap="round"
           strokeDasharray={`${filled} ${circumference}`}
           style={{
-            filter: `drop-shadow(0 0 10px ${color}88)`,
+            filter: `drop-shadow(0 0 14px ${color}99)`,
             opacity: 0.35 + 0.65 * Math.max(0, Math.min(1, confidence)),
             transition: 'stroke-dasharray 700ms cubic-bezier(0.16,1,0.3,1)',
           }}
@@ -97,12 +97,15 @@ export function CoilGauge({ score, confidence, size = 168, className }: CoilGaug
       </svg>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="hud-label">coil</span>
-        <span className="tnum text-4xl font-bold leading-none" style={{ color }}>
+        <span className="hud-label !tracking-[0.22em]">coil</span>
+        <span
+          className="tnum mt-0.5 text-[2.6rem] font-bold leading-none"
+          style={{ color, textShadow: `0 0 26px ${color}55` }}
+        >
           {clamped.toFixed(2)}
         </span>
-        <span className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-          {(confidence * 100).toFixed(0)}% conf
+        <span className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+          {(confidence * 100).toFixed(0)}% confidence
         </span>
       </div>
     </div>

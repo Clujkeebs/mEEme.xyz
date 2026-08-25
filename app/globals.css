@@ -5,16 +5,22 @@
 @layer base {
   :root {
     /*
-     * Tailwind's font stacks reference these. An undefined custom property
-     * invalidates the entire font-family declaration, which silently drops the
-     * page to the browser's default serif — so they are defined here rather
-     * than injected by next/font, which would add a build-time network fetch
-     * for no visual gain in a terminal-styled UI.
+     * Three faces, each doing one job.
+     *
+     * Space Grotesk carries the verdicts and headings — it has enough character
+     * to give the product an identity, which a pure system stack never will.
+     * Inter carries prose because it is the most legible thing available at
+     * small sizes. JetBrains Mono carries every number, so prices and
+     * percentages align in columns and can be compared down a page.
+     *
+     * All three list real fallbacks: the fonts load from Google at runtime, and
+     * if that fails the page must still look deliberate rather than broken.
      */
-    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-      "Liberation Mono", "Courier New", monospace;
+    --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+      Consolas, 'Liberation Mono', monospace;
 
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
@@ -35,76 +41,134 @@
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 160 84% 39%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
   }
 
   /* mEEme is a cockpit. Dark is the design, not a mode. */
   .dark, :root {
-    --background: 222 33% 5%;
-    --foreground: 180 12% 92%;
-    --card: 222 30% 7%;
-    --card-foreground: 180 12% 92%;
-    --popover: 222 32% 6%;
-    --popover-foreground: 180 12% 92%;
-    --primary: 162 100% 44%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 222 24% 12%;
-    --secondary-foreground: 180 12% 92%;
-    --muted: 222 24% 11%;
-    --muted-foreground: 215 15% 58%;
-    --accent: 222 24% 13%;
-    --accent-foreground: 180 12% 92%;
-    --destructive: 4 90% 58%;
+    --background: 224 39% 4%;
+    --foreground: 180 20% 95%;
+    --card: 223 32% 7%;
+    --card-foreground: 180 20% 95%;
+    --popover: 223 34% 6%;
+    --popover-foreground: 180 20% 95%;
+    --primary: 158 100% 48%;
+    --primary-foreground: 224 47% 5%;
+    --secondary: 222 24% 13%;
+    --secondary-foreground: 180 20% 95%;
+    --muted: 222 24% 12%;
+    /*
+     * Deliberately lighter than the usual muted grey. Secondary text on this
+     * app is not decorative — it is the engine's reasoning, the thing a trader
+     * reads before risking money. At 58% it was washed out and skipped.
+     */
+    --muted-foreground: 213 18% 70%;
+    --accent: 222 24% 15%;
+    --accent-foreground: 180 20% 95%;
+    --destructive: 4 92% 62%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 22% 15%;
-    --input: 220 22% 15%;
-    --ring: 162 100% 44%;
+    --border: 220 24% 16%;
+    --input: 220 24% 18%;
+    --ring: 158 100% 48%;
   }
 
   * { @apply border-border; }
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    font-feature-settings: 'cv02','cv03','cv04','cv11';
+    font-feature-settings: 'cv02','cv03','cv04','cv11','ss01';
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 224, 138, 0.07), transparent),
-      linear-gradient(rgba(124, 247, 212, 0.022) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124, 247, 212, 0.022) 1px, transparent 1px);
-    background-size: 100% 100%, 44px 44px, 44px 44px;
+      radial-gradient(ellipse 90% 55% at 50% -12%, rgba(0, 240, 160, 0.09), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 88% 8%, rgba(47, 111, 237, 0.05), transparent 70%),
+      linear-gradient(rgba(124, 247, 212, 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 247, 212, 0.018) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 52px 52px, 52px 52px;
     background-attachment: fixed;
   }
 
-  ::selection { background: rgba(0, 224, 138, 0.28); }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.022em;
+  }
 
-  /* Tabular numbers everywhere numbers matter. */
-  .tnum { font-variant-numeric: tabular-nums; }
+  ::selection { background: rgba(0, 240, 160, 0.3); color: #fff; }
+
+  /* Numbers must align down a column to be comparable. */
+  .tnum { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background)); }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 6px;
+    border: 2px solid hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(220 20% 26%); }
 }
 
 @layer components {
+  /*
+   * One panel treatment, with a light top edge so cards read as lit from above
+   * rather than as flat rectangles. The previous version gave every card the
+   * same weight, which meant nothing on the page had priority.
+   */
   .hud-panel {
-    @apply relative rounded-lg border border-border/80 bg-card/60 backdrop-blur-sm;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 8px 32px -16px rgba(0,0,0,0.9);
+    @apply relative rounded-xl border border-border/70;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 34%),
+      hsl(var(--card) / 0.72);
+    backdrop-filter: blur(10px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.055),
+      0 1px 2px rgba(0,0,0,0.35),
+      0 12px 40px -20px rgba(0,0,0,0.95);
   }
+
+  /* The one card that matters on a screen. */
+  .hud-panel-hero {
+    @apply hud-panel;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 1px 3px rgba(0,0,0,0.4),
+      0 26px 70px -26px rgba(0,0,0,1);
+  }
+
+  /*
+   * Reserved for genuine micro-captions above a number. It used to label every
+   * section on the page, at which point it stopped signalling anything.
+   */
   .hud-label {
-    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
+    font-family: var(--font-mono);
+    @apply text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80;
   }
+
+  /* Section headings are headings — readable, not decorative. */
+  .section-title {
+    font-family: var(--font-display);
+    @apply text-[15px] font-semibold tracking-tight text-foreground;
+  }
+  .section-note {
+    @apply mt-0.5 text-[13px] leading-relaxed text-muted-foreground;
+  }
+
   .corner-bracket::before,
   .corner-bracket::after {
     content: '';
-    @apply pointer-events-none absolute h-3 w-3 border-primary/45;
+    @apply pointer-events-none absolute h-3.5 w-3.5 border-primary/40;
   }
-  .corner-bracket::before { @apply left-0 top-0 border-l border-t rounded-tl-lg; }
-  .corner-bracket::after  { @apply bottom-0 right-0 border-b border-r rounded-br-lg; }
+  .corner-bracket::before { @apply left-0 top-0 rounded-tl-xl border-l border-t; }
+  .corner-bracket::after  { @apply bottom-0 right-0 rounded-br-xl border-b border-r; }
 
   .scanline {
-    @apply pointer-events-none absolute inset-x-0 h-px opacity-40;
+    @apply pointer-events-none absolute inset-x-0 h-px opacity-45;
     background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
   }
 }
 
 @layer utilities {
-  .text-glow { text-shadow: 0 0 18px rgba(0, 224, 138, 0.45); }
-  .text-glow-red { text-shadow: 0 0 18px rgba(255, 59, 48, 0.45); }
+  .text-glow { text-shadow: 0 0 22px rgba(0, 240, 160, 0.5); }
+  .text-glow-red { text-shadow: 0 0 22px rgba(255, 70, 60, 0.5); }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .font-display { font-family: var(--font-display); }
 }
