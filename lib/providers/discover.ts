@@ -25,7 +25,7 @@ const searchSchema = z.object({
     .array(
       z.object({
         chainId: z.string().nullish(),
-        baseToken: z.object({ address: z.string().nullish() }).nullish(),
+        baseToken: z.object({ address: z.string().nullish(), symbol: z.string().nullish() }).nullish(),
         liquidity: z.object({ usd: z.union([z.number(), z.string()]).nullish() }).nullish(),
         volume: z.object({ h24: z.union([z.number(), z.string()]).nullish() }).nullish(),
         pairCreatedAt: z.number().nullish(),
@@ -48,8 +48,40 @@ const num = (v: number | string | null | undefined): number => {
 export const SCAN_MIN_LIQUIDITY_USD = 25_000;
 export const SCAN_MIN_VOLUME_H24_USD = 50_000;
 
+/**
+ * And an upper bound, which production taught us the hard way.
+ *
+ * Searching DexScreener for "SOL" matches the quote side of essentially every
+ * Solana pair — including the SOL pools themselves. Ranking by churn then put
+ * wrapped SOL at $1.6B liquidity at the top and spent three of twelve candidate
+ * slots on it. The engine has nothing to say about SOL: its float is not held
+ * by a deployer-linked cluster, and there is no trapdoor under a major.
+ */
+export const SCAN_MAX_LIQUIDITY_USD = 50_000_000;
+
+/**
+ * Assets to never scan. Majors and stablecoins are not what this tool is for,
+ * and they dominate any volume-based ranking.
+ */
+const EXCLUDED_MINTS = new Set([
+  'So11111111111111111111111111111111111111112', // wrapped SOL
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
+  'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So',  // mSOL
+  'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', // jitoSOL
+  '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs', // wETH
+]);
+
+/**
+ * Symbols that should never appear as a scan candidate even if the mint is one
+ * we do not know. A token calling itself SOL is either a wrapper or a
+ * impersonation, and neither is a trade this tool should be recommending.
+ */
+const EXCLUDED_SYMBOLS = new Set(['SOL', 'WSOL', 'USDC', 'USDT', 'USDS', 'ETH', 'WETH', 'BTC', 'WBTC']);
+
 export interface Candidate {
   address: string;
+  symbol: string;
   liquidityUsd: number;
   volumeH24Usd: number;
   ageMinutes: number;
@@ -87,6 +119,7 @@ async function fromSearch(query: string): Promise<Candidate[]> {
     if (!address) continue;
     out.push({
       address,
+      symbol: pair.baseToken?.symbol ?? '',
       liquidityUsd: num(pair.liquidity?.usd),
       volumeH24Usd: num(pair.volume?.h24),
       ageMinutes: pair.pairCreatedAt ? (now - pair.pairCreatedAt) / 60_000 : 60 * 24,
@@ -117,16 +150,21 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
   // Boosted tokens we know nothing else about still deserve a look.
   for (const address of boosted) {
     if (!byAddress.has(address)) {
-      byAddress.set(address, { address, liquidityUsd: 0, volumeH24Usd: 0, ageMinutes: 0 });
+      byAddress.set(address, { address, symbol: '', liquidityUsd: 0, volumeH24Usd: 0, ageMinutes: 0 });
     }
   }
 
-  const qualified = [...byAddress.values()].filter(
-    (c) =>
-      // Unknowns from the boost list pass through; buildSnapshot will price them.
-      (c.liquidityUsd === 0 && c.volumeH24Usd === 0) ||
-      (c.liquidityUsd >= SCAN_MIN_LIQUIDITY_USD && c.volumeH24Usd >= SCAN_MIN_VOLUME_H24_USD),
-  );
+  const qualified = [...byAddress.values()].filter((c) => {
+    if (EXCLUDED_MINTS.has(c.address)) return false;
+    if (c.symbol && EXCLUDED_SYMBOLS.has(c.symbol.toUpperCase())) return false;
+    // Unknowns from the boost list pass through; buildSnapshot will price them.
+    if (c.liquidityUsd === 0 && c.volumeH24Usd === 0) return true;
+    return (
+      c.liquidityUsd >= SCAN_MIN_LIQUIDITY_USD &&
+      c.liquidityUsd <= SCAN_MAX_LIQUIDITY_USD &&
+      c.volumeH24Usd >= SCAN_MIN_VOLUME_H24_USD
+    );
+  });
 
   return qualified
     .sort((a, b) => {
