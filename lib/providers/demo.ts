@@ -42,10 +42,10 @@ const SCENARIOS: Scenario[] = ['rug', 'distribution', 'chop', 'runner'];
 
 /** Curated addresses so the landing page and docs always show the same stories. */
 const PINNED: Record<string, Scenario> = {
-  DEMORUG1111111111111111111111111111111111111: 'rug',
-  DEMODUMP1111111111111111111111111111111111111: 'distribution',
-  DEMOCHOP1111111111111111111111111111111111111: 'chop',
-  DEMOAPEX1111111111111111111111111111111111111: 'runner',
+  mEEmeRUG11111111111111111111111111111111111: 'rug',
+  mEEmeDUMP1111111111111111111111111111111111: 'distribution',
+  mEEmeCHPP1111111111111111111111111111111111: 'chop',
+  mEEmeAPEX1111111111111111111111111111111111: 'runner',
 };
 
 export function demoScenarioFor(address: string): Scenario {

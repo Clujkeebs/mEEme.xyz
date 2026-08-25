@@ -19,7 +19,6 @@ export interface TierSpec {
   watchSlots: number;
   /** Open positions the exit engine will track and alert on. */
   positionSlots: number;
-  ladders: boolean;
   insiderForensics: boolean;
   apiAccess: boolean;
   features: string[];
@@ -30,16 +29,16 @@ export const TIERS: Record<Tier, TierSpec> = {
     id: 'FREE',
     name: 'Recon',
     priceUsd: 0,
-    tagline: 'Enough to prove it works on your own bags.',
+    tagline: 'The full read, including the ladder. Three a day.',
     dailyLocks: 3,
     watchSlots: 1,
     positionSlots: 1,
-    ladders: false,
     insiderForensics: false,
     apiAccess: false,
     features: [
       '3 Target Locks per day',
-      'Verdict, coil score and full reasoning',
+      'Full verdict, coil score and reasoning',
+      'The exit ladder and structural stop',
       '1 position tracked',
       'Public track record access',
     ],
@@ -48,19 +47,18 @@ export const TIERS: Record<Tier, TierSpec> = {
     id: 'DEGEN',
     name: 'Degen',
     priceUsd: 4.99,
-    tagline: 'The exit ladder, on every bag you hold.',
+    tagline: 'The engine watches your bags while you sleep.',
     dailyLocks: Number.POSITIVE_INFINITY,
     watchSlots: 15,
     positionSlots: 15,
-    ladders: true,
     insiderForensics: false,
     apiAccess: false,
     features: [
       'Unlimited Target Locks',
-      'Exit ladders with structural stops',
-      '15 positions tracked, with exit alerts',
+      '15 positions tracked — the engine watches their ladders for you',
       '15 tokens under live surveillance',
-      'Coil-crossing alerts',
+      'Exit alerts: rung filled, stop hit, insiders distributing',
+      'Coil-crossing alerts while you are asleep',
     ],
   },
   APEX: {
@@ -71,7 +69,6 @@ export const TIERS: Record<Tier, TierSpec> = {
     dailyLocks: Number.POSITIVE_INFINITY,
     watchSlots: 100,
     positionSlots: 100,
-    ladders: true,
     insiderForensics: true,
     apiAccess: true,
     features: [

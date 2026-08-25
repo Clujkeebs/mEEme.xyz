@@ -1,0 +1,72 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { signIn, signOut, useSession } from 'next-auth/react';
+import * as React from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+const NAV = [
+  { href: '/lock', label: 'Target Lock' },
+  { href: '/dashboard', label: 'Watchtower' },
+  { href: '/track-record', label: 'Track Record' },
+  { href: '/pricing', label: 'Pricing' },
+];
+
+export function SiteHeader() {
+  const pathname = usePathname();
+  const { data: session, status } = useSession();
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
+        <Link href="/" className="group flex items-baseline gap-2">
+          <span className="text-lg font-bold tracking-tight">
+            m<span className="text-primary text-glow">EE</span>me
+          </span>
+          <span className="hidden font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground sm:inline">
+            exit engine
+          </span>
+        </Link>
+
+        <nav className="no-scrollbar -mx-1 flex flex-1 items-center gap-1 overflow-x-auto">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'whitespace-nowrap rounded px-2.5 py-1.5 text-sm transition-colors',
+                pathname === item.href || pathname.startsWith(`${item.href}/`)
+                  ? 'bg-secondary text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {status === 'authenticated' && session?.user ? (
+            <>
+              <Badge variant={session.user.tier === 'FREE' ? 'muted' : 'default'}>
+                {session.user.tier}
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+                Sign out
+              </Button>
+            </>
+          ) : status === 'loading' ? (
+            <div className="h-8 w-20 animate-pulse rounded bg-secondary" />
+          ) : (
+            <Button size="sm" onClick={() => void signIn('google')}>
+              Sign in
+            </Button>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}

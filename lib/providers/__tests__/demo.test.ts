@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildDemoSnapshot, demoScenarioFor } from '../demo';
+import { isPlausibleSolanaAddress } from '../index';
 import { runAlphaEngine } from '@/lib/engine';
 
 const T = 1_750_000_000_000;
@@ -41,25 +42,25 @@ describe('demo provider', () => {
   });
 
   it('produces both trapped and coiled supply, because tokens retrace', () => {
-    const s = buildDemoSnapshot('DEMOCHOP1111111111111111111111111111111111111', T);
+    const s = buildDemoSnapshot('mEEmeCHPP1111111111111111111111111111111111', T);
     const coil = runAlphaEngine(s).coil;
     expect(coil.trappedSupply).toBeGreaterThan(0);
     expect(coil.coiledSupply).toBeGreaterThan(0);
   });
 
   it('honours pinned scenarios', () => {
-    expect(demoScenarioFor('DEMORUG1111111111111111111111111111111111111')).toBe('rug');
-    expect(demoScenarioFor('DEMOAPEX1111111111111111111111111111111111111')).toBe('runner');
+    expect(demoScenarioFor('mEEmeRUG11111111111111111111111111111111111')).toBe('rug');
+    expect(demoScenarioFor('mEEmeAPEX1111111111111111111111111111111111')).toBe('runner');
   });
 
   it('drives the engine to the verdict each scenario is meant to illustrate', () => {
-    const rug = runAlphaEngine(buildDemoSnapshot('DEMORUG1111111111111111111111111111111111111', T));
+    const rug = runAlphaEngine(buildDemoSnapshot('mEEmeRUG11111111111111111111111111111111111', T));
     expect(['NO_TOUCH', 'EXIT_IMMEDIATELY']).toContain(rug.verdict);
 
-    const dump = runAlphaEngine(buildDemoSnapshot('DEMODUMP1111111111111111111111111111111111111', T));
+    const dump = runAlphaEngine(buildDemoSnapshot('mEEmeDUMP1111111111111111111111111111111111', T));
     expect(['EXIT_IMMEDIATELY', 'SCALE_OUT_NOW']).toContain(dump.verdict);
 
-    const apex = runAlphaEngine(buildDemoSnapshot('DEMOAPEX1111111111111111111111111111111111111', T));
+    const apex = runAlphaEngine(buildDemoSnapshot('mEEmeAPEX1111111111111111111111111111111111', T));
     expect(['APEX_ENTRY', 'SCALE_IN']).toContain(apex.verdict);
   });
 
@@ -87,12 +88,42 @@ describe('demo provider', () => {
 
 describe('ladder availability', () => {
   it('gives a NO_TOUCH holder an exit plan even though a non-holder gets none', () => {
-    const s = buildDemoSnapshot('DEMORUG1111111111111111111111111111111111111', T);
+    const s = buildDemoSnapshot('mEEmeRUG11111111111111111111111111111111111', T);
     const browsing = runAlphaEngine(s);
     const holding = runAlphaEngine(s, { size: 1_000, entryPriceUsd: s.priceUsd * 0.5 });
     if (browsing.verdict === 'NO_TOUCH') {
       expect(browsing.ladder).toBeNull();
       expect(holding.ladder).not.toBeNull();
     }
+  });
+});
+
+describe('pinned demo addresses', () => {
+  // These are pasted into the app's own "try one" buttons and posted in docs,
+  // so they must survive the same address validation a real mint does.
+  const PINNED = [
+    'mEEmeRUG11111111111111111111111111111111111',
+    'mEEmeDUMP1111111111111111111111111111111111',
+    'mEEmeCHPP1111111111111111111111111111111111',
+    'mEEmeAPEX1111111111111111111111111111111111',
+  ];
+
+  it('are accepted by the same guard the API uses', () => {
+    for (const addr of PINNED) {
+      expect(isPlausibleSolanaAddress(addr)).toBe(true);
+    }
+  });
+
+  it('contain only base58 characters', () => {
+    // Base58 omits 0, O, I and l precisely because they are confusable.
+    for (const addr of PINNED) {
+      expect(addr).not.toMatch(/[0OIl]/);
+      expect(addr.length).toBeGreaterThanOrEqual(32);
+      expect(addr.length).toBeLessThanOrEqual(44);
+    }
+  });
+
+  it('each map to their intended scenario', () => {
+    expect(PINNED.map(demoScenarioFor)).toEqual(['rug', 'distribution', 'chop', 'runner']);
   });
 });

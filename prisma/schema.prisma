@@ -257,3 +257,16 @@ model ProcessedWebhook {
   type        String
   processedAt DateTime @default(now())
 }
+
+/// Anonymous rate limiting, keyed by a salted hash of the caller's IP.
+/// Lets a first-time visitor run real Target Locks before signing up — the
+/// product has to sell itself — without opening an unbounded abuse surface.
+model AnonUsage {
+  id     String @id @default(cuid())
+  ipHash String
+  /// UTC date, "YYYY-MM-DD".
+  day    String
+  locks  Int    @default(0)
+
+  @@unique([ipHash, day])
+}
