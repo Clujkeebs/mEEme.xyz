@@ -261,6 +261,46 @@ describe('computeHalfLife', () => {
   });
 });
 
+describe('low-confidence reasoning cites the right coverage', () => {
+  /**
+   * Production regression. dataQuality.supplyCovered is wallet-reconstructed
+   * coverage alone — always 0 without a Helius key — while coil.supplyCovered
+   * is the actual float coverage from whichever distribution method won. A
+   * token priced entirely from GeckoTerminal candles can be 80%+ covered by
+   * coil.supplyCovered while dataQuality.supplyCovered reads 0, because no
+   * wallet ever confirmed a cost basis. The low-confidence line must cite the
+   * number that is actually true of the read, not the wallet-only one.
+   */
+  it('does not claim 0% coverage on a well-covered volume-profile read', () => {
+    const snap = snapshot({
+      holders: [], // no wallet data — GeckoTerminal supplied the candles instead
+      dataQuality: {
+        holdersResolved: 0,
+        holdersUnresolved: 0,
+        supplyCovered: 0, // the stale, wallet-only field
+        clusterAnalysisRan: false,
+        sources: ['dexscreener', 'rugcheck', 'geckoterminal:ohlcv'],
+        synthetic: false,
+      },
+    });
+    const signal = runAlphaEngine(snap);
+
+    // This snapshot has real candles (from the shared factory) and no wallet
+    // data, so the engine must have taken the volume-profile path, and with
+    // zero wallet data confidence must land under the 0.45 threshold —
+    // asserted rather than guarded, so a future change cannot silently stop
+    // this test from exercising the branch it exists to cover.
+    expect(signal.coil.method).toBe('volume-profile');
+    expect(signal.coil.confidence).toBeLessThan(0.45);
+
+    const line = signal.reasoning.find((r) => r.startsWith('Low confidence read'));
+    expect(line).toBeDefined();
+    expect(line).not.toMatch(/only 0\.0% of supply has a reconstructed cost basis/);
+    expect(line).not.toMatch(/reconstructed cost basis/);
+    expect(line).toMatch(/priced from where volume traded/);
+  });
+});
+
 describe('runAlphaEngine end to end', () => {
   it('produces a complete, self-consistent signal on a rigged token', () => {
     const snap = snapshot({

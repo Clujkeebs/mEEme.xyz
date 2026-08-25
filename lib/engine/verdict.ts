@@ -176,9 +176,19 @@ function buildReasoning(
   }
 
   if (coil.confidence < 0.45) {
-    out.push(
-      `Low confidence read: only ${pct(snapshot.dataQuality.supplyCovered)} of supply has a reconstructed cost basis. Treat this as directional, not precise.`,
-    );
+    // coil.supplyCovered, not snapshot.dataQuality.supplyCovered: the latter is
+    // wallet-reconstructed coverage alone and reads as 0% on a token priced
+    // entirely from the volume profile — which would make this line say "only
+    // 0% covered" on a read that is, for example, 80% covered by candles.
+    const basis =
+      coil.method === 'volume-profile'
+        ? `${pct(coil.supplyCovered)} of the float is priced from where volume traded, with no wallet data to confirm behaviour`
+        : coil.method === 'hybrid'
+          ? `${pct(coil.supplyCovered)} of the float is priced, blending trade history with the insider wallets we could resolve`
+          : coil.method === 'none'
+            ? 'neither trade history nor wallet data was available to price the float'
+            : `${pct(coil.supplyCovered)} of the float has a reconstructed cost basis`;
+    out.push(`Low confidence read: ${basis}. Treat this as directional, not precise.`);
   }
 
   return out;
