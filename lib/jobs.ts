@@ -1,7 +1,8 @@
 import { writeCachedSnapshot } from '@/lib/cache';
+import { mapWithConcurrency } from '@/lib/concurrency';
 import { prisma } from '@/lib/db';
 import { runAlphaEngine } from '@/lib/engine';
-import type { Verdict } from '@/lib/engine/types';
+import type { TokenSnapshot, Verdict } from '@/lib/engine/types';
 import { flushPendingAlerts } from '@/lib/notify';
 import { buildSnapshot } from '@/lib/providers';
 import { SCAN_MIN_LIQUIDITY_USD, discoverCandidates } from '@/lib/providers/discover';
@@ -23,6 +24,15 @@ import { TRACK_RECORD_CONFIDENCE_FLOOR, recordSignal } from '@/lib/signal-store'
 const SWEEP_BATCH = 40;
 /** Suppress a repeat of the same alert kind on the same position inside this window. */
 const ALERT_COOLDOWN_MS = 60 * 60_000;
+/**
+ * Snapshot fetches in flight at once. Bounded rather than sequential or
+ * unbounded: sequential across dozens of tokens risks a sweep taking longer
+ * than the 5-minute interval it runs on, and unbounded concurrency floods a
+ * keyless-tier API (GeckoTerminal, ~30 req/min) and degrades every fetch in
+ * the batch together instead of just the ones that would have hit the limit
+ * anyway.
+ */
+const SNAPSHOT_FETCH_CONCURRENCY = 5;
 
 export interface SweepResult {
   swept: number;
@@ -54,13 +64,29 @@ export async function runSweep(): Promise<SweepResult> {
     ...openPositions.map((p) => p.tokenAddress),
   ]);
 
+  // Network fetch is the slow, parallelizable part; everything after it is a
+  // fast local computation plus small, independent DB writes per address, so
+  // there is nothing to gain from keeping it inside the same bounded loop.
+  const addressList = [...addresses];
+  const results = await mapWithConcurrency(
+    addressList,
+    SNAPSHOT_FETCH_CONCURRENCY,
+    (address) => buildSnapshot(address),
+    (err, address) => {
+      console.warn('[sweep] snapshot fetch failed for', address, err instanceof Error ? err.message : err);
+      return null;
+    },
+  );
+
   let swept = 0;
   let alertsFired = 0;
 
-  for (const address of addresses) {
-    const result = await buildSnapshot(address);
-    // Synthetic data must never fire a real alert into someone's dashboard.
-    if (result.mode === 'demo') continue;
+  for (let i = 0; i < addressList.length; i++) {
+    const address = addressList[i] as string;
+    const result = results[i];
+    // A failed fetch or synthetic fallback must never fire a real alert into
+    // someone's dashboard.
+    if (!result || result.mode === 'demo') continue;
 
     const snapshot = result.snapshot;
     await writeCachedSnapshot(snapshot);
@@ -192,31 +218,49 @@ export async function runScore(): Promise<ScoreResult> {
 
   if (due.length === 0) return { graded: 0, pending: 0, considered: 0 };
 
-  // Price each distinct token once, not once per signal.
-  const priceByToken = new Map<string, { price: number; max: number | null; min: number | null }>();
+  // Price each distinct token once, not once per signal — and fetch every
+  // distinct token concurrently rather than one at a time, for the same
+  // reason the sweep does: up to SCORE_BATCH signals can span dozens of
+  // distinct tokens, and a sequential fetch per token risks the job running
+  // long enough to overlap its own next tick.
+  const snapshotByToken = new Map<string, TokenSnapshot>();
+  const uniqueAddresses = [...new Set(due.map((s) => s.tokenAddress))];
+  const fetchResults = await mapWithConcurrency(
+    uniqueAddresses,
+    SNAPSHOT_FETCH_CONCURRENCY,
+    (address) => buildSnapshot(address),
+    (err, address) => {
+      console.warn('[score] snapshot fetch failed for', address, err instanceof Error ? err.message : err);
+      return null;
+    },
+  );
+
+  for (let i = 0; i < uniqueAddresses.length; i++) {
+    const result = fetchResults[i];
+    // No live price, or the fetch failed outright — we cannot grade this
+    // honestly either way, so the token is simply absent from the map and
+    // every signal for it falls through to "still pending" below.
+    if (!result || result.mode === 'demo') continue;
+    snapshotByToken.set(uniqueAddresses[i] as string, result.snapshot);
+  }
+
   let graded = 0;
   let stillPending = 0;
 
   for (const signal of due) {
-    let priced = priceByToken.get(signal.tokenAddress);
-
-    if (!priced) {
-      const result = await buildSnapshot(signal.tokenAddress);
-      if (result.mode === 'demo') {
-        // No live price — we cannot grade this honestly, so we do not.
-        stillPending++;
-        continue;
-      }
-      const snapshot = result.snapshot;
-      const since = signal.createdAt.getTime() / 1000;
-      const window = snapshot.candles.filter((c) => c.timeSec >= since);
-      priced = {
-        price: snapshot.priceUsd,
-        max: window.length ? Math.max(...window.map((c) => c.high)) : null,
-        min: window.length ? Math.min(...window.map((c) => c.low)) : null,
-      };
-      priceByToken.set(signal.tokenAddress, priced);
+    const snapshot = snapshotByToken.get(signal.tokenAddress);
+    if (!snapshot) {
+      stillPending++;
+      continue;
     }
+
+    const since = signal.createdAt.getTime() / 1000;
+    const window = snapshot.candles.filter((c) => c.timeSec >= since);
+    const priced = {
+      price: snapshot.priceUsd,
+      max: window.length ? Math.max(...window.map((c) => c.high)) : null,
+      min: window.length ? Math.min(...window.map((c) => c.low)) : null,
+    };
 
     const result = gradeSignal({
       verdict: signal.verdict as Verdict,
@@ -284,11 +328,24 @@ export async function runScan(): Promise<ScanResult> {
   let tooThin = 0;
   let lowConfidence = 0;
 
-  for (const candidate of candidates) {
-    if (recentlyCalled.has(candidate.address)) continue;
+  // Skip the already-called ones before spending a fetch on them, then fetch
+  // the rest concurrently — 12 candidates sequentially is only a few seconds,
+  // but there is no reason for this job to behave differently from sweep and
+  // score, and consistency here is one less shape to remember.
+  const toFetch = candidates.filter((c) => !recentlyCalled.has(c.address));
+  const fetchResults = await mapWithConcurrency(
+    toFetch,
+    SNAPSHOT_FETCH_CONCURRENCY,
+    (candidate) => buildSnapshot(candidate.address),
+    (err, candidate) => {
+      console.warn('[scan] snapshot fetch failed for', candidate.address, err instanceof Error ? err.message : err);
+      return null;
+    },
+  );
 
-    const result = await buildSnapshot(candidate.address);
-    if (result.mode === 'demo') {
+  for (let i = 0; i < toFetch.length; i++) {
+    const result = fetchResults[i];
+    if (!result || result.mode === 'demo') {
       noLiveData++;
       continue;
     }

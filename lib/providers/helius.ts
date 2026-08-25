@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { mapWithConcurrency } from '@/lib/concurrency';
 import { fetchJson, providerConfigured } from './http';
 import type { TradeEvent } from '@/lib/engine/cluster';
 
@@ -232,17 +233,16 @@ export async function fetchWalletHistories(
   const fundingEdges: WalletHistory['fundingEdges'] = [];
 
   // Bounded concurrency: enough to be quick, not enough to trip a rate limit.
-  const CONCURRENCY = 5;
-  for (let start = 0; start < targets.length; start += CONCURRENCY) {
-    const slice = targets.slice(start, start + CONCURRENCY);
-    const results = await Promise.all(
-      slice.map((wallet) => fetchOneWallet(wallet, mint, solPriceUsd)),
-    );
-    for (const r of results) {
-      if (!r) continue;
-      trades.push(...r.trades);
-      fundingEdges.push(...r.fundingEdges);
-    }
+  const results = await mapWithConcurrency(
+    targets,
+    5,
+    (wallet) => fetchOneWallet(wallet, mint, solPriceUsd),
+    () => null, // one wallet's history failing must not lose the rest
+  );
+  for (const r of results) {
+    if (!r) continue;
+    trades.push(...r.trades);
+    fundingEdges.push(...r.fundingEdges);
   }
 
   if (trades.length === 0 && fundingEdges.length === 0) return null;
