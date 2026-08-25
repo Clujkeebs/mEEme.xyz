@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colorForCoil } from '@/components/cockpit/coil-gauge';
 import { AlertSettings, type AlertPrefs } from '@/components/alert-settings';
+import { WalletImport } from '@/components/wallet-import';
+import { ApiKeys } from '@/components/api-keys';
 import type { Tier } from '@/lib/tiers';
 import { cn, formatPrice, shortAddress } from '@/lib/utils';
 
@@ -53,6 +55,9 @@ export interface WatchtowerProps {
   alertPrefs: AlertPrefs;
   telegramAvailable: boolean;
   emailAvailable: boolean;
+  walletScanAvailable: boolean;
+  apiAccess: boolean;
+  apiDailyLimit: number;
 }
 
 export function Watchtower({
@@ -67,6 +72,9 @@ export function Watchtower({
   alertPrefs,
   telegramAvailable,
   emailAvailable,
+  walletScanAvailable,
+  apiAccess,
+  apiDailyLimit,
 }: WatchtowerProps) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -183,6 +191,8 @@ export function Watchtower({
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
+          <WalletImport available={walletScanAvailable} />
+
           <section>
             <h2 className="hud-label mb-3 flex items-center gap-2">
               <Crosshair className="h-3 w-3" /> positions · {positions.length}/{limits.positions}
@@ -308,6 +318,8 @@ export function Watchtower({
               data. It cannot move your funds because it was never given the ability to.
             </p>
           </form>
+
+          <ApiKeys available={apiAccess} dailyLimit={apiDailyLimit} />
         </aside>
       </div>
     </div>

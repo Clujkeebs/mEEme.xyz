@@ -57,6 +57,7 @@ model User {
   signals   Signal[]
   usage     UsageDay[]
   alerts    Alert[]
+  apiKeys   ApiKey[]
 
   @@index([referredByCode])
 }
@@ -292,4 +293,29 @@ model AnonUsage {
   locks  Int    @default(0)
 
   @@unique([ipHash, day])
+}
+
+/// API keys for the Apex tier.
+///
+/// Only the hash is stored — a database dump must not hand someone a working
+/// key. The prefix is kept so the UI can show which key is which without ever
+/// being able to reproduce it.
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  /// SHA-256 of the full key.
+  keyHash    String    @unique
+  /// First 12 chars, for display only.
+  prefix     String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  /// Requests served this UTC day, reset lazily on first use.
+  callsToday Int       @default(0)
+  callsDay   String    @default("")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }

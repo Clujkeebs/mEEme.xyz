@@ -3,9 +3,11 @@ import { redirect } from 'next/navigation';
 import { Watchtower } from '@/components/watchtower';
 import { getViewer, googleConfigured } from '@/lib/auth';
 import { emailConfigured, telegramConfigured } from '@/lib/notify';
+import { heliusConfigured } from '@/lib/providers/helius';
 import { prisma } from '@/lib/db';
 import { getQuota } from '@/lib/quota';
 import { TIERS } from '@/lib/tiers';
+import { API_DAILY_LIMIT } from '@/lib/apikey';
 
 export const metadata: Metadata = { title: 'Watchtower' };
 export const dynamic = 'force-dynamic';
@@ -96,6 +98,9 @@ export default async function DashboardPage({
       }}
       telegramAvailable={telegramConfigured()}
       emailAvailable={emailConfigured()}
+      walletScanAvailable={heliusConfigured()}
+      apiAccess={TIERS[viewer.tier].apiAccess}
+      apiDailyLimit={API_DAILY_LIMIT}
       prefill={searchParams.add ? { address: searchParams.add, symbol: searchParams.symbol ?? '' } : null}
     />
   );
