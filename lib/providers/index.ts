@@ -3,7 +3,7 @@ import type { HolderPosition, TokenSnapshot } from '@/lib/engine/types';
 import { birdeyeConfigured, fetchCandles, fetchSolPriceUsd } from './birdeye';
 import { buildDemoSnapshot } from './demo';
 import { fetchDexScreenerMarket } from './dexscreener';
-import { fetchAsset, fetchHolderBalances, fetchTokenHistory, heliusConfigured } from './helius';
+import { fetchAsset, fetchHolderBalances, fetchWalletHistories, heliusConfigured } from './helius';
 import { fetchRugcheckReport } from './rugcheck';
 
 export { buildDemoSnapshot, demoScenarioFor } from './demo';
@@ -88,13 +88,20 @@ export async function buildSnapshot(
   const decimals = rugcheck?.decimals ?? 6;
 
   const [candles, solPrice, asset] = await Promise.all([
-    fetchCandles(tokenAddress, 240, nowMs),
+    // Resolution is chosen from the token's age — see intervalForAge.
+    fetchCandles(tokenAddress, market.ageMinutes, nowMs),
     fetchSolPriceUsd(),
     heliusConfigured() ? fetchAsset(tokenAddress) : Promise.resolve(null),
   ]);
 
   if (candles) sources.push('birdeye:ohlcv');
-  else missing.push(birdeyeConfigured() ? 'birdeye:ohlcv' : 'birdeye (no key)');
+  else {
+    missing.push(
+      birdeyeConfigured()
+        ? 'birdeye:ohlcv'
+        : 'birdeye (no key — no price history, so no cost-basis distribution)',
+    );
+  }
   if (asset) sources.push('helius:asset');
 
   const circulatingSupply =
@@ -102,69 +109,87 @@ export async function buildSnapshot(
     rugcheck?.totalSupply ??
     (market.fdvUsd > 0 && market.priceUsd > 0 ? market.fdvUsd / market.priceUsd : 0);
 
-  // The expensive part: per-wallet cost basis. Only Helius can give us this.
+  // Holder book. Balances tell us concentration and give the cluster analysis
+  // something to work on; the float's cost basis comes from the volume profile.
   let holders: HolderPosition[] = [];
   let clusterAnalysisRan = false;
   let historyTruncated = false;
 
-  if (heliusConfigured()) {
-    const [balanceResult, history] = await Promise.all([
-      fetchHolderBalances(tokenAddress, asset?.decimals ?? decimals),
-      fetchTokenHistory(tokenAddress, solPrice ?? FALLBACK_SOL_PRICE_USD),
-    ]);
+  const launchTimeMs = nowMs - market.ageMinutes * 60_000;
+  const balanceResult = heliusConfigured()
+    ? await fetchHolderBalances(tokenAddress, asset?.decimals ?? decimals)
+    : null;
 
-    if (balanceResult) sources.push('helius:holders');
-    else missing.push('helius:holders');
-    if (history) sources.push('helius:history');
-    else missing.push('helius:history');
+  if (balanceResult) sources.push('helius:holders');
+  else if (heliusConfigured()) missing.push('helius:holders');
 
-    if (balanceResult) {
-      historyTruncated = balanceResult.truncated || (history?.truncated ?? false);
-      const launchTimeMs = nowMs - market.ageMinutes * 60_000;
+  // Prefer Helius balances, fall back to RugCheck's top-holder list.
+  const balances: Map<string, number> =
+    balanceResult?.balances ?? rugcheck?.balances ?? new Map<string, number>();
+  historyTruncated = balanceResult?.truncated ?? false;
 
-      holders = reconstructHolders({
-        trades: history?.trades ?? [],
-        fundingEdges: history?.fundingEdges ?? [],
-        deployer: rugcheck?.creator ?? null,
-        launchSlot: null,
-        launchTimeMs,
-        currentBalances: balanceResult.balances,
-        lpAccounts: rugcheck?.lpAccounts ?? new Set<string>(),
-        exchangeAccounts: new Set<string>(),
-      });
+  if (balances.size > 0) {
+    // First pass with no trade history: establishes who the suspects are from
+    // balances, RugCheck's flags and the deployer relationship.
+    holders = reconstructHolders({
+      trades: [],
+      fundingEdges: [],
+      deployer: rugcheck?.creator ?? null,
+      launchSlot: null,
+      launchTimeMs,
+      currentBalances: balances,
+      lpAccounts: rugcheck?.lpAccounts ?? new Set<string>(),
+      exchangeAccounts: new Set<string>(),
+    });
 
-      // RugCheck's own insider flags are a useful prior. Merge them in rather
-      // than discarding either source.
-      if (rugcheck?.flaggedInsiders.size) {
-        for (const h of holders) {
-          if (rugcheck.flaggedInsiders.has(h.address) && !h.tags.includes('insider-cluster')) {
-            h.tags = [...h.tags, 'insider-cluster'];
-          }
+    if (rugcheck?.flaggedInsiders.size) {
+      for (const h of holders) {
+        if (rugcheck.flaggedInsiders.has(h.address) && !h.tags.includes('insider-cluster')) {
+          h.tags = [...h.tags, 'insider-cluster'];
         }
       }
-      clusterAnalysisRan = Boolean(history);
     }
-  } else {
-    missing.push('helius (no key — no cost basis, structural analysis only)');
-    // Fall back to RugCheck's top-holder list. Balances without cost basis
-    // still tell us about concentration, and the engine handles null bases.
-    if (rugcheck?.balances.size) {
-      for (const [wallet, balance] of rugcheck.balances) {
-        holders.push({
-          address: wallet,
-          balance,
-          costBasisUsd: null,
-          firstSeenMs: nowMs - market.ageMinutes * 60_000,
-          lastActivityMs: nowMs,
-          realizedFraction: 0,
-          tags: rugcheck.lpAccounts.has(wallet)
-            ? ['lp']
-            : rugcheck.flaggedInsiders.has(wallet)
-              ? ['insider-cluster']
-              : [],
+
+    // Second pass, and the reason this is affordable: fetch history only for
+    // the wallets whose exact cost basis actually changes the call — the
+    // deployer, the snipers, and the biggest holders. That is a few dozen
+    // addresses, not the token's entire trade log.
+    if (heliusConfigured()) {
+      const suspects = selectWalletsToPrice(holders, rugcheck?.creator ?? null);
+      const history = await fetchWalletHistories(
+        suspects,
+        tokenAddress,
+        solPrice ?? FALLBACK_SOL_PRICE_USD,
+      );
+
+      if (history) {
+        sources.push('helius:wallet-history');
+        holders = reconstructHolders({
+          trades: history.trades,
+          fundingEdges: history.fundingEdges,
+          deployer: rugcheck?.creator ?? null,
+          launchSlot: null,
+          launchTimeMs,
+          currentBalances: balances,
+          lpAccounts: rugcheck?.lpAccounts ?? new Set<string>(),
+          exchangeAccounts: new Set<string>(),
         });
+        if (rugcheck?.flaggedInsiders.size) {
+          for (const h of holders) {
+            if (rugcheck.flaggedInsiders.has(h.address) && !h.tags.includes('insider-cluster')) {
+              h.tags = [...h.tags, 'insider-cluster'];
+            }
+          }
+        }
+        clusterAnalysisRan = true;
+      } else {
+        missing.push('helius:wallet-history');
       }
     }
+  }
+
+  if (!heliusConfigured()) {
+    missing.push('helius (no key — insider cost basis unavailable)');
   }
 
   const coverage = summarizeCoverage(holders, circulatingSupply);
@@ -204,6 +229,34 @@ export async function buildSnapshot(
   }
 
   return { snapshot, mode: 'live', sources, missing };
+}
+
+/**
+ * Choose which wallets are worth spending a history request on.
+ *
+ * Ranked by how much their exact cost basis moves the call: the deployer and
+ * anything already flagged as coordinated first, then the largest holders,
+ * because a wallet holding 0.01% of the float cannot change a verdict no matter
+ * what it paid.
+ */
+export function selectWalletsToPrice(
+  holders: HolderPosition[],
+  deployer: string | null,
+  limit = 30,
+): string[] {
+  const priority = (h: HolderPosition): number => {
+    if (h.address === deployer) return 0;
+    if (h.tags.includes('deployer')) return 0;
+    if (h.tags.includes('sniper') || h.tags.includes('bundler')) return 1;
+    if (h.tags.includes('insider-cluster')) return 2;
+    return 3;
+  };
+
+  return holders
+    .filter((h) => !h.tags.includes('lp') && !h.tags.includes('exchange') && h.balance > 0)
+    .sort((a, b) => priority(a) - priority(b) || b.balance - a.balance)
+    .slice(0, limit)
+    .map((h) => h.address);
 }
 
 /** Which providers are configured. Powers /api/diagnostics and the UI banner. */

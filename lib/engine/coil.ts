@@ -1,3 +1,4 @@
+import { resolveDistribution, type Distribution, type SupplyBand } from './distribution';
 import type {
   CoilReport,
   HolderPosition,
@@ -108,54 +109,23 @@ export function tradableSupply(snapshot: TokenSnapshot): number {
 }
 
 /**
- * Group holder cost bases into logarithmic price shelves. Memecoin cost bases
- * span orders of magnitude, so linear bucketing would collapse the whole early
- * cohort into one bar and hide exactly the cluster that matters.
+ * Present a distribution as shelves relative to spot. Coiled shelves sit below
+ * (holders in profit), trapped shelves sit above (holders underwater).
+ *
+ * Shelves are purely a view of the distribution — the binning already happened
+ * upstream, where it could be done in one place for both data sources.
  */
-export function computeShelves(
-  snapshot: TokenSnapshot,
-  referencePriceUsd: number,
-): SupplyShelf[] {
-  const float = tradableSupply(snapshot);
-  if (float <= 0 || referencePriceUsd <= 0) return [];
-
-  const priced = snapshot.holders.filter(
-    (h) =>
-      !isStructural(h) &&
-      h.costBasisUsd !== null &&
-      h.costBasisUsd > 0 &&
-      h.balance > 0,
-  );
-  if (priced.length === 0) return [];
-
-  const logRatio = Math.log(SHELF_BIN_RATIO);
-  const bins = new Map<number, { supply: number; insiderSupply: number; weighted: number }>();
-
-  for (const h of priced) {
-    const cost = h.costBasisUsd as number;
-    const binIndex = Math.round(Math.log(cost) / logRatio);
-    const entry = bins.get(binIndex) ?? { supply: 0, insiderSupply: 0, weighted: 0 };
-    entry.supply += h.balance;
-    entry.weighted += h.balance * cost;
-    if (isInsider(h)) entry.insiderSupply += h.balance;
-    bins.set(binIndex, entry);
-  }
-
-  const shelves: SupplyShelf[] = [];
-  for (const [binIndex, entry] of bins) {
-    const supplyFraction = entry.supply / float;
-    if (supplyFraction < SHELF_MIN_FRACTION) continue;
-    // Represent the shelf at its supply-weighted average cost, not the bin edge.
-    const priceUsd = entry.supply > 0 ? entry.weighted / entry.supply : Math.exp(binIndex * logRatio);
-    shelves.push({
-      priceUsd,
-      supplyFraction,
-      kind: priceUsd < referencePriceUsd ? 'coiled' : 'trapped',
-      insiderShare: clamp(safeDiv(entry.insiderSupply, entry.supply), 0, 1),
-    });
-  }
-
-  return shelves.sort((a, b) => a.priceUsd - b.priceUsd);
+export function shelvesFromBands(bands: SupplyBand[], spotUsd: number): SupplyShelf[] {
+  if (spotUsd <= 0) return [];
+  return bands
+    .filter((b) => b.priceUsd > 0 && b.share > 0)
+    .map((b) => ({
+      priceUsd: b.priceUsd,
+      supplyFraction: b.share,
+      kind: b.priceUsd < spotUsd ? ('coiled' as const) : ('trapped' as const),
+      insiderShare: b.insiderShare,
+    }))
+    .sort((a, b) => a.priceUsd - b.priceUsd);
 }
 
 /**
@@ -251,13 +221,26 @@ export function structuralRisk(snapshot: TokenSnapshot): {
   return { risk: clamp(risk, 0, 1), flags };
 }
 
-/** Confidence in the read, driven entirely by how much of the float we could price. */
-export function computeConfidence(snapshot: TokenSnapshot): number {
-  const q = snapshot.dataQuality;
-  let c = 0.15 + 0.6 * clamp(q.supplyCovered, 0, 1);
-  if (q.clusterAnalysisRan) c += 0.15;
-  if (snapshot.candles.length >= 30) c += 0.1;
-  if (q.holdersResolved < 20) c -= 0.2;
+/**
+ * Confidence in the read.
+ *
+ * Driven by how much of the float the distribution actually accounts for, and
+ * discounted by how it was derived: a volume profile describes the float well
+ * but observes no behaviour, so it cannot see that a cohort has already begun
+ * selling. That is a real epistemic gap and the number should show it.
+ */
+export function computeConfidence(snapshot: TokenSnapshot, distribution: Distribution): number {
+  if (distribution.method === 'none' || distribution.bands.length === 0) return 0.05;
+
+  let c = 0.15 + 0.6 * clamp(distribution.covered, 0, 1);
+
+  if (distribution.method === 'wallet') c += 0.15;
+  else if (distribution.method === 'hybrid') c += 0.08;
+  else c -= 0.08; // volume profile alone: shape without behaviour
+
+  if (snapshot.dataQuality.clusterAnalysisRan) c += 0.1;
+  if (snapshot.candles.length >= 30) c += 0.05;
+
   return clamp(c, 0.05, 1);
 }
 
@@ -272,45 +255,40 @@ export function computeConfidence(snapshot: TokenSnapshot): number {
 export function analyzeCoil(snapshot: TokenSnapshot): CoilReport {
   const float = tradableSupply(snapshot);
   const spot = snapshot.priceUsd;
+  const distribution: Distribution = resolveDistribution(snapshot, float);
 
   let coiled = 0;
   let trapped = 0;
-  let insiderCoiledRaw = 0;
-  let insiderSupplyTotal = 0;
+  let insiderCoiled = 0;
+  let insiderTotal = 0;
   let insiderRealizedWeighted = 0;
 
-  for (const h of snapshot.holders) {
-    if (isStructural(h) || h.balance <= 0) continue;
-    const share = safeDiv(h.balance, float);
+  for (const band of distribution.bands) {
+    if (!(band.priceUsd > 0) || !(band.share > 0)) continue;
+    const multiple = spot / band.priceUsd;
+    const insiderInBand = band.share * band.insiderShare;
 
-    if (isInsider(h)) {
-      insiderSupplyTotal += share;
-      insiderRealizedWeighted += share * clamp(h.realizedFraction, 0, 1);
-    }
-
-    if (h.costBasisUsd === null || h.costBasisUsd <= 0) continue;
-
-    // Profit is measured against spot — that is the price they can actually sell at.
-    const multiple = spot / h.costBasisUsd;
+    insiderTotal += insiderInBand;
+    insiderRealizedWeighted += insiderInBand * band.realizedShare;
 
     if (multiple > 1) {
-      coiled += share * coilWeight(multiple) * urgency(h, snapshot);
-      if (isInsider(h)) insiderCoiledRaw += share;
+      coiled += band.share * coilWeight(multiple) * band.urgency;
+      insiderCoiled += insiderInBand;
     } else {
-      trapped += share * trapWeight(multiple);
+      trapped += band.share * trapWeight(multiple);
     }
   }
 
-  const shelves = computeShelves(snapshot, spot);
+  const shelves = shelvesFromBands(distribution.bands, spot);
   const trapdoor = selectShelf(shelves, spot, 'coiled');
   const ceiling = selectShelf(shelves, spot, 'trapped');
 
   const vor = velocityOfRealization(snapshot);
   const { risk, flags } = structuralRisk(snapshot);
-  const confidence = computeConfidence(snapshot);
+  const confidence = computeConfidence(snapshot, distribution);
 
   const csNorm = clamp(safeDiv(coiled, COIL_NORMALIZER), 0, 1);
-  const icNorm = clamp(safeDiv(insiderCoiledRaw, INSIDER_NORMALIZER), 0, 1);
+  const icNorm = clamp(safeDiv(insiderCoiled, INSIDER_NORMALIZER), 0, 1);
   const vorPositive = clamp(vor, 0, 1);
   const supportNorm = clamp(safeDiv(trapped, TRAP_NORMALIZER), 0, 1);
 
@@ -323,14 +301,16 @@ export function analyzeCoil(snapshot: TokenSnapshot): CoilReport {
   return {
     coiledSupply: coiled,
     trappedSupply: trapped,
-    insiderCoil: insiderCoiledRaw,
-    insiderRealized: clamp(safeDiv(insiderRealizedWeighted, insiderSupplyTotal), 0, 1),
+    insiderCoil: insiderCoiled,
+    insiderRealized: clamp(safeDiv(insiderRealizedWeighted, insiderTotal), 0, 1),
     velocityOfRealization: vor,
     coilScore,
     confidence,
     shelves,
     trapdoorUsd: trapdoor?.priceUsd ?? null,
     ceilingUsd: ceiling?.priceUsd ?? null,
+    method: distribution.method,
+    supplyCovered: distribution.covered,
     structuralFlags: flags,
   };
 }

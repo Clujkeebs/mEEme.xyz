@@ -547,19 +547,45 @@ function InsiderTable({ wallets, spotUsd }: { wallets: InsiderWallet[]; spotUsd:
   );
 }
 
+const METHOD_COPY: Record<string, { label: string; note: string }> = {
+  wallet: {
+    label: 'per-wallet',
+    note: 'Cost basis reconstructed wallet by wallet. The strongest read — it sees who has already begun selling.',
+  },
+  hybrid: {
+    label: 'profile + insiders',
+    note: 'The float\u2019s cost basis comes from where volume actually traded; the insider cluster is priced wallet by wallet.',
+  },
+  'volume-profile': {
+    label: 'volume profile',
+    note: 'Cost basis inferred from where volume traded, decayed by turnover. Describes the shape of the book but not each holder\u2019s behaviour.',
+  },
+  none: {
+    label: 'unavailable',
+    note: 'Neither price history nor holder data was available. There is no distribution behind this read.',
+  },
+};
+
 function DataQualityPanel({ result }: { result: LockResponse }) {
   const q = result.token.dataQuality;
+  const coil = result.signal.coil;
+  const method = METHOD_COPY[coil.method] ?? METHOD_COPY.none!;
+
   return (
     <div className="hud-panel p-4">
-      <h3 className="hud-label mb-2">data quality</h3>
+      <h3 className="hud-label mb-2">how this was derived</h3>
       <dl className="space-y-1.5 text-xs">
-        <Row label="supply priced" value={formatPct(q.supplyCovered)} />
+        <Row label="method" value={method.label} />
+        <Row label="float priced" value={formatPct(coil.supplyCovered)} />
         <Row label="wallets resolved" value={`${q.holdersResolved} / ${q.holdersResolved + q.holdersUnresolved}`} />
         <Row label="cluster analysis" value={q.clusterAnalysisRan ? 'ran' : 'unavailable'} />
         <Row label="sources" value={result.sources.join(', ') || '—'} />
       </dl>
+      <p className="mt-3 border-t border-border/60 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+        {method.note}
+      </p>
       {result.missing.length > 0 && (
-        <p className="mt-3 border-t border-border/60 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
           Degraded: {result.missing.join('; ')}.
         </p>
       )}

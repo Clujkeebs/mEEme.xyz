@@ -194,40 +194,82 @@ export interface HeliusHistory {
   truncated: boolean;
 }
 
-const MAX_TX_PAGES = 5;
+/** Per-wallet page cap. An insider wallet's history is short by construction. */
+const WALLET_TX_PAGES = 2;
 const TX_PER_PAGE = 100;
+/** Never fetch history for more wallets than this in one request. */
+const MAX_TRACKED_WALLETS = 30;
+
+export interface WalletHistory {
+  trades: TradeEvent[];
+  fundingEdges: { from: string; to: string; timestampMs: number; amountNative: number }[];
+}
 
 /**
- * Read swap history for a mint and derive both trades and funding edges.
+ * Read the swap history of *specific wallets*, not of the whole token.
  *
- * A "buy" is a transfer of the mint *to* a wallet inside a swap; the USD value
- * is derived from the SOL that moved in the same transaction, priced at the
- * supplied SOL/USD rate. This is an approximation — it attributes the whole
- * native leg to the token leg — and it is why `reconstructHolders` refuses to
- * publish a cost basis when the reconstructed balance drifts from the real one.
+ * This is the correction to the original design. Replaying a token's entire
+ * trade history is not possible for anything with real volume — tens of
+ * thousands of swaps, none of which a free API will page through inside a
+ * request — and a truncated replay yields wallets whose reconstructed balance
+ * does not match the chain, which the engine then correctly refuses to price.
+ * The result was a mechanic that worked only on synthetic data.
+ *
+ * The float's cost basis now comes from the volume profile instead. What still
+ * needs per-wallet precision is the insider cluster, and that is a few dozen
+ * addresses whose individual histories are genuinely short — so we ask about
+ * exactly those.
  */
-export async function fetchTokenHistory(
+export async function fetchWalletHistories(
+  wallets: string[],
   mint: string,
   solPriceUsd: number,
-): Promise<HeliusHistory | null> {
-  if (!heliusConfigured()) return null;
+): Promise<WalletHistory | null> {
+  if (!heliusConfigured() || wallets.length === 0) return null;
 
+  const targets = wallets.slice(0, MAX_TRACKED_WALLETS);
   const trades: TradeEvent[] = [];
-  const fundingEdges: HeliusHistory['fundingEdges'] = [];
-  let before: string | null = null;
-  let truncated = false;
+  const fundingEdges: WalletHistory['fundingEdges'] = [];
 
-  for (let page = 0; page < MAX_TX_PAGES; page++) {
+  // Bounded concurrency: enough to be quick, not enough to trip a rate limit.
+  const CONCURRENCY = 5;
+  for (let start = 0; start < targets.length; start += CONCURRENCY) {
+    const slice = targets.slice(start, start + CONCURRENCY);
+    const results = await Promise.all(
+      slice.map((wallet) => fetchOneWallet(wallet, mint, solPriceUsd)),
+    );
+    for (const r of results) {
+      if (!r) continue;
+      trades.push(...r.trades);
+      fundingEdges.push(...r.fundingEdges);
+    }
+  }
+
+  if (trades.length === 0 && fundingEdges.length === 0) return null;
+  return { trades, fundingEdges };
+}
+
+async function fetchOneWallet(
+  wallet: string,
+  mint: string,
+  solPriceUsd: number,
+): Promise<WalletHistory | null> {
+  const trades: TradeEvent[] = [];
+  const fundingEdges: WalletHistory['fundingEdges'] = [];
+  let before: string | null = null;
+
+  for (let page = 0; page < WALLET_TX_PAGES; page++) {
     const url: string =
-      `https://api.helius.xyz/v0/addresses/${encodeURIComponent(mint)}/transactions` +
+      `https://api.helius.xyz/v0/addresses/${encodeURIComponent(wallet)}/transactions` +
       `?api-key=${KEY}&limit=${TX_PER_PAGE}` +
       (before ? `&before=${encodeURIComponent(before)}` : '');
 
     const batch: z.infer<typeof enhancedTxSchema> | null = await fetchJson({
-      provider: 'helius:transactions',
+      provider: 'helius:wallet-transactions',
       url,
       schema: enhancedTxSchema,
-      timeoutMs: 15_000,
+      timeoutMs: 12_000,
+      retries: 1,
     });
     if (!batch || batch.length === 0) break;
 
@@ -236,8 +278,6 @@ export async function fetchTokenHistory(
       if (timestampMs === 0) continue;
       const slot = tx.slot ?? undefined;
 
-      // Native leg: total SOL that moved, used both to price the swap and to
-      // build the funding graph.
       let nativeUsd = 0;
       for (const nt of tx.nativeTransfers ?? []) {
         const lamports = num(nt.amount);
@@ -245,14 +285,10 @@ export async function fetchTokenHistory(
         const sol = lamports / LAMPORTS_PER_SOL;
         nativeUsd += sol * solPriceUsd;
 
-        // Plain SOL transfers (no token leg) are funding, not trading.
+        // A plain SOL transfer with no token leg is funding, and funding is how
+        // a cluster gets de-anonymised.
         if (!tx.tokenTransfers?.length && nt.fromUserAccount && nt.toUserAccount && sol > 0.001) {
-          fundingEdges.push({
-            from: nt.fromUserAccount,
-            to: nt.toUserAccount,
-            timestampMs,
-            amountNative: sol,
-          });
+          fundingEdges.push({ from: nt.fromUserAccount, to: nt.toUserAccount, timestampMs, amountNative: sol });
         }
       }
 
@@ -261,25 +297,18 @@ export async function fetchTokenHistory(
         const amount = num(tt.tokenAmount);
         if (amount === null || amount <= 0) continue;
 
-        // Whoever paid the fee is the actor; the pool is the counterparty.
-        const buyer = tt.toUserAccount;
-        const seller = tt.fromUserAccount;
-
-        if (buyer && buyer === tx.feePayer) {
-          trades.push({ wallet: buyer, side: 'buy', tokenAmount: amount, usdValue: nativeUsd, timestampMs, slot });
-        } else if (seller && seller === tx.feePayer) {
-          trades.push({ wallet: seller, side: 'sell', tokenAmount: amount, usdValue: nativeUsd, timestampMs, slot });
+        if (tt.toUserAccount === wallet) {
+          trades.push({ wallet, side: 'buy', tokenAmount: amount, usdValue: nativeUsd, timestampMs, slot });
+        } else if (tt.fromUserAccount === wallet) {
+          trades.push({ wallet, side: 'sell', tokenAmount: amount, usdValue: nativeUsd, timestampMs, slot });
         }
       }
     }
 
     const last: (typeof batch)[number] | undefined = batch.at(-1);
-    if (!last?.signature) break;
+    if (!last?.signature || batch.length < TX_PER_PAGE) break;
     before = last.signature;
-    if (batch.length < TX_PER_PAGE) break;
-    if (page === MAX_TX_PAGES - 1) truncated = true;
   }
 
-  if (trades.length === 0 && fundingEdges.length === 0) return null;
-  return { trades, fundingEdges, truncated };
+  return trades.length > 0 || fundingEdges.length > 0 ? { trades, fundingEdges } : null;
 }

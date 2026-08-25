@@ -42,23 +42,50 @@ const headers = (): Record<string, string> => ({
   'x-chain': 'solana',
 });
 
-/** Candles for the last `minutes`, at one-minute resolution. */
+type Interval = '1m' | '5m' | '15m' | '1H' | '4H';
+
+const INTERVAL_SECONDS: Record<Interval, number> = {
+  '1m': 60, '5m': 300, '15m': 900, '1H': 3600, '4H': 14400,
+};
+
+/**
+ * Candles are no longer just chart decoration — they are the primary input to
+ * the cost-basis distribution, so the window has to cover enough turnover to
+ * describe who currently holds the float.
+ *
+ * Resolution is chosen from the token's age: a token minted an hour ago needs
+ * minute bars, a week-old one needs hours of coverage more than it needs
+ * minute-level detail. Birdeye caps the number of bars per response, so asking
+ * for 1m over a week would silently truncate to the most recent slice and quietly
+ * throw away the history the profile depends on.
+ */
+export function intervalForAge(ageMinutes: number): { interval: Interval; windowMinutes: number } {
+  if (ageMinutes <= 180) return { interval: '1m', windowMinutes: Math.max(60, ageMinutes) };
+  if (ageMinutes <= 1440) return { interval: '5m', windowMinutes: ageMinutes };
+  if (ageMinutes <= 10_080) return { interval: '15m', windowMinutes: Math.min(ageMinutes, 10_080) };
+  return { interval: '1H', windowMinutes: Math.min(ageMinutes, 43_200) };
+}
+
+/**
+ * Candles covering the token's life, at a resolution that fits in one response.
+ */
 export async function fetchCandles(
   tokenAddress: string,
-  minutes = 240,
+  ageMinutes = 240,
   nowMs: number = Date.now(),
 ): Promise<Candle[] | null> {
   if (!birdeyeConfigured()) return null;
 
+  const { interval, windowMinutes } = intervalForAge(ageMinutes);
   const timeTo = Math.floor(nowMs / 1000);
-  const timeFrom = timeTo - minutes * 60;
+  const timeFrom = timeTo - Math.round(windowMinutes * 60);
 
   const data = await fetchJson({
-    provider: 'birdeye:ohlcv',
-    url: `${BASE}/defi/ohlcv?address=${encodeURIComponent(tokenAddress)}&type=1m&time_from=${timeFrom}&time_to=${timeTo}`,
+    provider: `birdeye:ohlcv:${interval}`,
+    url: `${BASE}/defi/ohlcv?address=${encodeURIComponent(tokenAddress)}&type=${interval}&time_from=${timeFrom}&time_to=${timeTo}`,
     schema: ohlcvSchema,
     init: { headers: headers() },
-    revalidateSeconds: 45,
+    revalidateSeconds: INTERVAL_SECONDS[interval] >= 900 ? 300 : 45,
   });
 
   const items = data?.data?.items;

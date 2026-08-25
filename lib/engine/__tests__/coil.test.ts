@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   analyzeCoil,
   coilWeight,
-  computeShelves,
+  shelvesFromBands,
   structuralRisk,
   tradableSupply,
   trapWeight,
   urgency,
   velocityOfRealization,
 } from '../coil';
+import { fromWallets } from '../distribution';
 import { holder, NOW, snapshot } from './factory';
 
 describe('coilWeight', () => {
@@ -104,39 +105,30 @@ describe('tradableSupply', () => {
   });
 });
 
-describe('computeShelves', () => {
+describe('shelves from wallet distribution', () => {
+  const shelvesFor = (snap: ReturnType<typeof snapshot>, spot: number) =>
+    shelvesFromBands(fromWallets(snap.holders, 1000, NOW, snap.ageMinutes).bands, spot);
+
   it('groups nearby cost bases into a single shelf', () => {
     const snap = snapshot({
       circulatingSupply: 1000,
       priceUsd: 0.01,
-      holders: [
-        holder(100, 0.001),
-        holder(100, 0.00105),
-        holder(100, 0.00102),
-      ],
+      holders: [holder(100, 0.001), holder(100, 0.00105), holder(100, 0.00102)],
     });
-    const shelves = computeShelves(snap, 0.01);
+    const shelves = shelvesFor(snap, 0.01);
     expect(shelves).toHaveLength(1);
     expect(shelves[0]!.supplyFraction).toBeCloseTo(0.3, 5);
     expect(shelves[0]!.kind).toBe('coiled');
   });
 
-  it('labels shelves above the reference price as trapped', () => {
-    const snap = snapshot({
-      circulatingSupply: 1000,
-      priceUsd: 0.001,
-      holders: [holder(300, 0.01)],
-    });
-    const shelves = computeShelves(snap, 0.001);
-    expect(shelves[0]!.kind).toBe('trapped');
+  it('labels shelves above spot as trapped', () => {
+    const snap = snapshot({ circulatingSupply: 1000, priceUsd: 0.001, holders: [holder(300, 0.01)] });
+    expect(shelvesFor(snap, 0.001)[0]!.kind).toBe('trapped');
   });
 
-  it('drops shelves below the noise threshold', () => {
-    const snap = snapshot({
-      circulatingSupply: 1_000_000,
-      holders: [holder(100, 0.001)], // 0.01% of supply
-    });
-    expect(computeShelves(snap, 0.01)).toHaveLength(0);
+  it('drops bands below the noise threshold', () => {
+    const snap = snapshot({ circulatingSupply: 1_000_000, holders: [holder(100, 0.001)] });
+    expect(shelvesFromBands(fromWallets(snap.holders, 1_000_000, NOW, 240).bands, 0.01)).toHaveLength(0);
   });
 
   it('reports the insider share of each shelf', () => {
@@ -145,13 +137,21 @@ describe('computeShelves', () => {
       priceUsd: 0.01,
       holders: [holder(100, 0.001, { tags: ['sniper'] }), holder(100, 0.001)],
     });
-    const shelves = computeShelves(snap, 0.01);
-    expect(shelves[0]!.insiderShare).toBeCloseTo(0.5, 5);
+    expect(shelvesFor(snap, 0.01)[0]!.insiderShare).toBeCloseTo(0.5, 5);
   });
 
   it('returns nothing when no holder has a resolved cost basis', () => {
     const snap = snapshot({ holders: [holder(500, null)] });
-    expect(computeShelves(snap, 0.01)).toHaveLength(0);
+    expect(shelvesFor(snap, 0.01)).toHaveLength(0);
+  });
+
+  it('never counts LP holdings as supply that can be sold', () => {
+    const snap = snapshot({
+      circulatingSupply: 1000,
+      holders: [holder(500, 0.0001, { tags: ['lp'] }), holder(100, 0.001)],
+    });
+    const dist = fromWallets(snap.holders, 500, NOW, 240);
+    expect(dist.bands.reduce((s, b) => s + b.share, 0)).toBeCloseTo(0.2, 5);
   });
 });
 
@@ -300,6 +300,24 @@ describe('analyzeCoil', () => {
     expect(withLp.insiderCoil).toBe(0);
   });
 
+  it('never lets total supply shares exceed the float, however hot the volume', () => {
+    // Volume here churns thousands of times the float every minute. Those are
+    // the same coins recirculating, not new supply.
+    const churning = analyzeCoil(
+      snapshot({
+        priceUsd: 0.001,
+        circulatingSupply: 500,
+        holders: [],
+        volumeUsd: { m5: 1e9, h1: 1e10, h6: 1e11, h24: 1e12 },
+      }),
+    );
+    const totalShare = churning.shelves.reduce((s, shelf) => s + shelf.supplyFraction, 0);
+    expect(totalShare).toBeLessThanOrEqual(1.0001);
+    expect(churning.coiledSupply).toBeLessThanOrEqual(1);
+    expect(churning.trappedSupply).toBeLessThanOrEqual(1);
+    expect(churning.supplyCovered).toBeLessThanOrEqual(1);
+  });
+
   it('degrades confidence when supply coverage is thin', () => {
     const thin = analyzeCoil(
       snapshot({
@@ -329,11 +347,22 @@ describe('analyzeCoil', () => {
     expect(coil.ceilingUsd!).toBeGreaterThan(0.005);
   });
 
-  it('survives an empty holder set without NaN', () => {
+  it('still produces a distribution with no holder data at all', () => {
+    // This is the whole point of the volume-profile path: full trade history is
+    // unobtainable for a real memecoin, so the engine must not go blind when
+    // per-wallet reconstruction returns nothing.
     const coil = analyzeCoil(snapshot({ holders: [] }));
     expect(Number.isNaN(coil.coilScore)).toBe(false);
+    expect(coil.method).toBe('volume-profile');
+    expect(coil.shelves.length).toBeGreaterThan(0);
+  });
+
+  it('goes quiet rather than guessing when it has neither holders nor candles', () => {
+    const coil = analyzeCoil(snapshot({ holders: [], candles: [] }));
+    expect(coil.method).toBe('none');
     expect(coil.shelves).toHaveLength(0);
     expect(coil.trapdoorUsd).toBeNull();
+    expect(coil.confidence).toBeLessThan(0.1);
   });
 
   it('keeps coilScore inside [0,1] under adversarial input', () => {

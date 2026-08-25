@@ -18,6 +18,8 @@ function coilOf(over: Partial<CoilReport> = {}): CoilReport {
     shelves: [],
     trapdoorUsd: null,
     ceilingUsd: null,
+    method: 'wallet',
+    supplyCovered: 0.8,
     structuralFlags: [],
     ...over,
   };

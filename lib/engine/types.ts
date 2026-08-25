@@ -187,6 +187,16 @@ export interface CoilReport {
   trapdoorUsd: number | null;
   /** Nearest heavy trapped shelf above price. Expect supply there. */
   ceilingUsd: number | null;
+  /**
+   * How the cost-basis distribution was derived. This changes what the numbers
+   * mean, so it travels with them rather than being buried in a log:
+   *   'wallet'         — reconstructed per holder; carries real behaviour.
+   *   'volume-profile' — inferred from price history; shape without behaviour.
+   *   'hybrid'         — profile shape, sharpened with known insider positions.
+   */
+  method: 'wallet' | 'volume-profile' | 'hybrid' | 'none';
+  /** Fraction of float the distribution accounts for, 0..1. */
+  supplyCovered: number;
   /** Structural red flags independent of supply math. */
   structuralFlags: string[];
 }
