@@ -1,43 +1,39 @@
 # Going live
 
-The app is deployed and **already works** — with no keys at all it runs in demo
-mode: real engine, synthetic data, clearly labelled, and demo reads are barred
-from the public track record.
+**It is already deployed and running.**
 
-This is the checklist to make it real. I could not do these steps for you: every
-one requires creating an account under your name, agreeing to terms, or entering
-payment details.
+- **App:** https://meeme-web-production.up.railway.app (Railway)
+- **Database:** Supabase project `meeme-xyz`, schema applied, dedicated
+  `meeme_app` role
+- **Scheduler:** in-process, running sweep / score / scan
+
+Steps 1 and 2 below are **already done**. Everything from step 3 is what is
+left, and each one requires an account under your name, agreeing to terms, or
+card details — which is why they are yours to do rather than mine.
 
 Work top to bottom. After each block, hit `/api/diagnostics` — it makes a real
 call to every configured provider and tells you what actually answered.
 
 ---
 
-## 1. Database — 5 min, free
+## 1. Database — ✅ done
 
-Without this: nothing persists. No accounts, no positions, no track record.
+A Supabase Postgres project (`meeme-xyz`) is provisioned, the baseline
+migration is applied, and the app connects through a dedicated `meeme_app`
+role rather than the superuser. `DATABASE_URL` is set on Railway.
 
-1. [neon.tech](https://neon.tech) → new project → copy the **pooled** connection
-   string (it has `-pooler` in the host).
-2. Vercel → project → **Settings → Environment Variables**:
-   - `DATABASE_URL` = that string
-3. In `prisma/schema.prisma`, change `provider = "sqlite"` to
-   `provider = "postgresql"`, commit, push.
-4. Locally, once: `DATABASE_URL="<the string>" npx prisma db push`
+Because Prisma created the tables as `meeme_app`, Supabase's default grants to
+the public API roles never attached — `anon` and `authenticated` cannot read or
+write any application table. Verified directly, not assumed. That means the
+"RLS is disabled" advisory in the Supabase dashboard does not carry its usual
+risk here; there is no PostgREST surface to protect.
 
-> Neon's free tier suspends after inactivity and takes ~1s to wake. Fine for now;
-> if cold starts become noticeable, Vercel Postgres or Supabase behave the same
-> way on their free tiers.
+## 2. Secrets — ✅ done
 
-## 2. Secrets — 1 min
-
-```bash
-openssl rand -base64 32   # → NEXTAUTH_SECRET
-openssl rand -hex 32      # → CRON_SECRET
-openssl rand -hex 32      # → TELEGRAM_WEBHOOK_SECRET
-```
-
-Also set `NEXTAUTH_URL` to your deployment origin, no trailing slash.
+`NEXTAUTH_SECRET`, `CRON_SECRET` and `TELEGRAM_WEBHOOK_SECRET` are generated
+and set on Railway. `NEXTAUTH_URL` points at the Railway domain — **change it
+when you add your own domain**, and update the Google redirect URI and Stripe
+webhook to match.
 
 ## 3. Birdeye — the one that turns the mechanic on
 
@@ -110,33 +106,35 @@ Without this: everyone stays free and the upgrade buttons explain why.
 
 Test with card `4242 4242 4242 4242` in test mode before switching to live keys.
 
-## 8. Scheduling — required, free
+## 8. Scheduling — ✅ done
 
-Vercel's Hobby plan caps cron at two jobs running **once per day**, which is
-useless for a sweep whose job is catching a stop as it breaks. GitHub Actions
-runs the same endpoints on a real schedule, for free.
+`ENABLE_INTERNAL_CRON=true` is set, so the app schedules its own jobs in-process
+— sweep every 5 min, score hourly, scan every 30 min. Confirm in the Railway
+logs; you should see:
 
-GitHub → repo → **Settings → Secrets and variables → Actions**:
+```
+[cron] internal scheduler started (sweep, score, scan)
+```
 
-- `MEEME_APP_URL` — your deployment origin, no trailing slash
-- `MEEME_CRON_SECRET` — same value as `CRON_SECRET` in Vercel
-
-The workflow is already committed. Confirm it under the **Actions** tab; you can
-trigger any job by hand with **Run workflow**.
+The GitHub Actions workflow is still committed and still works, for running on
+Vercel or any serverless host. Do not enable both against the same deployment —
+you would double every alert.
 
 ## 9. Domain
 
-Vercel → **Settings → Domains** → add `meeme.xyz`, follow the DNS instructions
-at your registrar. Then update `NEXTAUTH_URL`, the Google redirect URI, the
-Stripe webhook URL, `MEEME_APP_URL`, and re-run the Telegram setup call.
+Railway → service → **Settings → Networking → Custom Domain** → add
+`meeme.xyz` and follow the CNAME instructions at your registrar. Then update
+`NEXTAUTH_URL`, the Google redirect URI, the Stripe webhook URL, and re-run the
+Telegram setup call.
 
 ---
 
 ## Order of operations, if you only do some of it
 
-1. **Database + secrets** — nothing works without these.
+1. ~~Database + secrets~~ — done.
 2. **Birdeye** — this is what turns the mechanic on. Until it is set, the
-   product is a structural scanner, and there are free ones of those.
+   product is a structural scanner, and there are free ones of those. Do this
+   one first.
 3. **Telegram** — without delivery there is nothing to charge for.
 4. **Google + Stripe** — you cannot take money without both.
 5. **Helius** — sharpens the read and unlocks wallet import.
