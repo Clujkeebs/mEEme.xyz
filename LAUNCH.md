@@ -52,6 +52,23 @@ breaks sign-in on the Railway URL you are currently using.
 Then add `https://meeme.xyz/api/auth/callback/google` as an authorised redirect
 URI in the Google Cloud console, or sign-in fails with `redirect_uri_mismatch`.
 
+### Why the X preview depends on this variable
+
+The social card image URL is **absolute**, and the homepage is prerendered, so
+`og:image` is baked at build time from `NEXTAUTH_URL`. If that variable were
+missing during a build, the card would point at `localhost` and X would show no
+image at all.
+
+It is set on Railway, and Railway rebuilds whenever you change a variable — so
+updating it to `https://meeme.xyz` re-bakes the card URLs correctly on its own.
+Nothing to do here beyond the step above; it is documented because the failure
+mode is silent.
+
+After the domain is live, paste the URL into
+[X's Card Validator](https://cards-dev.twitter.com/validator) once to prime
+their crawler's cache. X caches aggressively — if you share the link before DNS
+is ready, it can keep serving a blank card for hours.
+
 ---
 
 ## 2. Turn on payments — the actual blocker
