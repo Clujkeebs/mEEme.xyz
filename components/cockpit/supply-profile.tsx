@@ -31,8 +31,39 @@ export interface SupplyProfileProps {
 
 const HEIGHT = 320;
 const LABEL_WIDTH = 74;
-const BAR_AREA = 210;
+const BAR_AREA = 200;
 const PADDING_Y = 18;
+/** Right-hand gutter the level markers live in, clear of the bars. */
+const GUTTER = 96;
+const CHART_WIDTH = LABEL_WIDTH + BAR_AREA + GUTTER;
+/** Minimum vertical gap between two level labels before we nudge them apart. */
+const LABEL_MIN_GAP = 12;
+
+interface LevelMarker {
+  y: number;
+  labelY: number;
+  text: string;
+  color: string;
+  /** Levels are drawn full width; entry and spot are dashed references. */
+  dash?: string;
+}
+
+/**
+ * Level labels are computed from independent prices, so two of them can land on
+ * the same pixel. Sort by position and push each one down until it clears the
+ * previous — the line stays at the true price, only the text moves.
+ */
+function declutter(markers: LevelMarker[]): LevelMarker[] {
+  const sorted = [...markers].sort((a, b) => a.labelY - b.labelY);
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (prev && cur && cur.labelY - prev.labelY < LABEL_MIN_GAP) {
+      cur.labelY = prev.labelY + LABEL_MIN_GAP;
+    }
+  }
+  return sorted;
+}
 
 export function SupplyProfile({
   shelves,
@@ -84,10 +115,25 @@ export function SupplyProfile({
   const { y, width } = geometry;
   const spotY = y(spotUsd);
 
+  const markers = declutter(
+    [
+      { y: spotY, labelY: spotY - 5, text: `SPOT ${formatPrice(spotUsd)}`, color: 'hsl(var(--primary))', dash: '4 3' },
+      entryUsd && entryUsd > 0
+        ? { y: y(entryUsd), labelY: y(entryUsd) - 5, text: 'YOUR ENTRY', color: '#7cf7d4', dash: '2 4' }
+        : null,
+      trapdoorUsd !== null && trapdoorUsd > 0
+        ? { y: y(trapdoorUsd), labelY: y(trapdoorUsd) - 5, text: 'TRAPDOOR', color: '#ff3b30' }
+        : null,
+      ceilingUsd !== null && ceilingUsd > 0
+        ? { y: y(ceilingUsd), labelY: y(ceilingUsd) - 5, text: 'CEILING', color: '#2f6fed' }
+        : null,
+    ].filter((m): m is LevelMarker => m !== null),
+  );
+
   return (
     <div className={cn('relative', className)}>
       <svg
-        viewBox={`0 0 ${LABEL_WIDTH + BAR_AREA + 78} ${HEIGHT}`}
+        viewBox={`0 0 ${CHART_WIDTH} ${HEIGHT}`}
         className="w-full"
         role="img"
         aria-label="Supply profile: coiled supply below spot, trapped supply above"
@@ -139,7 +185,7 @@ export function SupplyProfile({
                 {formatPrice(shelf.priceUsd)}
               </text>
               <text
-                x={LABEL_WIDTH + barWidth + 6}
+                x={Math.min(LABEL_WIDTH + barWidth + 6, LABEL_WIDTH + BAR_AREA + 6)}
                 y={barY + 3}
                 className="fill-muted-foreground/80 font-mono text-[9px]"
               >
@@ -149,79 +195,29 @@ export function SupplyProfile({
           );
         })}
 
-        {/* Spot */}
-        <line
-          x1={0}
-          x2={LABEL_WIDTH + BAR_AREA + 70}
-          y1={spotY}
-          y2={spotY}
-          stroke="hsl(var(--primary))"
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-        />
-        <text x={2} y={spotY - 6} className="fill-primary font-mono text-[9px] uppercase tracking-wider">
-          spot {formatPrice(spotUsd)}
-        </text>
-
-        {entryUsd && entryUsd > 0 && (
-          <>
+        {markers.map((m) => (
+          <g key={m.text}>
             <line
-              x1={0}
-              x2={LABEL_WIDTH + BAR_AREA + 70}
-              y1={y(entryUsd)}
-              y2={y(entryUsd)}
-              stroke="#7cf7d4"
-              strokeWidth={1}
-              strokeDasharray="2 4"
-              opacity={0.8}
-            />
-            <text x={2} y={y(entryUsd) - 5} className="fill-hud font-mono text-[9px] uppercase tracking-wider">
-              your entry
-            </text>
-          </>
-        )}
-
-        {trapdoorUsd !== null && trapdoorUsd > 0 && (
-          <g>
-            <line
-              x1={LABEL_WIDTH - 4}
-              x2={LABEL_WIDTH + BAR_AREA + 70}
-              y1={y(trapdoorUsd)}
-              y2={y(trapdoorUsd)}
-              stroke="#ff3b30"
-              strokeWidth={1}
+              x1={m.dash ? 0 : LABEL_WIDTH - 4}
+              x2={CHART_WIDTH - 4}
+              y1={m.y}
+              y2={m.y}
+              stroke={m.color}
+              strokeWidth={m.dash ? 1.5 : 1}
+              strokeDasharray={m.dash}
             />
             <text
-              x={LABEL_WIDTH + BAR_AREA + 68}
-              y={y(trapdoorUsd) - 5}
+              x={CHART_WIDTH - 4}
+              y={m.labelY}
               textAnchor="end"
-              className="fill-coil font-mono text-[9px] uppercase tracking-wider"
+              className="font-mono text-[9px] uppercase tracking-wider"
+              fill={m.color}
             >
-              trapdoor
+              {m.text}
             </text>
           </g>
-        )}
+        ))}
 
-        {ceilingUsd !== null && ceilingUsd > 0 && (
-          <g>
-            <line
-              x1={LABEL_WIDTH - 4}
-              x2={LABEL_WIDTH + BAR_AREA + 70}
-              y1={y(ceilingUsd)}
-              y2={y(ceilingUsd)}
-              stroke="#2f6fed"
-              strokeWidth={1}
-            />
-            <text
-              x={LABEL_WIDTH + BAR_AREA + 68}
-              y={y(ceilingUsd) + 12}
-              textAnchor="end"
-              className="fill-trap font-mono text-[9px] uppercase tracking-wider"
-            >
-              ceiling
-            </text>
-          </g>
-        )}
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">

@@ -48,6 +48,22 @@ export function PriceChart({
     const container = containerRef.current;
     if (!container || candles.length === 0) return;
 
+    // Memecoin prices run from $40 to $0.000000000012, so precision has to be
+    // derived from the data. A fixed 10 decimals makes the axis unreadable and,
+    // worse, gives the tick generator a minMove of 1e-10 — which is what makes
+    // it start the scale at zero and squash the candles into a strip.
+    const highest = Math.max(...candles.map((c) => c.high), 1e-12);
+    const precision = highest >= 1 ? 4 : Math.min(12, Math.abs(Math.floor(Math.log10(highest))) + 4);
+    const minMove = Number(`1e-${precision}`);
+
+    /** Compact axis labels: three significant figures is all anyone reads off an axis. */
+    const priceFormatter = (price: number): string => {
+      if (!Number.isFinite(price)) return '';
+      if (price >= 1) return price.toFixed(3);
+      if (price <= 0) return '0';
+      return price.toPrecision(3);
+    };
+
     const chart = createChart(container, {
       height,
       layout: {
@@ -60,13 +76,19 @@ export function PriceChart({
         vertLines: { color: 'rgba(124,247,212,0.04)' },
         horzLines: { color: 'rgba(124,247,212,0.04)' },
       },
-      rightPriceScale: { borderColor: 'rgba(124,247,212,0.12)' },
+      rightPriceScale: {
+        borderColor: 'rgba(124,247,212,0.12)',
+        // Keep the candles filling the pane instead of letting autoscale pad
+        // the range out toward zero once the level lines are added.
+        scaleMargins: { top: 0.12, bottom: 0.12 },
+      },
       timeScale: { borderColor: 'rgba(124,247,212,0.12)', timeVisible: true, secondsVisible: false },
       crosshair: {
         vertLine: { color: 'rgba(0,224,138,0.4)', labelBackgroundColor: '#00e08a' },
         horzLine: { color: 'rgba(0,224,138,0.4)', labelBackgroundColor: '#00e08a' },
       },
       handleScale: { axisPressedMouseMove: { time: true, price: false } },
+      localization: { priceFormatter },
     });
 
     const series = chart.addCandlestickSeries({
@@ -76,8 +98,7 @@ export function PriceChart({
       borderDownColor: '#ff3b30',
       wickUpColor: 'rgba(0,224,138,0.65)',
       wickDownColor: 'rgba(255,59,48,0.65)',
-      // Memecoin prices need far more precision than the 2-decimal default.
-      priceFormat: { type: 'price', precision: 10, minMove: 1e-10 },
+      priceFormat: { type: 'price', precision, minMove },
     });
 
     series.setData(
@@ -125,13 +146,17 @@ export function PriceChart({
 
     if (ladder) {
       ladder.rungs.forEach((rung, i) => {
+        // A market rung sits exactly at spot; drawing it just stacks a second
+        // label on top of the current-price label.
+        const atSpot = Math.abs(rung.priceUsd - (candles.at(-1)?.close ?? 0)) < 1e-12;
+        if (atSpot) return;
         series.createPriceLine({
           price: rung.priceUsd,
           color: 'rgba(0,224,138,0.75)',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
-          title: `R${i + 1} ${(rung.fraction * 100).toFixed(0)}%`,
+          title: `R${i + 1}`,
         });
       });
       series.createPriceLine({

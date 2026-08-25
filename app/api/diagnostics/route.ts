@@ -1,6 +1,8 @@
 import { jsonOk } from '@/lib/api';
 import { googleConfigured } from '@/lib/auth';
 import { databaseConfigured, prisma } from '@/lib/db';
+import { birdeyeConfigured } from '@/lib/providers/birdeye';
+import { heliusConfigured } from '@/lib/providers/helius';
 import { demoModeForced, providerStatus } from '@/lib/providers';
 import { stripeConfigured } from '@/lib/stripe';
 
@@ -52,40 +54,66 @@ export async function GET() {
       : 'STRIPE_SECRET_KEY or price IDs unset — everyone stays on the free tier.',
   });
 
-  // Live provider probes, run against a mint that definitely exists.
-  const probes = await Promise.all(
-    providerStatus().map(async (p) => {
-      if (!p.configured) {
-        return { name: `provider:${p.name}`, ok: false, detail: `Not configured. ${p.note}` };
-      }
-      try {
-        const mod = await import('@/lib/providers');
-        if (p.name === 'dexscreener') {
-          const r = await mod.buildSnapshot(PROBE_MINT);
-          return {
-            name: 'provider:dexscreener',
-            ok: r.mode === 'live',
-            detail:
-              r.mode === 'live'
-                ? `Live. Sources that answered: ${r.sources.join(', ') || 'none'}.` +
-                  (r.missing.length ? ` Missing: ${r.missing.join(', ')}.` : '')
-                : 'Fell back to demo — no live price came back. Check network egress from this deployment.',
-          };
-        }
-        return { name: `provider:${p.name}`, ok: true, detail: `Key present. ${p.note}` };
-      } catch (err) {
-        return {
-          name: `provider:${p.name}`,
-          ok: false,
-          detail: err instanceof Error ? err.message : 'Probe threw.',
-        };
-      }
+  // Live provider probes. Each one makes a real call — a status that says "ok"
+  // because a key is present, without ever having asked the provider anything,
+  // is exactly the kind of reassuring lie this route exists to prevent.
+  const probes = await Promise.all([
+    probe('dexscreener', true, async () => {
+      const { fetchDexScreenerMarket } = await import('@/lib/providers/dexscreener');
+      const market = await fetchDexScreenerMarket(PROBE_MINT);
+      return market
+        ? { ok: true, detail: `Answered. ${market.symbol} at $${market.priceUsd.toPrecision(4)}.` }
+        : { ok: false, detail: 'No usable response. Live reads will fall back to demo data.' };
     }),
-  );
+    probe('rugcheck', true, async () => {
+      const { fetchRugcheckReport } = await import('@/lib/providers/rugcheck');
+      const report = await fetchRugcheckReport(PROBE_MINT);
+      return report
+        ? { ok: true, detail: `Answered. ${report.balances.size} top holders parsed.` }
+        : { ok: false, detail: 'No usable response. Structural flags and insider priors unavailable.' };
+    }),
+    probe('helius', heliusConfigured(), async () => {
+      const { fetchAsset } = await import('@/lib/providers/helius');
+      const asset = await fetchAsset(PROBE_MINT);
+      return asset
+        ? { ok: true, detail: `Answered. Decimals ${asset.decimals ?? '?'}.` }
+        : { ok: false, detail: 'Key is set but the call failed or did not parse. No cost basis without this.' };
+    }),
+    probe('birdeye', birdeyeConfigured(), async () => {
+      const { fetchSolPriceUsd } = await import('@/lib/providers/birdeye');
+      const price = await fetchSolPriceUsd();
+      return price
+        ? { ok: true, detail: `Answered. SOL at $${price.toFixed(2)}.` }
+        : { ok: false, detail: 'Key is set but the call failed or did not parse. No chart.' };
+    }),
+  ]);
 
   return jsonOk({
     demoModeForced: demoModeForced(),
     cronSecretSet: Boolean((process.env.CRON_SECRET ?? '').trim()),
     checks: [...checks, ...probes],
   });
+}
+
+/** Run one provider probe, reporting an unconfigured provider as such rather than failing it. */
+async function probe(
+  name: string,
+  configured: boolean,
+  run: () => Promise<{ ok: boolean; detail: string }>,
+): Promise<{ name: string; ok: boolean; detail: string }> {
+  const spec = providerStatus().find((p) => p.name === name);
+
+  if (!configured) {
+    return { name: `provider:${name}`, ok: false, detail: `Not configured. ${spec?.note ?? ''}`.trim() };
+  }
+  try {
+    const result = await run();
+    return { name: `provider:${name}`, ...result };
+  } catch (err) {
+    return {
+      name: `provider:${name}`,
+      ok: false,
+      detail: err instanceof Error ? err.message : 'Probe threw.',
+    };
+  }
 }

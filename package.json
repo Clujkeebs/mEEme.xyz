@@ -13,7 +13,6 @@
     "test:watch": "vitest",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts",
     "setup": "bash scripts/setup.sh",
     "postinstall": "prisma generate"
   },
@@ -56,5 +55,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=18.17"
   }
 }

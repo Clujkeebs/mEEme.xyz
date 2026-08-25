@@ -4,6 +4,18 @@
 
 @layer base {
   :root {
+    /*
+     * Tailwind's font stacks reference these. An undefined custom property
+     * invalidates the entire font-family declaration, which silently drops the
+     * page to the browser's default serif — so they are defined here rather
+     * than injected by next/font, which would add a build-time network fetch
+     * for no visual gain in a terminal-styled UI.
+     */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+      "Liberation Mono", "Courier New", monospace;
+
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -52,7 +64,7 @@
   * { @apply border-border; }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
     font-feature-settings: 'cv02','cv03','cv04','cv11';
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 224, 138, 0.07), transparent),
