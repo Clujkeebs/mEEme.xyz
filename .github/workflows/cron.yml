@@ -1,14 +1,19 @@
-# mEEme scheduled jobs.
+# mEEme scheduled jobs — for serverless hosts only.
 #
-# Vercel's Hobby plan caps cron at two jobs running once per day, which is
-# useless for a sweep that exists to catch a stop breaking. GitHub Actions runs
-# on any schedule for free, so it drives the cadence instead. If the project
-# moves to Vercel Pro, delete this file and put the same schedules in
-# vercel.json — the endpoints are identical either way.
+# OPT-IN. This workflow does nothing until both secrets below are set, and skips
+# quietly when they are not. That matters: the primary deployment runs on a
+# persistent host with ENABLE_INTERNAL_CRON=true and schedules its own jobs
+# in-process, so this workflow is unused there. Without the skip it would post a
+# failed run every five minutes forever, and a permanently red Actions tab is a
+# broken alarm — you stop reading it, including on the day it means something.
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   MEEME_APP_URL     https://your-deployment.vercel.app   (no trailing slash)
-#   MEEME_CRON_SECRET the same value as CRON_SECRET in Vercel
+# Do NOT enable this against a deployment that already has ENABLE_INTERNAL_CRON
+# set. Both together would double every alert.
+#
+# To use it (Vercel, or any serverless host), set both repository secrets under
+# Settings → Secrets and variables → Actions:
+#   MEEME_APP_URL     https://your-deployment.example.com   (no trailing slash)
+#   MEEME_CRON_SECRET the same value as CRON_SECRET on the host
 name: mEEme cron
 
 on:
@@ -55,8 +60,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
-            echo "::error::MEEME_APP_URL and MEEME_CRON_SECRET must both be set as repository secrets."
-            exit 1
+            echo "::notice::Not configured — MEEME_APP_URL and MEEME_CRON_SECRET are unset."
+            echo "::notice::This is expected when the deployment schedules its own jobs (ENABLE_INTERNAL_CRON=true)."
+            exit 0
           fi
 
           # --fail-with-body so a non-2xx surfaces the reason instead of an
