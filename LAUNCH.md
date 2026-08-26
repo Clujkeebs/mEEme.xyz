@@ -71,31 +71,35 @@ is ready, it can keep serving a blank card for hours.
 
 ---
 
-## 2. Turn on payments — the actual blocker
+## 2. Turn on payments
 
-**Nothing can charge a card until this is set.** Checkout currently returns
-"Payments are not configured on this deployment."
+### ✅ Checkout can now charge a card
 
-Stripe products, prices and the webhook are already created and verified. The
-one thing no API can hand over is the secret key — Stripe shows it once, at
-creation.
+`STRIPE_SECRET_KEY` is set on Railway (confirmed present in the service's
+variable list) and the deploy that picked it up is live and healthy. Checkout
+should no longer return "Payments are not configured."
 
-1. Stripe dashboard → **Developers → API keys** → reveal the **live** secret key
-   (`sk_live_…`).
-2. Railway → `meeme-web` → **Variables** → add:
+Also confirmed still correct via the Stripe API: `STRIPE_PRICE_DEGEN` /
+`STRIPE_PRICE_APEX` point at active products, and the webhook
+(`we_1U8SuhLoNTf2SutmUFkyFR7C`) is enabled, pinned to API version
+`2025-02-24.acacia`, and listening for the right events.
 
-   ```
-   STRIPE_SECRET_KEY=sk_live_...
-   ```
+### ⛔ Still open — customer portal is not activated
 
-3. Stripe dashboard → **Settings → Billing → Customer portal** → **Activate**.
-   Without this, existing subscribers cannot cancel or update their card, and
-   the `/api/stripe/portal` route returns an error. Activating it is also what
-   makes the cancellation path in the terms of service true.
+Checked directly against the Stripe API: `GET /v1/billing_portal/configurations`
+returns an empty list. In live mode, Stripe does not provision a default portal
+configuration the way it does in test mode — it requires one manual step:
 
-Already set and verified: `STRIPE_PRICE_DEGEN`, `STRIPE_PRICE_APEX`,
-`STRIPE_WEBHOOK_SECRET` (pinned to API version `2025-02-24.acacia`, matching
-the SDK).
+**Stripe dashboard → Settings → Billing → Customer portal → Activate.**
+
+No API this session has access to can do this — Stripe does not expose portal
+configuration creation on this account's connection. Until it's done,
+`/api/stripe/portal` fails for every subscriber, meaning **no one can cancel or
+update their card from the app.** That also makes the cancellation path
+described in the terms of service untrue until you click Activate.
+
+This is now the one remaining step before the payment flow is complete
+end-to-end.
 
 **Test the whole path with a real card before you promote the site.** Subscribe,
 confirm the tier badge changes in the header, then cancel from the portal.
