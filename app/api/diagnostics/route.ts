@@ -1,6 +1,7 @@
 import { jsonOk } from '@/lib/api';
 import { googleConfigured } from '@/lib/auth';
 import { databaseConfigured, prisma } from '@/lib/db';
+import { emailConfigured, telegramConfigured } from '@/lib/notify';
 import { birdeyeConfigured } from '@/lib/providers/birdeye';
 import { heliusConfigured } from '@/lib/providers/helius';
 import { demoModeForced, providerStatus } from '@/lib/providers';
@@ -77,6 +78,27 @@ export async function GET() {
       ? 'Configured.'
       : 'STRIPE_SECRET_KEY or price IDs unset — everyone stays on the free tier.',
   });
+
+  // Alerts are the entire reason a paid tier exists — a deployment can run for
+  // weeks with both of these unset and nothing errors, because a Watch simply
+  // never gets a channel to fire through. This is the one place that says so.
+  checks.push({
+    name: 'alerts (telegram)',
+    ok: telegramConfigured(),
+    detail: telegramConfigured() ? 'Configured.' : 'TELEGRAM_BOT_TOKEN unset — no Telegram alerts.',
+  });
+  checks.push({
+    name: 'alerts (email)',
+    ok: emailConfigured(),
+    detail: emailConfigured() ? 'Configured.' : 'RESEND_API_KEY unset — no email alerts.',
+  });
+  if (!telegramConfigured() && !emailConfigured()) {
+    checks.push({
+      name: 'alerts (delivery)',
+      ok: false,
+      detail: 'No channel configured at all. Watches and positions will alert nowhere.',
+    });
+  }
 
   // Live provider probes. Each one makes a real call — a status that says "ok"
   // because a key is present, without ever having asked the provider anything,

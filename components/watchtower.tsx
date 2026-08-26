@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Crosshair, Eye, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Bell, Check, CircleDollarSign, Crosshair, Eye, Loader2, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
@@ -24,6 +24,15 @@ interface PositionRow {
   size: number;
   entryPriceUsd: number;
   openedAt: string;
+}
+
+interface ClosedPositionRow {
+  id: string;
+  symbol: string;
+  entryPriceUsd: number;
+  size: number;
+  realizedPnlUsd: number | null;
+  closedAt: string;
 }
 
 interface WatchRow {
@@ -50,9 +59,13 @@ export interface WatchtowerProps {
   tierName: string;
   /** ISO timestamp, set only while a promo trial is what is granting `tier`. */
   trialEndsAt: string | null;
+  /** Whether the user has a real Stripe subscription — distinct from `tier`,
+   * which a promo trial can also raise. Only a real subscriber has billing to manage. */
+  hasStripeSubscription: boolean;
   quota: { used: number; limit: number | null; remaining: number | null };
   limits: { positions: number; watches: number };
   positions: PositionRow[];
+  closedPositions: ClosedPositionRow[];
   watches: WatchRow[];
   alerts: AlertRow[];
   prefill: { address: string; symbol: string } | null;
@@ -68,9 +81,11 @@ export function Watchtower({
   tier,
   tierName,
   trialEndsAt,
+  hasStripeSubscription,
   quota,
   limits,
   positions,
+  closedPositions,
   watches,
   alerts,
   prefill,
@@ -92,6 +107,8 @@ export function Watchtower({
   });
 
   const [watchForm, setWatchForm] = React.useState({ tokenAddress: '', symbol: '' });
+  const [closingId, setClosingId] = React.useState<string | null>(null);
+  const [exitPrice, setExitPrice] = React.useState('');
 
   const addPosition = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,9 +178,47 @@ export function Watchtower({
     try {
       const res = await fetch(`/api/positions?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success('Position removed.');
+        toast.success('Position removed — no exit price recorded.');
         router.refresh();
       } else toast.error('Could not remove that.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // The backend has carried close + realized-PnL support since day one
+  // (PATCH /api/positions), but nothing in the UI ever called it — the only
+  // way to end a position was the delete button, which throws the exit away
+  // with no record. This is the actual "I sold" action; delete stays for
+  // correcting a mistake, not for closing a real trade.
+  const closePosition = async (id: string, entryPriceUsd: number) => {
+    const exit = Number.parseFloat(exitPrice);
+    if (!(exit > 0)) {
+      toast.error('Enter the price you exited at.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/positions', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, close: true, exitPriceUsd: exit }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        error?: string;
+        position?: { realizedPnlUsd: number | null };
+      };
+      if (!json.ok) {
+        toast.error(json.error ?? 'Could not close that position.');
+        return;
+      }
+      const pnl = json.position?.realizedPnlUsd ?? (exit - entryPriceUsd);
+      const sign = pnl >= 0 ? '+' : '';
+      toast.success(`Closed. Realized ${sign}$${pnl.toFixed(2)}.`);
+      setClosingId(null);
+      setExitPrice('');
+      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -200,7 +255,7 @@ export function Watchtower({
           <span className="font-mono text-xs text-muted-foreground">
             {quota.limit === null ? `${quota.used} locks today` : `${quota.used}/${quota.limit} locks today`}
           </span>
-          {tier !== 'FREE' && <ManageBilling />}
+          {hasStripeSubscription && <ManageBilling />}
         </div>
       </header>
 
@@ -254,17 +309,115 @@ export function Watchtower({
                         {p.size.toLocaleString('en-US')} @ {formatPrice(p.entryPriceUsd)}
                       </div>
                     </div>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/lock?address=${p.tokenAddress}`}>Re-read</Link>
-                    </Button>
-                    <Button size="icon" variant="ghost" disabled={busy} onClick={() => void removePosition(p.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {closingId === p.id ? (
+                      <>
+                        <Input
+                          value={exitPrice}
+                          onChange={(e) => setExitPrice(e.target.value)}
+                          placeholder="Exit price USD"
+                          inputMode="decimal"
+                          autoFocus
+                          className="h-8 w-32 font-mono text-xs"
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={busy}
+                          aria-label="Confirm close"
+                          onClick={() => void closePosition(p.id, p.entryPriceUsd)}
+                        >
+                          <Check className="h-4 w-4 text-primary" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={busy}
+                          aria-label="Cancel"
+                          onClick={() => {
+                            setClosingId(null);
+                            setExitPrice('');
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/lock?address=${p.tokenAddress}`}>Re-read</Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => {
+                            setClosingId(p.id);
+                            setExitPrice('');
+                          }}
+                        >
+                          <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
+                          Close
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={busy}
+                          aria-label="Remove without recording an exit price"
+                          onClick={() => void removePosition(p.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </section>
+
+          {closedPositions.length > 0 && (
+            <section>
+              <h2 className="hud-label mb-3 flex items-center gap-2">
+                <CircleDollarSign className="h-3 w-3" /> closed · realized{' '}
+                {(() => {
+                  const total = closedPositions.reduce((sum, p) => sum + (p.realizedPnlUsd ?? 0), 0);
+                  return (
+                    <span className={cn('tnum', total >= 0 ? 'text-primary' : 'text-destructive')}>
+                      {total >= 0 ? '+' : ''}${total.toFixed(2)}
+                    </span>
+                  );
+                })()}
+              </h2>
+              <ul className="space-y-1.5">
+                {closedPositions.map((p) => {
+                  const pnl = p.realizedPnlUsd ?? 0;
+                  const exitPriceUsd = p.size > 0 ? p.entryPriceUsd + pnl / p.size : p.entryPriceUsd;
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border/50 px-4 py-2 text-sm"
+                    >
+                      <span className="min-w-[4rem] font-semibold">${p.symbol}</span>
+                      <span className="tnum font-mono text-xs text-muted-foreground">
+                        {formatPrice(p.entryPriceUsd)} → {formatPrice(exitPriceUsd)}
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {new Date(p.closedAt).toLocaleDateString()}
+                      </span>
+                      <span
+                        className={cn(
+                          'tnum ml-auto font-mono text-xs font-semibold',
+                          pnl >= 0 ? 'text-primary' : 'text-destructive',
+                        )}
+                      >
+                        {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           <section>
             <h2 className="hud-label mb-3 flex items-center gap-2">

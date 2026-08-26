@@ -20,10 +20,18 @@ export default async function DashboardPage({
   const viewer = await getViewer();
   if (!viewer) redirect(googleConfigured() ? '/signin' : '/lock');
 
-  const [positions, watches, alerts, quota, account] = await Promise.all([
+  const [positions, closedPositions, watches, alerts, quota, account] = await Promise.all([
     prisma.position.findMany({
       where: { userId: viewer.id, closedAt: null },
       orderBy: { openedAt: 'desc' },
+    }),
+    // The close action writes realizedPnlUsd and closedAt, but until now
+    // nothing ever read them back — closing a position was a one-way door
+    // into the database with no way to see what you made or lost.
+    prisma.position.findMany({
+      where: { userId: viewer.id, closedAt: { not: null } },
+      orderBy: { closedAt: 'desc' },
+      take: 20,
     }),
     prisma.watch.findMany({
       where: { userId: viewer.id, active: true },
@@ -39,6 +47,7 @@ export default async function DashboardPage({
       where: { id: viewer.id },
       select: {
         email: true,
+        stripeCustomerId: true,
         telegramChatId: true,
         telegramUsername: true,
         notifyTelegram: true,
@@ -54,6 +63,7 @@ export default async function DashboardPage({
       tier={viewer.tier}
       tierName={TIERS[viewer.tier].name}
       trialEndsAt={viewer.trialEndsAt}
+      hasStripeSubscription={Boolean(account?.stripeCustomerId)}
       quota={{
         used: quota.used,
         limit: quota.unlimited ? null : quota.limit,
@@ -70,6 +80,14 @@ export default async function DashboardPage({
         size: p.size,
         entryPriceUsd: p.entryPriceUsd,
         openedAt: p.openedAt.toISOString(),
+      }))}
+      closedPositions={closedPositions.map((p) => ({
+        id: p.id,
+        symbol: p.symbol,
+        entryPriceUsd: p.entryPriceUsd,
+        size: p.size,
+        realizedPnlUsd: p.realizedPnlUsd,
+        closedAt: (p.closedAt as Date).toISOString(),
       }))}
       watches={watches.map((w) => ({
         id: w.id,
