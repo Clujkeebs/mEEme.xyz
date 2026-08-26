@@ -84,22 +84,22 @@ Also confirmed still correct via the Stripe API: `STRIPE_PRICE_DEGEN` /
 (`we_1U8SuhLoNTf2SutmUFkyFR7C`) is enabled, pinned to API version
 `2025-02-24.acacia`, and listening for the right events.
 
-### ⛔ Still open — customer portal is not activated
+### Optional upgrade — activate the Stripe customer portal
 
 Checked directly against the Stripe API: `GET /v1/billing_portal/configurations`
-returns an empty list. In live mode, Stripe does not provision a default portal
-configuration the way it does in test mode — it requires one manual step:
+returns an empty list. Live mode does not provision a default portal
+configuration the way test mode does, and no operation on this Stripe
+connection can create one.
 
-**Stripe dashboard → Settings → Billing → Customer portal → Activate.**
+**This no longer blocks launch.** Subscribers can cancel today: the Watchtower
+header shows a *Manage billing* control, and when Stripe reports no portal
+configuration the route returns a `portalUnavailable` flag and the UI offers a
+prefilled cancellation email instead of failing. Cancellation works either way,
+which is what the terms of service promise.
 
-No API this session has access to can do this — Stripe does not expose portal
-configuration creation on this account's connection. Until it's done,
-`/api/stripe/portal` fails for every subscriber, meaning **no one can cancel or
-update their card from the app.** That also makes the cancellation path
-described in the terms of service untrue until you click Activate.
-
-This is now the one remaining step before the payment flow is complete
-end-to-end.
+Activating it — **Stripe dashboard → Settings → Billing → Customer portal →
+Activate** — upgrades that to full self-service: card updates, invoice history,
+and cancellation without emailing anyone. Worth doing, but do it when you like.
 
 **Test the whole path with a real card before you promote the site.** Subscribe,
 confirm the tier badge changes in the header, then cancel from the portal.
