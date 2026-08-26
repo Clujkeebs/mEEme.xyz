@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signIn, signOut, useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -70,8 +70,8 @@ export function SiteHeader() {
           ) : status === 'loading' ? (
             <div className="h-8 w-20 animate-pulse rounded bg-secondary" aria-hidden="true" />
           ) : (
-            <Button size="sm" onClick={() => void signIn('google')}>
-              Sign in
+            <Button size="sm" asChild>
+              <Link href="/signin">Sign in</Link>
             </Button>
           )}
         </div>

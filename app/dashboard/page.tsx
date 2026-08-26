@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Watchtower } from '@/components/watchtower';
-import { getViewer, googleConfigured } from '@/lib/auth';
+import { getViewer } from '@/lib/auth';
 import { emailConfigured, telegramConfigured } from '@/lib/notify';
 import { heliusConfigured } from '@/lib/providers/helius';
-import { prisma } from '@/lib/db';
+import { databaseConfigured, prisma } from '@/lib/db';
 import { getQuota } from '@/lib/quota';
 import { TIERS } from '@/lib/tiers';
 import { API_DAILY_LIMIT } from '@/lib/apikey';
@@ -18,7 +18,7 @@ export default async function DashboardPage({
   searchParams: { add?: string; symbol?: string };
 }) {
   const viewer = await getViewer();
-  if (!viewer) redirect(googleConfigured() ? '/signin' : '/lock');
+  if (!viewer) redirect(databaseConfigured() ? '/signin' : '/lock');
 
   const [positions, closedPositions, watches, alerts, quota, account] = await Promise.all([
     prisma.position.findMany({

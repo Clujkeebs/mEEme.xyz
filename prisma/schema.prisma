@@ -27,6 +27,8 @@ model User {
 
   // "FREE" | "DEGEN" | "APEX"
   tier               String    @default("FREE")
+  /// bcrypt hash. Null for accounts that only ever signed in with Google.
+  passwordHash       String?
   stripeCustomerId   String?   @unique
   stripeSubId        String?   @unique
   // "active" | "trialing" | "past_due" | "canceled" | "incomplete"

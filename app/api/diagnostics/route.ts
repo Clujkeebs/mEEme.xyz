@@ -63,12 +63,14 @@ export async function GET() {
   }
   checks.push({ name: 'database', ok: dbOk, detail: dbDetail });
 
+  // Email/password sign-in always works once a database exists — Google is an
+  // optional extra sign-in method on top of it, not a requirement.
   checks.push({
-    name: 'auth (google)',
+    name: 'auth (google, optional)',
     ok: googleConfigured(),
     detail: googleConfigured()
       ? 'Configured.'
-      : 'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset — sign-in is disabled.',
+      : 'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset — the Google button is hidden, email/password sign-in is unaffected.',
   });
 
   checks.push({
