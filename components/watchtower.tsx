@@ -12,6 +12,7 @@ import { colorForCoil } from '@/components/cockpit/coil-gauge';
 import { AlertSettings, type AlertPrefs } from '@/components/alert-settings';
 import { WalletImport } from '@/components/wallet-import';
 import { ApiKeys } from '@/components/api-keys';
+import { ManageBilling } from '@/components/manage-billing';
 import type { Tier } from '@/lib/tiers';
 import { cn, formatPrice, shortAddress } from '@/lib/utils';
 
@@ -163,6 +164,7 @@ export function Watchtower({
           <span className="font-mono text-xs text-muted-foreground">
             {quota.limit === null ? `${quota.used} locks today` : `${quota.used}/${quota.limit} locks today`}
           </span>
+          {tier !== 'FREE' && <ManageBilling />}
         </div>
       </header>
 

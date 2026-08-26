@@ -61,3 +61,22 @@ export function appOrigin(): URL {
 export function appUrl(): string {
   return appOrigin().toString().replace(/\/+$/, '');
 }
+
+/**
+ * Detects Stripe's "no portal configuration" failure.
+ *
+ * In live mode Stripe does not provision a default customer-portal
+ * configuration the way it does in a sandbox — someone has to activate it in
+ * the dashboard once. Until that happens every portal session throws, and a
+ * subscriber is left with no way out of a subscription they are paying for.
+ *
+ * Matched on the message rather than a code because Stripe returns this as a
+ * generic `invalid_request_error` with no distinguishing code. Kept here, next
+ * to the client it guards, so it is importable by a test — a copy of it living
+ * inside the route handler could drift from the route without failing anything.
+ */
+export function isPortalNotConfigured(err: unknown): boolean {
+  if (err === null || err === undefined) return false;
+  const message = err instanceof Error ? err.message : String(err);
+  return /no configuration|default configuration|portal settings/i.test(message);
+}

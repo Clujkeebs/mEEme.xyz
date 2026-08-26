@@ -101,7 +101,8 @@ export default function TermsPage() {
           Paid plans are billed monthly in advance through Stripe, our payment processor. We never see
           or store your full card number. <strong className="text-foreground/90">Subscriptions renew
           automatically</strong> each month at the then-current price until you cancel. You can cancel
-          at any time from the billing portal linked in your account; cancellation stops the next
+          at any time from the Manage billing control in your Watchtower — or, if that is
+          unavailable, by emailing us, which we will action on the same terms; cancellation stops the next
           renewal and you keep paid access until the end of the period you have already paid for.
         </p>
         <p>

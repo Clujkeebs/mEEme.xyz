@@ -119,8 +119,8 @@ export function PricingTable({
       </div>
 
       <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-relaxed text-muted-foreground">
-        Cancel any time from the billing portal — no email, no retention flow. If mEEme is not making
-        you money, it should not be taking yours.
+        Cancel any time from your Watchtower — no retention flow, no talking anyone out of it. If
+        mEEme is not making you money, it should not be taking yours.
       </p>
     </>
   );
