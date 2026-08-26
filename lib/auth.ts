@@ -28,7 +28,11 @@ export const googleConfigured = (): boolean =>
 // now live in the JWT rather than the Session table.
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  session: { strategy: 'jwt' },
+  // A secure, httpOnly cookie — not localStorage — is what actually keeps
+  // someone signed in: httpOnly means client-side JS (and anything an XSS bug
+  // might inject) can't read or exfiltrate it, which localStorage can't
+  // offer. 60 days so "stay signed in" means something.
+  session: { strategy: 'jwt', maxAge: 60 * 24 * 60 * 60 },
   providers: [
     ...(googleConfigured()
       ? [
