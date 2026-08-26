@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Bullets, Callout, LegalShell, Section } from '@/components/legal';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Risk Disclosure',
   description: 'What can go wrong when you trade memecoins, and the specific ways this tool can be wrong.',
+  ...canonicalMetadata('/risk'),
 };
 
 export const revalidate = 86400;

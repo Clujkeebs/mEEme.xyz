@@ -5,6 +5,13 @@ import { CookieConsent } from '@/components/cookie-consent';
 import { SiteHeader } from '@/components/site-header';
 import { Providers } from '@/components/providers';
 import { appOrigin } from '@/lib/stripe';
+import {
+  canonical,
+  jsonLdGraph,
+  organizationSchema,
+  twitterAccountMetadata,
+  websiteSchema,
+} from '@/lib/seo';
 import './globals.css';
 
 const title = 'mEEme.xyz — the Exit Engine';
@@ -19,6 +26,10 @@ export const metadata: Metadata = {
   openGraph: { title, description, type: 'website', siteName: 'mEEme.xyz' },
   twitter: { card: 'summary_large_image', title, description },
   robots: { index: true, follow: true },
+  // Without this the site is indexable on both the Railway subdomain and the
+  // custom domain, and every page competes with a duplicate of itself.
+  alternates: { canonical: canonical('/') },
+  ...twitterAccountMetadata(),
 };
 
 export const viewport: Viewport = {
@@ -51,6 +62,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdGraph(organizationSchema(), websiteSchema()),
+          }}
+        />
         <Providers>
           {/*
             First focusable element on the page. A keyboard or screen-reader
@@ -100,6 +117,7 @@ const LEGAL_LINKS = [
 
 const PRODUCT_LINKS = [
   { href: '/lock', label: 'Target Lock' },
+  { href: '/blog', label: 'Field Notes' },
   { href: '/dashboard', label: 'Watchtower' },
   { href: '/track-record', label: 'Track Record' },
   { href: '/pricing', label: 'Pricing' },

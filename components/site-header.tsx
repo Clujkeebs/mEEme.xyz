@@ -12,6 +12,7 @@ const NAV = [
   { href: '/lock', label: 'Target Lock' },
   { href: '/dashboard', label: 'Watchtower' },
   { href: '/track-record', label: 'Track Record' },
+  { href: '/blog', label: 'Field Notes' },
   { href: '/pricing', label: 'Pricing' },
 ];
 

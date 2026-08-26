@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { POSTS } from '@/lib/blog';
 import { prisma } from '@/lib/db';
 import { appUrl } from '@/lib/stripe';
 
@@ -17,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
     { url: `${base}/lock`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/track-record`, changeFrequency: 'hourly', priority: 0.8 },
+    { url: `${base}/blog`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/pricing`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${base}/terms`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${base}/privacy`, changeFrequency: 'yearly', priority: 0.3 },
@@ -24,6 +26,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/risk`, changeFrequency: 'yearly', priority: 0.4 },
     { url: `${base}/accessibility`, changeFrequency: 'yearly', priority: 0.2 },
   ] as const).map((r) => ({ ...r, lastModified: new Date() }));
+
+  // Posts are high-priority: they are the only pages that answer a question
+  // someone types into a search box, rather than requiring a contract address.
+  const posts: MetadataRoute.Sitemap = POSTS.map((p) => ({
+    url: `${base}/blog/${p.slug}`,
+    lastModified: new Date(p.updated ?? p.published),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
 
   // Every published call is a real, indexable page with a share card — the
   // long tail that makes a token symbol search reach this site at all.
@@ -46,5 +57,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // the whole file is broken.
   }
 
-  return [...staticRoutes, ...signals];
+  return [...staticRoutes, ...posts, ...signals];
 }

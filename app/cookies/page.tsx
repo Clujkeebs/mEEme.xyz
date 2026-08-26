@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Callout, LegalShell, PRIVACY_EMAIL, Section } from '@/components/legal';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Cookie Policy',
   description: 'Every cookie mEEme.xyz sets, what it does, and how long it lasts. There are five, and none of them track you.',
+  ...canonicalMetadata('/cookies'),
 };
 
 export const revalidate = 86400;

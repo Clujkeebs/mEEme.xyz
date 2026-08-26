@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Bullets, Callout, LegalShell, PRIVACY_EMAIL, Section } from '@/components/legal';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'What mEEme.xyz collects, why, who it goes to, and how to get it deleted.',
+  ...canonicalMetadata('/privacy'),
 };
 
 export const revalidate = 86400;

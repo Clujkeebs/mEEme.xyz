@@ -6,10 +6,12 @@ import type { Verdict } from '@/lib/engine/types';
 import { VERDICT_META } from '@/lib/engine/verdict';
 import { summarize, SCORING_VERSION } from '@/lib/scoring';
 import { formatPrice, shortAddress } from '@/lib/utils';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Track Record',
   description: 'Every call mEEme has made, graded by a rule fixed in code before the call was made.',
+  ...canonicalMetadata('/track-record'),
 };
 
 // Public, session-independent data that only changes via the cron jobs

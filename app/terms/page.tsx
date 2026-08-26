@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Bullets, Callout, CONTACT_EMAIL, LegalShell, Section } from '@/components/legal';
 import { TIERS } from '@/lib/tiers';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'The agreement between you and mEEme.xyz: what the service does, what it costs, and what it does not promise.',
+  ...canonicalMetadata('/terms'),
 };
 
 // Static prose. Nothing here reads the request, so there is no reason to

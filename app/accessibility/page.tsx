@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { Bullets, LegalShell, Section, CONTACT_EMAIL } from '@/components/legal';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Accessibility Statement',
   description: 'How accessible mEEme.xyz currently is, what has been done, and what is still known to fall short.',
+  ...canonicalMetadata('/accessibility'),
 };
 
 export const revalidate = 86400;

@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import { TargetLock } from '@/components/cockpit/target-lock';
 import { getViewer } from '@/lib/auth';
+import { canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Target Lock',
   description: 'Paste a contract. Find out who still has to sell, and what that means for your exit.',
+  ...canonicalMetadata('/lock'),
 };
 
 export const dynamic = 'force-dynamic';
