@@ -40,8 +40,12 @@ export function CookieConsent() {
       aria-label="Cookie notice"
       className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-background/95 backdrop-blur-md"
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-        <p className="max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4 md:flex-row md:items-center md:justify-between lg:px-8">
+        {/* Full text on tablet/desktop, where a few extra lines cost nothing.
+            On a phone the same copy ran to 5-6 lines and, being `fixed`,
+            permanently ate a third of the viewport — so it's a one-line
+            summary there instead. The full policy is one tap away either way. */}
+        <p className="hidden max-w-3xl text-[13px] leading-relaxed text-muted-foreground sm:block">
           {hasChoice ? (
             <>
               We use essential cookies to keep you signed in, and would like to use optional cookies
@@ -58,6 +62,13 @@ export function CookieConsent() {
           )}{' '}
           <Link href="/cookies" className="text-primary underline underline-offset-4">
             Read the cookie policy
+          </Link>
+          .
+        </p>
+        <p className="text-[13px] leading-relaxed text-muted-foreground sm:hidden">
+          <span className="font-semibold text-foreground/90">Essential cookies only.</span>{' '}
+          <Link href="/cookies" className="text-primary underline underline-offset-4">
+            Read the policy
           </Link>
           .
         </p>
