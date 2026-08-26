@@ -8,6 +8,8 @@ import { VerdictBanner } from '@/components/cockpit/verdict-banner';
 import { prisma } from '@/lib/db';
 import type { ExitLadder, Verdict } from '@/lib/engine/types';
 import { VERDICT_META } from '@/lib/engine/verdict';
+import { ShareOnX } from '@/components/share-on-x';
+import { canonical } from '@/lib/seo';
 import { formatPct, formatPrice, shortAddress } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +34,13 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title,
     description: signal.headline,
-    openGraph: { title, description: signal.headline },
+    alternates: { canonical: canonical(`/signal/${params.slug}`) },
+    openGraph: {
+      title,
+      description: signal.headline,
+      type: 'article',
+      url: canonical(`/signal/${params.slug}`),
+    },
     twitter: { card: 'summary_large_image', title, description: signal.headline },
   };
 }
@@ -126,13 +134,20 @@ export default async function SignalPage({ params }: { params: { slug: string } 
         </aside>
       </div>
 
-      <p className="text-center text-sm text-muted-foreground">
-        This call is in the{' '}
-        <Link href="/track-record" className="text-primary underline-offset-4 hover:underline">
-          public ledger
-        </Link>{' '}
-        whether it aged well or not.
-      </p>
+      <div className="flex flex-col items-center gap-4">
+        <ShareOnX
+          text={`${VERDICT_META[signal.verdict as Verdict]?.label ?? signal.verdict} on $${signal.symbol} — read by mEEme.xyz`}
+          url={canonical(`/signal/${params.slug}`)}
+          label="Share this call"
+        />
+        <p className="text-center text-sm text-muted-foreground">
+          This call is in the{' '}
+          <Link href="/track-record" className="text-primary underline-offset-4 hover:underline">
+            public ledger
+          </Link>{' '}
+          whether it aged well or not.
+        </p>
+      </div>
     </div>
   );
 }

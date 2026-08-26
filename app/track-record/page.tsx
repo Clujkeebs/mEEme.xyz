@@ -6,7 +6,8 @@ import type { Verdict } from '@/lib/engine/types';
 import { VERDICT_META } from '@/lib/engine/verdict';
 import { summarize, SCORING_VERSION } from '@/lib/scoring';
 import { formatPrice, shortAddress } from '@/lib/utils';
-import { canonicalMetadata } from '@/lib/seo';
+import { ShareOnX } from '@/components/share-on-x';
+import { canonical, canonicalMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Track Record',
@@ -62,7 +63,8 @@ export default async function TrackRecordPage() {
 
   return (
     <div className="space-y-8 py-8">
-      <header>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Track record</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Every non-demo call mEEme has made, in order, with what happened next. The grading rule
@@ -70,6 +72,16 @@ export default async function TrackRecordPage() {
           is versioned in git, and runs automatically four hours after each call — so it cannot be
           retuned once the results are in.
         </p>
+        </div>
+        <ShareOnX
+          text={
+            stats.accuracy === null
+              ? 'mEEme publishes every call it makes — win or lose — graded automatically by a rule fixed in code beforehand.'
+              : `mEEme's public track record: ${(stats.accuracy * 100).toFixed(0)}% accuracy over ${stats.correct + stats.incorrect} graded calls. Every call published, win or lose.`
+          }
+          url={canonical('/track-record')}
+          label="Share the record"
+        />
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
