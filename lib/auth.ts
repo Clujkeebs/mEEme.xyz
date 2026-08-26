@@ -4,6 +4,7 @@ import type { NextAuthOptions, Session } from 'next-auth';
 import { getServerSession } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
+import { isAdmin } from './admin';
 import { databaseConfigured, prisma } from './db';
 import { rateLimit } from './ratelimit';
 import { effectiveTier, tierFromString, type Tier } from './tiers';
@@ -84,6 +85,7 @@ export const authOptions: NextAuthOptions = {
         session.user.tier = effectiveTier(tierFromString(record?.tier), record?.trialTier, record?.trialEndsAt);
         session.user.referralCode = record?.referralCode ?? null;
         session.user.trialEndsAt = activeTrial ? (record?.trialEndsAt?.toISOString() ?? null) : null;
+        session.user.isAdmin = isAdmin({ email: session.user.email ?? null });
       }
       return session;
     },
@@ -99,6 +101,7 @@ export interface Viewer {
   referralCode: string | null;
   /** ISO timestamp, set only while a promo trial is what is granting `tier`. */
   trialEndsAt: string | null;
+  isAdmin: boolean;
 }
 
 /** The signed-in user, or null. Never throws. */
@@ -119,5 +122,6 @@ export async function getViewer(): Promise<Viewer | null> {
     tier: session.user.tier ?? 'FREE',
     referralCode: session.user.referralCode ?? null,
     trialEndsAt: session.user.trialEndsAt ?? null,
+    isAdmin: session.user.isAdmin ?? false,
   };
 }

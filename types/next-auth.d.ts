@@ -12,6 +12,7 @@ declare module 'next-auth' {
       tier: Tier;
       referralCode: string | null;
       trialEndsAt: string | null;
+      isAdmin: boolean;
     };
   }
 }

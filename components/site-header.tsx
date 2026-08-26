@@ -60,6 +60,11 @@ export function SiteHeader() {
         <div className="flex shrink-0 items-center gap-2">
           {status === 'authenticated' && session?.user ? (
             <>
+              {session.user.isAdmin && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/admin/users">Admin</Link>
+                </Button>
+              )}
               <Badge variant={session.user.tier === 'FREE' ? 'muted' : 'default'}>
                 {session.user.tier}
               </Badge>
