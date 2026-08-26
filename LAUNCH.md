@@ -156,3 +156,22 @@ volume-profile model runs on. These improve it rather than enable it:
   are far better than a generic template, but they are not legal advice and a
   financial-analysis product carries real regulatory exposure that varies by
   jurisdiction.
+
+## Known issue: a stuck Railway build cache
+
+If a deploy ever fails with `Module not found` for files that unmistakably
+exist in the repo (verified via `git ls-files` and a clean local build), that
+is not a real code problem — it happened once, on 2026-08-26, for commit
+`224afba`. Confirmed by cloning the exact commit fresh and running `npm ci`
+locally: it correctly installed 514 packages and built cleanly, while
+Railway's build logs showed `npm ci` silently installing only 132 and then
+failing to resolve `@/`-aliased local imports. `RAILWAY_CACHE_BUILD_LAYERS=false`
+and `RAILPACK_DISABLE_CACHE=npm` were both tried and neither forced the `npm
+ci` layer to actually re-run — the build logs for those attempts skip the
+`npm ci` step's output entirely, meaning the layer was reused regardless.
+Regenerating `package-lock.json` was considered and rejected: without the
+existing lockfile as a resolution base it silently pulled in real version
+bumps (zod, several `@radix-ui/*` packages) rather than just re-serializing,
+which is a correctness risk, not a fix, for what is an infrastructure
+problem. If this recurs, a real (not re-triggered) commit is the next thing
+to try before anything that touches dependency versions.
