@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { Toaster } from 'sonner';
 import { CookieConsent } from '@/components/cookie-consent';
+import { PromoBanner } from '@/components/promo-banner';
 import { SiteHeader } from '@/components/site-header';
 import { Providers } from '@/components/providers';
 import { appOrigin } from '@/lib/stripe';
@@ -81,6 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Skip to main content
           </a>
           <SiteHeader />
+          <PromoBanner />
           <main
             id="main-content"
             tabIndex={-1}

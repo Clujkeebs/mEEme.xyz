@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { PricingTable } from '@/components/pricing-table';
+import { PromoRedeemForm } from '@/components/promo-redeem-form';
 import { getViewer } from '@/lib/auth';
 import { stripeConfigured } from '@/lib/stripe';
 import { breadcrumbSchema, canonicalMetadata, jsonLdGraph, softwareApplicationSchema } from '@/lib/seo';
@@ -45,6 +46,12 @@ export default async function PricingPage() {
       </header>
 
       <PricingTable currentTier={viewer?.tier ?? null} signedIn={Boolean(viewer)} paymentsLive={stripeConfigured()} />
+
+      {viewer && (
+        <div className="mt-8 flex justify-center">
+          <PromoRedeemForm />
+        </div>
+      )}
     </div>
   );
 }

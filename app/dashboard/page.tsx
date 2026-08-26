@@ -53,6 +53,7 @@ export default async function DashboardPage({
     <Watchtower
       tier={viewer.tier}
       tierName={TIERS[viewer.tier].name}
+      trialEndsAt={viewer.trialEndsAt}
       quota={{
         used: quota.used,
         limit: quota.unlimited ? null : quota.limit,

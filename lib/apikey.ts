@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from './db';
 import { utcDay } from './quota';
-import { tierFromString, type Tier } from './tiers';
+import { effectiveTier, tierFromString, type Tier } from './tiers';
 
 /**
  * API keys.
@@ -89,7 +89,7 @@ export async function authenticateApiRequest(request: Request): Promise<ApiAuthR
       revokedAt: true,
       callsToday: true,
       callsDay: true,
-      user: { select: { id: true, tier: true } },
+      user: { select: { id: true, tier: true, trialTier: true, trialEndsAt: true } },
     },
   });
 
@@ -100,7 +100,7 @@ export async function authenticateApiRequest(request: Request): Promise<ApiAuthR
     return { ok: false, status: 401, error: 'This key has been revoked.' };
   }
 
-  const tier = tierFromString(record.user.tier);
+  const tier = effectiveTier(tierFromString(record.user.tier), record.user.trialTier, record.user.trialEndsAt);
   if (tier !== 'APEX') {
     // A downgrade should stop working immediately, not at the next renewal.
     return { ok: false, status: 403, error: 'API access requires the Apex tier.' };

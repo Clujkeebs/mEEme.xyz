@@ -3,7 +3,7 @@ import type { NextAuthOptions, Session } from 'next-auth';
 import { getServerSession } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { prisma } from './db';
-import { tierFromString, type Tier } from './tiers';
+import { effectiveTier, tierFromString, type Tier } from './tiers';
 
 /**
  * Auth is optional infrastructure, not the point of the product.
@@ -34,13 +34,16 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = user.id;
         // Read the tier from the row rather than a token, so a Stripe webhook
-        // upgrade takes effect on the next request instead of the next login.
+        // upgrade — or a promo redemption — takes effect on the next request
+        // instead of the next login.
         const record = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { tier: true, referralCode: true, stripeStatus: true },
+          select: { tier: true, referralCode: true, stripeStatus: true, trialTier: true, trialEndsAt: true },
         });
-        session.user.tier = tierFromString(record?.tier);
+        const activeTrial = record?.trialTier && record.trialEndsAt && record.trialEndsAt.getTime() > Date.now();
+        session.user.tier = effectiveTier(tierFromString(record?.tier), record?.trialTier, record?.trialEndsAt);
         session.user.referralCode = record?.referralCode ?? null;
+        session.user.trialEndsAt = activeTrial ? (record?.trialEndsAt?.toISOString() ?? null) : null;
       }
       return session;
     },
@@ -54,6 +57,8 @@ export interface Viewer {
   image: string | null;
   tier: Tier;
   referralCode: string | null;
+  /** ISO timestamp, set only while a promo trial is what is granting `tier`. */
+  trialEndsAt: string | null;
 }
 
 /** The signed-in user, or null. Never throws. */
@@ -73,5 +78,6 @@ export async function getViewer(): Promise<Viewer | null> {
     image: session.user.image ?? null,
     tier: session.user.tier ?? 'FREE',
     referralCode: session.user.referralCode ?? null,
+    trialEndsAt: session.user.trialEndsAt ?? null,
   };
 }

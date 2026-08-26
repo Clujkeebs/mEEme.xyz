@@ -87,6 +87,32 @@ export function tierFromString(value: string | null | undefined): Tier {
   return value === 'DEGEN' || value === 'APEX' ? value : 'FREE';
 }
 
+const TIER_RANK: Record<Tier, number> = { FREE: 0, DEGEN: 1, APEX: 2 };
+
+/** Whether `a` is at least as good as `b`. */
+export const tierAtLeast = (a: Tier, b: Tier): boolean => TIER_RANK[a] >= TIER_RANK[b];
+
+/**
+ * The tier that actually governs access right now: whichever of the real
+ * subscription tier and an active promo trial ranks higher.
+ *
+ * A trial can only ever add access, never take it away. Without that rule, a
+ * paying Apex subscriber who redeemed a Degen trial code (or whose trial
+ * simply expired) would get silently demoted to Degen or Free the moment the
+ * trial fields stopped mattering — this makes the comparison explicit instead
+ * of trusting whichever field happened to be read last.
+ */
+export function effectiveTier(
+  tier: Tier,
+  trialTier: string | null | undefined,
+  trialEndsAt: Date | null | undefined,
+  now: Date = new Date(),
+): Tier {
+  if (!trialTier || !trialEndsAt || trialEndsAt.getTime() <= now.getTime()) return tier;
+  const trial = tierFromString(trialTier);
+  return TIER_RANK[trial] > TIER_RANK[tier] ? trial : tier;
+}
+
 /** Stripe price ID -> tier. */
 export function tierForPriceId(priceId: string | null | undefined): Tier | null {
   if (!priceId) return null;

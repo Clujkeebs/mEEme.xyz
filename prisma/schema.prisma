@@ -37,6 +37,17 @@ model User {
   referralCode   String  @unique @default(cuid())
   referredByCode String?
 
+  // ── Promo trials ──────────────────────────────────────────────────────────
+  // Set by redeeming a PromoCode (lib/promo.ts). This alone does not grant
+  // access — lib/tiers.ts effectiveTier() is what actually governs it, and it
+  // is written so a trial can only ever add access on top of `tier`, never
+  // take it away: a real Apex subscriber redeeming a Degen trial code stays
+  // Apex, and the trial simply expires unused.
+  trialTier   String?
+  trialEndsAt DateTime?
+
+  promoRedemption PromoRedemption?
+
   // ── Alert delivery ────────────────────────────────────────────────────────
   // An alert that only exists in a database is not an alert. Telegram is where
   // this audience already is, so it is the primary channel; email is the fallback.
@@ -293,6 +304,47 @@ model AnonUsage {
   locks  Int    @default(0)
 
   @@unique([ipHash, day])
+}
+
+/// A code that grants a time-boxed trial of a paid tier. Created by an admin
+/// (see /admin/promo), not by users. This is deliberately not a discount or a
+/// Stripe coupon — it grants access directly, so a "3 days of Degen free" code
+/// works with zero card entry, which is the point of a prelaunch code: remove
+/// every point of friction between a link and someone actually using the paid
+/// features.
+model PromoCode {
+  id             String    @id @default(cuid())
+  /// Always stored upper-cased; redemption compares case-insensitively.
+  code           String    @unique
+  /// "DEGEN" | "APEX" — the tier granted while the trial is active.
+  trialTier      String
+  trialDays      Int
+  /// Null = unlimited redemptions.
+  maxRedemptions Int?
+  active         Boolean   @default(true)
+  expiresAt      DateTime?
+  /// Internal context for whoever is reading the admin list later, e.g.
+  /// "prelaunch marketing push, Aug 2026". Never shown to redeemers.
+  note           String?
+  createdByEmail String?
+  createdAt      DateTime  @default(now())
+
+  redemptions PromoRedemption[]
+
+  @@index([active])
+}
+
+/// One row per user, ever — a user gets exactly one trial in their lifetime,
+/// which is what stops a promo code from being stacked or replayed.
+model PromoRedemption {
+  id          String    @id @default(cuid())
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([promoCodeId])
 }
 
 /// API keys for the Apex tier.

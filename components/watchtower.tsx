@@ -13,6 +13,7 @@ import { AlertSettings, type AlertPrefs } from '@/components/alert-settings';
 import { WalletImport } from '@/components/wallet-import';
 import { ApiKeys } from '@/components/api-keys';
 import { ManageBilling } from '@/components/manage-billing';
+import { PromoRedeemForm } from '@/components/promo-redeem-form';
 import type { Tier } from '@/lib/tiers';
 import { cn, formatPrice, shortAddress } from '@/lib/utils';
 
@@ -47,6 +48,8 @@ interface AlertRow {
 export interface WatchtowerProps {
   tier: Tier;
   tierName: string;
+  /** ISO timestamp, set only while a promo trial is what is granting `tier`. */
+  trialEndsAt: string | null;
   quota: { used: number; limit: number | null; remaining: number | null };
   limits: { positions: number; watches: number };
   positions: PositionRow[];
@@ -64,6 +67,7 @@ export interface WatchtowerProps {
 export function Watchtower({
   tier,
   tierName,
+  trialEndsAt,
   quota,
   limits,
   positions,
@@ -86,6 +90,8 @@ export function Watchtower({
     size: '',
     entryPriceUsd: '',
   });
+
+  const [watchForm, setWatchForm] = React.useState({ tokenAddress: '', symbol: '' });
 
   const addPosition = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +123,33 @@ export function Watchtower({
       }
       toast.success('Position tracked. The sweep will watch it from here.');
       setForm({ tokenAddress: '', symbol: '', size: '', entryPriceUsd: '' });
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addWatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await fetch('/api/watch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          tokenAddress: watchForm.tokenAddress.trim(),
+          symbol: watchForm.symbol.trim() || 'UNKNOWN',
+        }),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: string; upgrade?: boolean };
+      if (!json.ok) {
+        toast.error(json.error ?? 'Could not add that to surveillance.', {
+          action: json.upgrade ? { label: 'Upgrade', onClick: () => router.push('/pricing') } : undefined,
+        });
+        return;
+      }
+      toast.success('Under surveillance. The sweep will alert you on a coil crossing.');
+      setWatchForm({ tokenAddress: '', symbol: '' });
       router.refresh();
     } finally {
       setBusy(false);
@@ -161,6 +194,9 @@ export function Watchtower({
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={tier === 'FREE' ? 'muted' : 'default'}>{tierName}</Badge>
+          {trialEndsAt && (
+            <Badge variant="warn">trial · {hoursRemaining(trialEndsAt)}</Badge>
+          )}
           <span className="font-mono text-xs text-muted-foreground">
             {quota.limit === null ? `${quota.used} locks today` : `${quota.used}/${quota.limit} locks today`}
           </span>
@@ -321,11 +357,51 @@ export function Watchtower({
             </p>
           </form>
 
+          <form onSubmit={addWatch} className="hud-panel corner-bracket space-y-3 p-5">
+            <h2 className="hud-label flex items-center gap-2">
+              <Eye className="h-3 w-3" /> watch a token
+            </h2>
+            <Input
+              value={watchForm.tokenAddress}
+              onChange={(e) => setWatchForm({ ...watchForm, tokenAddress: e.target.value })}
+              placeholder="Contract address"
+              className="font-mono text-xs"
+              required
+            />
+            <Input
+              value={watchForm.symbol}
+              onChange={(e) => setWatchForm({ ...watchForm, symbol: e.target.value })}
+              placeholder="Symbol (e.g. WIF)"
+              required
+            />
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Add to surveillance
+            </Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              No position needed — the sweep re-reads this token every few minutes and alerts you
+              when its coil score crosses your threshold.
+            </p>
+          </form>
+
           <ApiKeys available={apiAccess} dailyLimit={apiDailyLimit} />
+
+          <div className="flex justify-center">
+            <PromoRedeemForm />
+          </div>
         </aside>
       </div>
     </div>
   );
+}
+
+/** "2d left" / "6h left" / "ending soon" — coarse on purpose, this badge is
+ * not re-rendered continuously so a precise countdown would just go stale. */
+function hoursRemaining(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return 'ending soon';
+  const hours = Math.ceil(ms / 3_600_000);
+  if (hours >= 24) return `${Math.ceil(hours / 24)}d left`;
+  return `${hours}h left`;
 }
 
 function EmptyState({ text }: { text: string }) {

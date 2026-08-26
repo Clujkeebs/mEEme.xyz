@@ -10,6 +10,7 @@ declare module 'next-auth' {
       image?: string | null;
       tier: Tier;
       referralCode: string | null;
+      trialEndsAt: string | null;
     };
   }
 }
