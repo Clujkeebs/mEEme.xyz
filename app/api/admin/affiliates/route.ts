@@ -19,7 +19,7 @@ export async function GET() {
   const viewer = await getViewer();
   if (!isAdmin(viewer)) return jsonError('Not found.', 404);
 
-  return jsonOk({ affiliates: await listAffiliatesForAdmin() });
+  return jsonOk(await listAffiliatesForAdmin());
 }
 
 const createSchema = z.object({

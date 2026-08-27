@@ -39,7 +39,28 @@ export interface FetchJsonOptions<S extends z.ZodTypeAny> {
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_RETRIES = 2;
 
+/**
+ * A rate limit is not a failure, it is an instruction to wait — and the old
+ * backoff (250ms, then 500ms, then give up) was far too impatient to be one.
+ * Against Helius's free tier that meant every wallet call died on 429 and the
+ * cost-basis half of the engine silently got nothing. 429 gets its own, much
+ * longer schedule, and the upstream's own Retry-After always wins over ours.
+ */
+const RATE_LIMIT_BACKOFF_MS = [1_000, 3_000, 7_000];
+const MAX_RETRY_AFTER_MS = 15_000;
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Parse Retry-After, which is either delta-seconds or an HTTP date. */
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers.get('retry-after');
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return null;
+  return Math.min(Math.max(0, at - Date.now()), MAX_RETRY_AFTER_MS);
+}
 
 /**
  * Fetch and validate. Returns null on any failure — callers degrade, they do
@@ -59,6 +80,8 @@ export async function fetchJson<S extends z.ZodTypeAny>(
   } = opts;
 
   let lastReason = 'unknown';
+  // 429s get their own, more patient retry budget than ordinary failures.
+  let rateLimitAttempt = 0;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
@@ -74,8 +97,27 @@ export async function fetchJson<S extends z.ZodTypeAny>(
 
       if (!res.ok) {
         lastReason = `HTTP ${res.status}`;
+
+        if (res.status === 429) {
+          // Bounded by the attempt count, not by whether a Retry-After header
+          // happened to be present — an upstream that always sends one would
+          // otherwise keep this loop going forever.
+          if (rateLimitAttempt >= RATE_LIMIT_BACKOFF_MS.length) {
+            console.warn(`[provider:${provider}] rate limited, out of patience for ${redact(url)}`);
+            return null;
+          }
+          const wait = retryAfterMs(res) ?? RATE_LIMIT_BACKOFF_MS[rateLimitAttempt]!;
+          rateLimitAttempt++;
+          clearTimeout(timer);
+          await sleep(wait);
+          // Does not consume an ordinary retry: waiting out a rate limit and
+          // failing for a real reason are different budgets.
+          attempt--;
+          continue;
+        }
+
         // 4xx other than 429 will not become 2xx by asking again.
-        if (res.status !== 429 && res.status < 500) {
+        if (res.status < 500) {
           console.warn(`[provider:${provider}] ${lastReason} for ${redact(url)} — not retrying`);
           return null;
         }

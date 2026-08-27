@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { fetchJson, providerConfigured } from './http';
+import { createPacer, TtlCache } from './ratelimit';
 import type { TradeEvent } from '@/lib/engine/cluster';
 
 /**
@@ -13,6 +14,24 @@ import type { TradeEvent } from '@/lib/engine/cluster';
 
 const KEY = process.env.HELIUS_API_KEY ?? '';
 export const heliusConfigured = (): boolean => providerConfigured(KEY);
+
+/**
+ * ~8 requests/second process-wide. Helius's free tier meters requests per
+ * second, and nothing here was pacing them: a token analysis fires up to 60
+ * wallet calls, and the sweep does that for every watched token on a timer.
+ * Overridable because a paid Helius plan has a much higher ceiling and there
+ * is no reason to keep throttling to a free-tier limit after upgrading.
+ */
+const HELIUS_MIN_INTERVAL_MS = Number(process.env.HELIUS_MIN_INTERVAL_MS ?? 125);
+const heliusPacer = createPacer(
+  Number.isFinite(HELIUS_MIN_INTERVAL_MS) && HELIUS_MIN_INTERVAL_MS >= 0 ? HELIUS_MIN_INTERVAL_MS : 125,
+);
+
+/** Every Helius request goes through the pacer, then the shared HTTP layer. */
+const pacedFetchJson: typeof fetchJson = async (opts) => {
+  await heliusPacer.take();
+  return fetchJson(opts);
+};
 
 const RPC = (): string => `https://mainnet.helius-rpc.com/?api-key=${KEY}`;
 
@@ -56,7 +75,7 @@ export async function fetchHolderBalances(
   let truncated = false;
 
   for (let page = 1; page <= MAX_HOLDER_PAGES; page++) {
-    const data = await fetchJson({
+    const data = await pacedFetchJson({
       provider: 'helius:getTokenAccounts',
       url: RPC(),
       schema: tokenAccountsSchema,
@@ -120,7 +139,7 @@ export interface HeliusAsset {
 export async function fetchAsset(mint: string): Promise<HeliusAsset | null> {
   if (!heliusConfigured()) return null;
 
-  const data = await fetchJson({
+  const data = await pacedFetchJson({
     provider: 'helius:getAsset',
     url: RPC(),
     schema: assetSchema,
@@ -232,11 +251,14 @@ export async function fetchWalletHistories(
   const trades: TradeEvent[] = [];
   const fundingEdges: WalletHistory['fundingEdges'] = [];
 
-  // Bounded concurrency: enough to be quick, not enough to trip a rate limit.
+  // Concurrency 2 rather than 5, on top of the process-wide pacer below.
+  // Concurrency bounds how many are in flight; the pacer bounds how fast they
+  // are issued. Free-tier Helius meters the second one, and only the second
+  // one was missing — which is why every wallet call was coming back 429.
   const results = await mapWithConcurrency(
     targets,
-    5,
-    (wallet) => fetchOneWallet(wallet, mint, solPriceUsd),
+    2,
+    (wallet) => fetchOneWalletCached(wallet, mint, solPriceUsd),
     () => null, // one wallet's history failing must not lose the rest
   );
   for (const r of results) {
@@ -247,6 +269,31 @@ export async function fetchWalletHistories(
 
   if (trades.length === 0 && fundingEdges.length === 0) return null;
   return { trades, fundingEdges };
+}
+
+/**
+ * The sweep re-analyses the same watched tokens every few minutes, which means
+ * re-asking for the same wallets' histories every few minutes. A wallet's
+ * trades against one mint barely move on that timescale, so the uncached
+ * version spent the entire rate-limit budget re-deriving an answer we already
+ * had — and left nothing for a user actually running a Target Lock.
+ */
+const walletHistoryCache = new TtlCache<WalletHistory | null>(10 * 60 * 1000, 2_000);
+
+async function fetchOneWalletCached(
+  wallet: string,
+  mint: string,
+  solPriceUsd: number,
+): Promise<WalletHistory | null> {
+  const key = `${mint}:${wallet}`;
+  const cached = walletHistoryCache.get(key);
+  if (cached !== undefined) return cached;
+
+  const fresh = await fetchOneWallet(wallet, mint, solPriceUsd);
+  // A null here is usually "rate limited" rather than "no history", and
+  // caching that would turn a transient miss into ten minutes of blindness.
+  if (fresh) walletHistoryCache.set(key, fresh);
+  return fresh;
 }
 
 async function fetchOneWallet(
@@ -264,7 +311,7 @@ async function fetchOneWallet(
       `?api-key=${KEY}&limit=${TX_PER_PAGE}` +
       (before ? `&before=${encodeURIComponent(before)}` : '');
 
-    const batch: z.infer<typeof enhancedTxSchema> | null = await fetchJson({
+    const batch: z.infer<typeof enhancedTxSchema> | null = await pacedFetchJson({
       provider: 'helius:wallet-transactions',
       url,
       schema: enhancedTxSchema,

@@ -203,6 +203,70 @@ export async function getAffiliateDashboard(affiliateId: string): Promise<Affili
   };
 }
 
+export interface PayoutRecord {
+  id: string;
+  amountUsd: number;
+  commissionCount: number;
+  note: string | null;
+  createdByEmail: string | null;
+  createdAt: string;
+}
+
+export interface SettleResult {
+  ok: boolean;
+  error?: string;
+  amountUsd?: number;
+  commissionCount?: number;
+}
+
+/**
+ * Settle everything currently outstanding for one affiliate.
+ *
+ * Writes a payout row and stamps the commissions it covers, rather than just
+ * flipping a boolean — so "what do I owe" and "what have I already sent, and
+ * when" stay separately answerable after the fact. The amount is summed from
+ * the commission rows inside the transaction rather than taken from the
+ * caller, so the recorded total always matches what was actually cleared.
+ */
+export async function settleAffiliate(
+  affiliateId: string,
+  opts: { note?: string | null; byEmail?: string | null } = {},
+): Promise<SettleResult> {
+  const outstanding = await prisma.affiliateCommission.findMany({
+    where: { affiliateId, paidOut: false },
+    select: { id: true, commissionUsd: true },
+  });
+
+  if (outstanding.length === 0) {
+    return { ok: false, error: 'Nothing outstanding to settle.' };
+  }
+
+  const amountUsd = Math.round(outstanding.reduce((sum, c) => sum + c.commissionUsd, 0) * 100) / 100;
+  const ids = outstanding.map((c) => c.id);
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const payout = await tx.affiliatePayout.create({
+      data: {
+        affiliateId,
+        amountUsd,
+        commissionCount: ids.length,
+        note: opts.note?.trim() || null,
+        createdByEmail: opts.byEmail ?? null,
+        createdAt: now,
+      },
+    });
+    await tx.affiliateCommission.updateMany({
+      // Scoped to the exact ids read above: a commission that landed between
+      // the read and this write belongs to the next payout, not this one.
+      where: { id: { in: ids } },
+      data: { paidOut: true, paidOutAt: now, payoutId: payout.id },
+    });
+  });
+
+  return { ok: true, amountUsd, commissionCount: ids.length };
+}
+
 export interface AdminAffiliateRow {
   id: string;
   code: string;
@@ -215,12 +279,24 @@ export interface AdminAffiliateRow {
   referredCount: number;
   convertedCount: number;
   totalEarnedUsd: number;
+  /** What you still owe them right now. */
   unpaidUsd: number;
+  /** What you have already sent them, summed from recorded payouts. */
+  paidUsd: number;
+  payouts: PayoutRecord[];
+}
+
+export interface AdminAffiliateSummary {
+  affiliates: AdminAffiliateRow[];
+  /** Across every affiliate — the single "what do I owe right now" number. */
+  totalOwedUsd: number;
+  totalPaidUsd: number;
+  totalEarnedUsd: number;
 }
 
 /** Shared by /admin/affiliates (SSR) and its API route, so the shapes can't drift. */
-export async function listAffiliatesForAdmin(): Promise<AdminAffiliateRow[]> {
-  const [affiliates, totals, unpaid] = await Promise.all([
+export async function listAffiliatesForAdmin(): Promise<AdminAffiliateSummary> {
+  const [affiliates, totals, unpaid, payouts] = await Promise.all([
     prisma.affiliate.findMany({
       orderBy: { createdAt: 'desc' },
       include: { referrals: { select: { firstPaidAt: true } } },
@@ -231,23 +307,49 @@ export async function listAffiliatesForAdmin(): Promise<AdminAffiliateRow[]> {
       where: { paidOut: false },
       _sum: { commissionUsd: true },
     }),
+    prisma.affiliatePayout.findMany({ orderBy: { createdAt: 'desc' } }),
   ]);
 
   const totalByAffiliate = new Map(totals.map((t) => [t.affiliateId, t._sum.commissionUsd ?? 0]));
   const unpaidByAffiliate = new Map(unpaid.map((u) => [u.affiliateId, u._sum.commissionUsd ?? 0]));
+  const payoutsByAffiliate = new Map<string, PayoutRecord[]>();
+  for (const p of payouts) {
+    const list = payoutsByAffiliate.get(p.affiliateId) ?? [];
+    list.push({
+      id: p.id,
+      amountUsd: p.amountUsd,
+      commissionCount: p.commissionCount,
+      note: p.note,
+      createdByEmail: p.createdByEmail,
+      createdAt: p.createdAt.toISOString(),
+    });
+    payoutsByAffiliate.set(p.affiliateId, list);
+  }
 
-  return affiliates.map((a) => ({
-    id: a.id,
-    code: a.code,
-    email: a.email,
-    name: a.name,
-    commissionPct: a.commissionPct,
-    active: a.active,
-    note: a.note,
-    createdAt: a.createdAt.toISOString(),
-    referredCount: a.referrals.length,
-    convertedCount: a.referrals.filter((r) => r.firstPaidAt !== null).length,
-    totalEarnedUsd: totalByAffiliate.get(a.id) ?? 0,
-    unpaidUsd: unpaidByAffiliate.get(a.id) ?? 0,
-  }));
+  const rows: AdminAffiliateRow[] = affiliates.map((a) => {
+    const affiliatePayouts = payoutsByAffiliate.get(a.id) ?? [];
+    return {
+      id: a.id,
+      code: a.code,
+      email: a.email,
+      name: a.name,
+      commissionPct: a.commissionPct,
+      active: a.active,
+      note: a.note,
+      createdAt: a.createdAt.toISOString(),
+      referredCount: a.referrals.length,
+      convertedCount: a.referrals.filter((r) => r.firstPaidAt !== null).length,
+      totalEarnedUsd: totalByAffiliate.get(a.id) ?? 0,
+      unpaidUsd: unpaidByAffiliate.get(a.id) ?? 0,
+      paidUsd: affiliatePayouts.reduce((sum, p) => sum + p.amountUsd, 0),
+      payouts: affiliatePayouts,
+    };
+  });
+
+  return {
+    affiliates: rows,
+    totalOwedUsd: rows.reduce((sum, r) => sum + r.unpaidUsd, 0),
+    totalPaidUsd: rows.reduce((sum, r) => sum + r.paidUsd, 0),
+    totalEarnedUsd: rows.reduce((sum, r) => sum + r.totalEarnedUsd, 0),
+  };
 }

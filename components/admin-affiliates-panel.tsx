@@ -6,12 +6,15 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { AdminAffiliateRow } from '@/lib/affiliate';
+import { cn } from '@/lib/utils';
+import type { AdminAffiliateRow, AdminAffiliateSummary } from '@/lib/affiliate';
 
 const EMPTY_FORM = { code: '', email: '', name: '', commissionPct: '30', note: '' };
 
-export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates: AdminAffiliateRow[] }) {
-  const [affiliates, setAffiliates] = React.useState(initialAffiliates);
+export function AdminAffiliatesPanel({ initialSummary }: { initialSummary: AdminAffiliateSummary }) {
+  const [summary, setSummary] = React.useState(initialSummary);
+  const affiliates = summary.affiliates;
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState(EMPTY_FORM);
   const [creating, setCreating] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -19,8 +22,8 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
 
   const refresh = async () => {
     const res = await fetch('/api/admin/affiliates');
-    const json = (await res.json()) as { affiliates: AdminAffiliateRow[] };
-    setAffiliates(json.affiliates);
+    const json = (await res.json()) as AdminAffiliateSummary;
+    setSummary(json);
   };
 
   const create = async (e: React.FormEvent) => {
@@ -63,27 +66,51 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
         toast.error('Could not update that affiliate.');
         return;
       }
-      setAffiliates((cur) => cur.map((a) => (a.id === row.id ? { ...a, active: !a.active } : a)));
+      setSummary((cur) => ({
+        ...cur,
+        affiliates: cur.affiliates.map((a) => (a.id === row.id ? { ...a, active: !a.active } : a)),
+      }));
     } finally {
       setBusyId(null);
     }
   };
 
   const settle = async (row: AdminAffiliateRow) => {
+    const note = window.prompt(
+      `Record a payout of $${row.unpaidUsd.toFixed(2)} to ${row.code}?\n\n` +
+        'Optionally note how you sent it (wire, PayPal tx id, ...). This records the payment — it does not send money.',
+      '',
+    );
+    // prompt() returns null on cancel, '' on OK-with-no-note.
+    if (note === null) return;
+
     setBusyId(row.id);
     try {
-      const res = await fetch(`/api/admin/affiliates/${row.id}/settle`, { method: 'POST' });
-      const json = (await res.json()) as { ok: boolean; settledCount?: number; error?: string };
+      const res = await fetch(`/api/admin/affiliates/${row.id}/settle`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ note }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        amountUsd?: number;
+        commissionCount?: number;
+        error?: string;
+      };
       if (!json.ok) {
         toast.error(json.error ?? 'Could not settle that affiliate.');
         return;
       }
-      toast.success(`Marked ${json.settledCount} commission${json.settledCount === 1 ? '' : 's'} paid.`);
+      toast.success(
+        `Recorded $${json.amountUsd?.toFixed(2)} paid to ${row.code} (${json.commissionCount} commission${json.commissionCount === 1 ? '' : 's'}).`,
+      );
       await refresh();
     } finally {
       setBusyId(null);
     }
   };
+
+  const expandedRow = affiliates.find((a) => a.id === expandedId) ?? null;
 
   const copyLink = async (row: AdminAffiliateRow) => {
     try {
@@ -96,7 +123,35 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
   };
 
   return (
-    <div className="mt-8 grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)]">
+    <>
+      {/* The headline number: what is owed right now, across everyone. */}
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="hud-panel p-4">
+          <p className="hud-label">You owe right now</p>
+          <p
+            className={cn(
+              'mt-1 font-mono text-2xl font-semibold',
+              summary.totalOwedUsd > 0 ? 'text-warn' : 'text-muted-foreground',
+            )}
+          >
+            ${summary.totalOwedUsd.toFixed(2)}
+          </p>
+        </div>
+        <div className="hud-panel p-4">
+          <p className="hud-label">Paid to date</p>
+          <p className="mt-1 font-mono text-2xl font-semibold text-foreground">
+            ${summary.totalPaidUsd.toFixed(2)}
+          </p>
+        </div>
+        <div className="hud-panel p-4">
+          <p className="hud-label">Commission earned, all time</p>
+          <p className="mt-1 font-mono text-2xl font-semibold text-primary">
+            ${summary.totalEarnedUsd.toFixed(2)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)]">
       <form onSubmit={create} className="hud-panel h-fit space-y-3 p-5">
         <h2 className="hud-label flex items-center gap-2">
           <Plus className="h-3 w-3" /> new affiliate
@@ -151,6 +206,7 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
               <th className="px-3 py-2.5 hud-label font-normal">converted</th>
               <th className="px-3 py-2.5 hud-label font-normal">earned</th>
               <th className="px-3 py-2.5 hud-label font-normal">unpaid</th>
+              <th className="px-3 py-2.5 hud-label font-normal">paid</th>
               <th className="px-3 py-2.5 hud-label font-normal">status</th>
               <th className="px-4 py-2.5 hud-label font-normal" />
             </tr>
@@ -158,7 +214,7 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
           <tbody className="divide-y divide-border/40">
             {affiliates.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                   No affiliates yet.
                 </td>
               </tr>
@@ -199,6 +255,19 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
                       <span className="text-muted-foreground">$0.00</span>
                     )}
                   </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-muted-foreground">
+                    ${a.paidUsd.toFixed(2)}
+                    {a.payouts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId((cur) => (cur === a.id ? null : a.id))}
+                        className="ml-1.5 underline underline-offset-2 hover:text-foreground"
+                        aria-expanded={expandedId === a.id}
+                      >
+                        {a.payouts.length} payout{a.payouts.length === 1 ? '' : 's'}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5">
                     <Badge variant={a.active ? 'default' : 'muted'}>{a.active ? 'active' : 'disabled'}</Badge>
                   </td>
@@ -226,6 +295,45 @@ export function AdminAffiliatesPanel({ initialAffiliates }: { initialAffiliates:
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+
+      {/* Payout history for whichever affiliate is expanded — the answer to
+          "what have I already sent them, and when". */}
+      {expandedRow && (
+        <div className="hud-panel mt-6 overflow-x-auto">
+          <h2 className="hud-label px-4 pt-4">payout history · {expandedRow.code}</h2>
+          <table className="mt-3 w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border/70">
+                <th className="px-4 py-2.5 hud-label font-normal">date</th>
+                <th className="px-3 py-2.5 hud-label font-normal">amount</th>
+                <th className="px-3 py-2.5 hud-label font-normal">commissions</th>
+                <th className="px-3 py-2.5 hud-label font-normal">note</th>
+                <th className="px-4 py-2.5 hud-label font-normal">recorded by</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {expandedRow.payouts.map((p) => (
+                <tr key={p.id}>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                    {new Date(p.createdAt).toLocaleString()}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-foreground">
+                    ${p.amountUsd.toFixed(2)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-muted-foreground">
+                    {p.commissionCount}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{p.note ?? '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-xs text-muted-foreground">
+                    {p.createdByEmail ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

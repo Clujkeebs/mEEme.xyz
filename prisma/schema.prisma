@@ -376,6 +376,7 @@ model Affiliate {
   createdAt     DateTime @default(now())
 
   referrals AffiliateReferral[]
+  payouts   AffiliatePayout[]
 
   @@index([active])
 }
@@ -412,11 +413,38 @@ model AffiliateCommission {
   stripeInvoiceId String            @unique
   amountUsd       Float
   commissionUsd   Float
-  /// Toggled from /admin/affiliates once the affiliate has actually been
-  /// paid — earned and paid are different questions, and this app has no
-  /// payment rail to pay them itself.
+  /// Set from /admin/affiliates once the affiliate has actually been paid —
+  /// earned and paid are different questions, and this app has no payment
+  /// rail to pay them itself. `payoutId` links to the settlement that
+  /// cleared it, so "what did I pay, when, covering what" is answerable
+  /// after the fact rather than being a boolean with no history.
   paidOut         Boolean           @default(false)
+  paidOutAt       DateTime?
+  payoutId        String?
+  payout          AffiliatePayout?  @relation(fields: [payoutId], references: [id], onDelete: SetNull)
   createdAt       DateTime          @default(now())
+
+  @@index([affiliateId, createdAt])
+  @@index([affiliateId, paidOut])
+  @@index([payoutId])
+}
+
+/// One settlement: "on this date I paid this affiliate this much, covering
+/// these commissions." Recorded rather than inferred, because the commission
+/// rows themselves can keep accruing after a payout and a running balance
+/// alone cannot answer "what did I already send them".
+model AffiliatePayout {
+  id              String    @id @default(cuid())
+  affiliateId     String
+  affiliate       Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  amountUsd       Float
+  commissionCount Int
+  /// How it was actually sent — "wire", "PayPal tx 12345", whatever the deal used.
+  note            String?
+  createdByEmail  String?
+  createdAt       DateTime  @default(now())
+
+  commissions AffiliateCommission[]
 
   @@index([affiliateId, createdAt])
 }

@@ -13,7 +13,7 @@ export default async function AdminAffiliatesPage() {
   const viewer = await getViewer();
   if (!isAdmin(viewer)) redirect('/');
 
-  const affiliates = await listAffiliatesForAdmin();
+  const summary = await listAffiliatesForAdmin();
 
   return (
     <div className="py-8">
@@ -28,7 +28,7 @@ export default async function AdminAffiliatesPage() {
         registered here.
       </p>
 
-      <AdminAffiliatesPanel initialAffiliates={affiliates} />
+      <AdminAffiliatesPanel initialSummary={summary} />
     </div>
   );
 }
