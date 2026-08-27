@@ -305,6 +305,32 @@ export function Watchtower({
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
+          {/* First thing in the main column, above even the setup checklist.
+              A revenue-share partner should never have to guess a URL to find
+              what they are owed, and the sidebar was not a fix on a phone: it
+              renders below the positions, closed and surveillance sections, so
+              the one thing this person came for sat several screens past
+              everything they did not. Below the first-run checklist was no
+              better — measured at 1255px on a 390x844 screen, still off. The
+              first partner onboarded reported twice that he could not find his
+              dashboard or his code, so for an affiliate this outranks
+              onboarding: they already know what the product is. The header
+              link stays, but it is behind a hamburger on mobile. */}
+          {isAffiliate && (
+            <section className="hud-panel corner-bracket p-5">
+              <h2 className="hud-label flex items-center gap-2">
+                <CircleDollarSign className="h-3 w-3" /> affiliate partner
+              </h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                You have a revenue-share partnership on this account. Your referral link, your code,
+                signups and commission owed all live on your affiliate dashboard.
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link href="/affiliate">Open affiliate dashboard</Link>
+              </Button>
+            </section>
+          )}
+
           {/* A dashboard that only announces its own emptiness is the worst
               moment in the product. While nothing is tracked, the left column
               carries a checklist of what actually has to happen instead. */}
@@ -619,23 +645,6 @@ export function Watchtower({
 
           <ApiKeys available={apiAccess} dailyLimit={apiDailyLimit} />
 
-          {/* A revenue-share partner should never have to guess a URL to find
-              what they are owed. The header link alone was not enough — the
-              first partner onboarded could not find the dashboard at all. */}
-          {isAffiliate && (
-            <section className="hud-panel p-5">
-              <h2 className="hud-label flex items-center gap-2">
-                <CircleDollarSign className="h-3 w-3" /> affiliate
-              </h2>
-              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                You have a revenue-share partnership on this account. Your referral link, signups and
-                commission owed live on your affiliate dashboard.
-              </p>
-              <Button asChild size="sm" className="mt-3 w-full">
-                <Link href="/affiliate">Open affiliate dashboard</Link>
-              </Button>
-            </section>
-          )}
 
           <div className="flex justify-center">
             <PromoRedeemForm />
