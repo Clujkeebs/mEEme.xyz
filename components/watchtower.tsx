@@ -16,6 +16,7 @@ import { ApiKeys } from '@/components/api-keys';
 import { ManageBilling } from '@/components/manage-billing';
 import { PromoRedeemForm } from '@/components/promo-redeem-form';
 import { PortfolioSummaryPanel, markAge } from '@/components/portfolio-summary';
+import { ReferralLink } from '@/components/referral-link';
 import { valuePosition, type PortfolioSummary } from '@/lib/positions';
 import type { Tier } from '@/lib/tiers';
 import { cn, formatPrice, shortAddress } from '@/lib/utils';
@@ -72,8 +73,8 @@ export interface WatchtowerProps {
   /** Whether the user has a real Stripe subscription — distinct from `tier`,
    * which a promo trial can also raise. Only a real subscriber has billing to manage. */
   hasStripeSubscription: boolean;
-  /** Shows a pointer to /affiliate — a partner should not have to guess the URL. */
-  isAffiliate: boolean;
+  /** The partner's own code and rate, or null. Drives the affiliate panel. */
+  affiliate: { code: string; commissionPct: number } | null;
   quota: { used: number; limit: number | null; remaining: number | null };
   limits: { positions: number; watches: number };
   positions: PositionRow[];
@@ -97,7 +98,7 @@ export function Watchtower({
   tierName,
   trialEndsAt,
   hasStripeSubscription,
-  isAffiliate,
+  affiliate,
   quota,
   limits,
   positions,
@@ -316,17 +317,39 @@ export function Watchtower({
               dashboard or his code, so for an affiliate this outranks
               onboarding: they already know what the product is. The header
               link stays, but it is behind a hamburger on mobile. */}
-          {isAffiliate && (
+          {affiliate && (
             <section className="hud-panel corner-bracket p-5">
               <h2 className="hud-label flex items-center gap-2">
                 <CircleDollarSign className="h-3 w-3" /> affiliate partner
               </h2>
-              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                You have a revenue-share partnership on this account. Your referral link, your code,
-                signups and commission owed all live on your affiliate dashboard.
+
+              {/* The code and the link are here, not one click away. Pointing a
+                  partner at a dashboard is still asking them to go and find
+                  their own code — and the one partner onboarded so far
+                  reported twice that he could not. What he needs to do his
+                  half of the deal is two strings; they belong on the first
+                  screen he sees, and the dashboard is for the numbers. */}
+              <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-mono text-xl font-bold tracking-wide text-primary">
+                  {affiliate.code}
+                </span>
+                <span className="text-[13px] text-muted-foreground">
+                  your code · {affiliate.commissionPct}% for 12 months from a referral&rsquo;s first payment
+                </span>
+              </div>
+
+              <ReferralLink
+                code={affiliate.code}
+                className="mt-3 rounded-md border border-border/60 bg-secondary/30 p-3"
+              />
+
+              <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+                Anyone who signs up after following that link is credited to you. Signups alone earn
+                nothing — you earn when one of them starts paying.
               </p>
-              <Button asChild size="sm" className="mt-3">
-                <Link href="/affiliate">Open affiliate dashboard</Link>
+
+              <Button asChild size="sm" variant="outline" className="mt-3">
+                <Link href="/affiliate">See signups and what you are owed</Link>
               </Button>
             </section>
           )}

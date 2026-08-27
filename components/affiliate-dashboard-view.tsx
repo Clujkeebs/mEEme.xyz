@@ -1,26 +1,12 @@
 'use client';
 
-import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { ReferralLink } from '@/components/referral-link';
 import { cn } from '@/lib/utils';
 import type { AffiliateDashboard } from '@/lib/affiliate';
 
 export function AffiliateDashboardView({ dashboard }: { dashboard: AffiliateDashboard }) {
-  const [copied, setCopied] = React.useState(false);
-  const link = `https://meeme.xyz/?ref=${dashboard.code}`;
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard access denied — the link is still selectable/visible below.
-    }
-  };
-
   return (
     <div className="py-8">
       <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary/70">affiliate</p>
@@ -30,13 +16,7 @@ export function AffiliateDashboardView({ dashboard }: { dashboard: AffiliateDash
         first payment. Signing up alone earns nothing — only a paying subscriber does.
       </p>
 
-      <div className="hud-panel mt-6 flex flex-wrap items-center gap-3 p-4">
-        <code className="flex-1 truncate font-mono text-sm text-foreground">{link}</code>
-        <Button size="sm" onClick={() => void copyLink()}>
-          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copied' : 'Copy link'}
-        </Button>
-      </div>
+      <ReferralLink code={dashboard.code} className="hud-panel mt-6 p-4" />
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Referred" value={String(dashboard.referredCount)} />

@@ -9,6 +9,7 @@ import { getQuota } from '@/lib/quota';
 import { TIERS } from '@/lib/tiers';
 import { API_DAILY_LIMIT } from '@/lib/apikey';
 import { summarizePortfolio } from '@/lib/positions';
+import { getAffiliateForViewer } from '@/lib/affiliate';
 
 export const metadata: Metadata = { title: 'Watchtower' };
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export default async function DashboardPage({
   const viewer = await getViewer();
   if (!viewer) redirect(databaseConfigured() ? '/signin?next=%2Fdashboard' : '/lock');
 
-  const [positions, closedPositions, watches, alerts, quota, account] = await Promise.all([
+  const [positions, closedPositions, watches, alerts, quota, account, affiliate] = await Promise.all([
     prisma.position.findMany({
       where: { userId: viewer.id, closedAt: null },
       orderBy: { openedAt: 'desc' },
@@ -57,6 +58,9 @@ export default async function DashboardPage({
         quietToHourUtc: true,
       },
     }),
+    // The partner's own code and rate, not just "is one" — so the Watchtower
+    // can show the link itself rather than sending them somewhere to find it.
+    getAffiliateForViewer(viewer),
   ]);
 
   // Marks are written by the sweep, so this is a read of already-computed
@@ -84,7 +88,7 @@ export default async function DashboardPage({
       tierName={TIERS[viewer.tier].name}
       trialEndsAt={viewer.trialEndsAt}
       hasStripeSubscription={Boolean(account?.stripeCustomerId)}
-      isAffiliate={viewer.isAffiliate}
+      affiliate={affiliate ? { code: affiliate.code, commissionPct: affiliate.commissionPct } : null}
       quota={{
         used: quota.used,
         limit: quota.unlimited ? null : quota.limit,
