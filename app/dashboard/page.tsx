@@ -8,6 +8,7 @@ import { databaseConfigured, prisma } from '@/lib/db';
 import { getQuota } from '@/lib/quota';
 import { TIERS } from '@/lib/tiers';
 import { API_DAILY_LIMIT } from '@/lib/apikey';
+import { summarizePortfolio } from '@/lib/positions';
 
 export const metadata: Metadata = { title: 'Watchtower' };
 export const dynamic = 'force-dynamic';
@@ -58,6 +59,25 @@ export default async function DashboardPage({
     }),
   ]);
 
+  // Marks are written by the sweep, so this is a read of already-computed
+  // state — the dashboard never fetches prices itself and never blocks on a
+  // provider to render.
+  const portfolio = summarizePortfolio(
+    positions.map((p) => ({
+      size: p.size,
+      entryPriceUsd: p.entryPriceUsd,
+      markPriceUsd: p.markPriceUsd,
+      markedAt: p.markedAt?.toISOString() ?? null,
+      markVerdict: p.markVerdict,
+      markCoilScore: p.markCoilScore,
+      markStopUsd: p.markStopUsd,
+      markNextRungUsd: p.markNextRungUsd,
+      markNextRungFraction: p.markNextRungFraction,
+    })),
+    closedPositions.map((p) => ({ realizedPnlUsd: p.realizedPnlUsd })),
+    Date.now(),
+  );
+
   return (
     <Watchtower
       tier={viewer.tier}
@@ -81,7 +101,16 @@ export default async function DashboardPage({
         size: p.size,
         entryPriceUsd: p.entryPriceUsd,
         openedAt: p.openedAt.toISOString(),
+        markPriceUsd: p.markPriceUsd,
+        markedAt: p.markedAt?.toISOString() ?? null,
+        markVerdict: p.markVerdict,
+        markCoilScore: p.markCoilScore,
+        markStopUsd: p.markStopUsd,
+        markNextRungUsd: p.markNextRungUsd,
+        markNextRungFraction: p.markNextRungFraction,
       }))}
+      portfolio={portfolio}
+      nowMs={Date.now()}
       closedPositions={closedPositions.map((p) => ({
         id: p.id,
         symbol: p.symbol,

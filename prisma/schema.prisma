@@ -134,6 +134,24 @@ model Position {
   realizedPnlUsd Float?
   notes         String?
 
+  /// The sweep's last mark on this position.
+  ///
+  /// Every five minutes the sweep already fetches this token, runs the engine
+  /// against this exact position and decides whether to alert — then dropped
+  /// everything it learned. Persisting it costs no extra upstream calls and is
+  /// what lets the dashboard say what a bag is worth instead of only what it
+  /// cost. Null until the first sweep touches the position; the UI says so
+  /// rather than pretending a mark exists.
+  markPriceUsd         Float?
+  markedAt             DateTime?
+  markVerdict          String?
+  markCoilScore        Float?
+  /// Engine's structural stop at the mark.
+  markStopUsd          Float?
+  /// Next unfilled exit rung at the mark, and the fraction it sells.
+  markNextRungUsd      Float?
+  markNextRungFraction Float?
+
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   alerts Alert[]
 

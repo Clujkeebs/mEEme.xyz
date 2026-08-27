@@ -128,6 +128,25 @@ export async function runSweep(): Promise<SweepResult> {
         entryPriceUsd: position.entryPriceUsd,
       });
       const ladder = signal.ladder;
+
+      // Persist what this pass already worked out, whether or not it alerts.
+      // Without this the dashboard can only show what the bag cost; with it,
+      // and at no extra upstream cost, it can show what the bag is worth and
+      // how close it is to its stop.
+      const nextRung = ladder?.rungs.find((r) => r.priceUsd > snapshot.priceUsd) ?? null;
+      await prisma.position.update({
+        where: { id: position.id },
+        data: {
+          markPriceUsd: snapshot.priceUsd,
+          markedAt: new Date(snapshot.fetchedAtMs),
+          markVerdict: signal.verdict,
+          markCoilScore: signal.coil.coilScore,
+          markStopUsd: ladder?.hardStopUsd ?? null,
+          markNextRungUsd: nextRung?.priceUsd ?? null,
+          markNextRungFraction: nextRung?.fraction ?? null,
+        },
+      });
+
       if (!ladder) continue;
 
       if (snapshot.priceUsd <= ladder.hardStopUsd) {

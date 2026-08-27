@@ -15,6 +15,8 @@ import { WalletImport } from '@/components/wallet-import';
 import { ApiKeys } from '@/components/api-keys';
 import { ManageBilling } from '@/components/manage-billing';
 import { PromoRedeemForm } from '@/components/promo-redeem-form';
+import { PortfolioSummaryPanel, markAge } from '@/components/portfolio-summary';
+import { valuePosition, type PortfolioSummary } from '@/lib/positions';
 import type { Tier } from '@/lib/tiers';
 import { cn, formatPrice, shortAddress } from '@/lib/utils';
 
@@ -25,6 +27,13 @@ interface PositionRow {
   size: number;
   entryPriceUsd: number;
   openedAt: string;
+  markPriceUsd: number | null;
+  markedAt: string | null;
+  markVerdict: string | null;
+  markCoilScore: number | null;
+  markStopUsd: number | null;
+  markNextRungUsd: number | null;
+  markNextRungFraction: number | null;
 }
 
 interface ClosedPositionRow {
@@ -68,6 +77,9 @@ export interface WatchtowerProps {
   quota: { used: number; limit: number | null; remaining: number | null };
   limits: { positions: number; watches: number };
   positions: PositionRow[];
+  portfolio: PortfolioSummary;
+  /** Server render time. Marks are dated against this so SSR and hydration agree. */
+  nowMs: number;
   closedPositions: ClosedPositionRow[];
   watches: WatchRow[];
   alerts: AlertRow[];
@@ -89,6 +101,8 @@ export function Watchtower({
   quota,
   limits,
   positions,
+  portfolio,
+  nowMs,
   closedPositions,
   watches,
   alerts,
@@ -304,6 +318,8 @@ export function Watchtower({
 
           <WalletImport available={walletScanAvailable} />
 
+          <PortfolioSummaryPanel summary={portfolio} />
+
           <section>
             <h2 className="hud-label mb-3 flex items-center gap-2">
               <Crosshair className="h-3 w-3" /> positions · {positions.length}/{limits.positions}
@@ -318,19 +334,52 @@ export function Watchtower({
               )
             ) : (
               <ul className="space-y-2">
-                {positions.map((p) => (
-                  <li key={p.id} className="hud-panel flex flex-wrap items-center gap-4 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
+                {positions.map((p) => {
+                  const v = valuePosition(p, nowMs);
+                  return (
+                  <li key={p.id} className="hud-panel px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+                    {/* basis-full below sm: identity gets the whole line and the
+                        controls drop underneath, instead of three blocks
+                        fighting over 390px and wrapping one word per line. */}
+                    <div className="min-w-0 flex-1 basis-full sm:basis-0">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                         <span className="font-semibold">${p.symbol}</span>
                         <span className="font-mono text-[10px] text-muted-foreground">
                           {shortAddress(p.tokenAddress)}
                         </span>
+                        {v.stopBroken && (
+                          <Badge variant="danger" className="text-[10px]">stop broken</Badge>
+                        )}
                       </div>
                       <div className="tnum mt-0.5 font-mono text-xs text-muted-foreground">
                         {p.size.toLocaleString('en-US')} @ {formatPrice(p.entryPriceUsd)}
+                        {v.marked && (
+                          <>
+                            {' → '}
+                            <span className="text-foreground">{formatPrice(p.markPriceUsd as number)}</span>
+                          </>
+                        )}
                       </div>
                     </div>
+
+                    {v.marked && (
+                      <div className="shrink-0 text-right">
+                        <div
+                          className={cn(
+                            'tnum font-mono text-base font-semibold',
+                            (v.unrealizedPnlUsd ?? 0) >= 0 ? 'text-primary' : 'text-destructive',
+                          )}
+                        >
+                          {(v.unrealizedPnlUsd ?? 0) >= 0 ? '+' : '−'}$
+                          {Math.abs(v.unrealizedPnlUsd ?? 0).toFixed(2)}
+                        </div>
+                        <div className="tnum font-mono text-[11px] text-muted-foreground">
+                          {(v.unrealizedPnlPct ?? 0) >= 0 ? '+' : '−'}
+                          {Math.abs((v.unrealizedPnlPct ?? 0) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
                     {closingId === p.id ? (
                       <>
                         <Input
@@ -365,7 +414,7 @@ export function Watchtower({
                       </>
                     ) : (
                       <>
-                        <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="outline" className="ml-auto sm:ml-0">
                           <Link href={`/lock?address=${p.tokenAddress}`}>Re-read</Link>
                         </Button>
                         <Button
@@ -374,7 +423,11 @@ export function Watchtower({
                           disabled={busy}
                           onClick={() => {
                             setClosingId(p.id);
-                            setExitPrice('');
+                            // Pre-fill with the last mark. Nine times out of ten
+                            // that is the price they just sold at, and making
+                            // them go find it again is how an exit goes
+                            // unrecorded — which is what breaks the track record.
+                            setExitPrice(p.markPriceUsd ? String(p.markPriceUsd) : '');
                           }}
                         >
                           <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
@@ -391,8 +444,12 @@ export function Watchtower({
                         </Button>
                       </>
                     )}
+                    </div>
+
+                    <PositionMark position={p} valuation={v} />
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -405,7 +462,7 @@ export function Watchtower({
                   const total = closedPositions.reduce((sum, p) => sum + (p.realizedPnlUsd ?? 0), 0);
                   return (
                     <span className={cn('tnum', total >= 0 ? 'text-primary' : 'text-destructive')}>
-                      {total >= 0 ? '+' : ''}${total.toFixed(2)}
+                      {total >= 0 ? '+' : '−'}${Math.abs(total).toFixed(2)}
                     </span>
                   );
                 })()}
@@ -432,7 +489,7 @@ export function Watchtower({
                           pnl >= 0 ? 'text-primary' : 'text-destructive',
                         )}
                       >
-                        {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                        {pnl >= 0 ? '+' : '−'}${Math.abs(pnl).toFixed(2)}
                       </span>
                     </li>
                   );
@@ -597,6 +654,81 @@ function hoursRemaining(iso: string): string {
   const hours = Math.ceil(ms / 3_600_000);
   if (hours >= 24) return `${Math.ceil(hours / 24)}d left`;
   return `${hours}h left`;
+}
+
+/**
+ * The engine's read on one open position, from the sweep's last mark.
+ *
+ * Ordered by what forces a decision: a broken stop first, then how much room
+ * is left before the stop, then the next rung up. A trader scanning this list
+ * should be able to find the position that needs them without reading it all.
+ */
+function PositionMark({
+  position,
+  valuation,
+}: {
+  position: PositionRow;
+  valuation: ReturnType<typeof valuePosition>;
+}) {
+  if (!valuation.marked) {
+    return (
+      <p className="mt-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
+        Not marked yet — the sweep picks it up within 5 minutes.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/40 pt-2 text-[11px] text-muted-foreground [&>span]:whitespace-nowrap">
+      {valuation.stopBroken ? (
+        <span className="!whitespace-normal font-medium text-destructive">
+          Below the structural stop{position.markStopUsd ? ` (${formatPrice(position.markStopUsd)})` : ''}
+        </span>
+      ) : (
+        valuation.stopDistancePct !== null && (
+          <span>
+            stop{' '}
+            <span
+              className={cn(
+                'tnum font-mono',
+                valuation.stopDistancePct < 0.15 ? 'text-destructive' : 'text-foreground',
+              )}
+            >
+              −{(valuation.stopDistancePct * 100).toFixed(0)}%
+            </span>
+            {position.markStopUsd ? ` @ ${formatPrice(position.markStopUsd)}` : ''}
+          </span>
+        )
+      )}
+
+      {valuation.nextRungDistancePct !== null && position.markNextRungUsd !== null && (
+        <span>
+          next rung{' '}
+          <span className="tnum font-mono text-foreground">
+            +{(valuation.nextRungDistancePct * 100).toFixed(0)}%
+          </span>
+          {position.markNextRungFraction !== null &&
+            ` · sell ${(position.markNextRungFraction * 100).toFixed(0)}%`}
+        </span>
+      )}
+
+      {position.markCoilScore !== null && (
+        <span>
+          coil{' '}
+          <span className="tnum font-mono" style={{ color: colorForCoil(position.markCoilScore) }}>
+            {position.markCoilScore.toFixed(2)}
+          </span>
+        </span>
+      )}
+
+      {valuation.markAgeMs !== null && (
+        <span className={cn(valuation.stale && 'text-destructive')}>
+          {valuation.stale ? 'stale · ' : ''}
+          {markAge(valuation.markAgeMs)}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function EmptyState({ text }: { text: string }) {
