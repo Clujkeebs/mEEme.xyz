@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colorForCoil } from '@/components/cockpit/coil-gauge';
 import { AlertSettings, type AlertPrefs } from '@/components/alert-settings';
+import { FirstRun } from '@/components/first-run';
 import { WalletImport } from '@/components/wallet-import';
 import { ApiKeys } from '@/components/api-keys';
 import { ManageBilling } from '@/components/manage-billing';
@@ -98,6 +99,9 @@ export function Watchtower({
 }: WatchtowerProps) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+
+  /** Nothing tracked yet — show the setup checklist instead of empty boxes. */
+  const firstRun = positions.length === 0 && watches.length === 0;
 
   const [form, setForm] = React.useState({
     tokenAddress: prefill?.address ?? '',
@@ -284,6 +288,17 @@ export function Watchtower({
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
+          {/* A dashboard that only announces its own emptiness is the worst
+              moment in the product. While nothing is tracked, the left column
+              carries a checklist of what actually has to happen instead. */}
+          {firstRun && (
+            <FirstRun
+              hasPositions={positions.length > 0}
+              hasWatches={watches.length > 0}
+              alertsReady={alertPrefs.telegramLinked || alertPrefs.notifyEmail}
+            />
+          )}
+
           <WalletImport available={walletScanAvailable} />
 
           <section>
@@ -291,9 +306,13 @@ export function Watchtower({
               <Crosshair className="h-3 w-3" /> positions · {positions.length}/{limits.positions}
             </h2>
             {positions.length === 0 ? (
-              <EmptyState
-                text="No positions tracked. Add one and the engine will watch its ladder and stop for you."
-              />
+              // The first-run checklist above already says this, at length —
+              // repeating it in a dashed box is noise, not guidance.
+              firstRun ? null : (
+                <EmptyState
+                  text="No positions tracked. Add one and the engine will watch its ladder and stop for you."
+                />
+              )
             ) : (
               <ul className="space-y-2">
                 {positions.map((p) => (
@@ -424,7 +443,9 @@ export function Watchtower({
               <Eye className="h-3 w-3" /> surveillance · {watches.length}/{limits.watches}
             </h2>
             {watches.length === 0 ? (
-              <EmptyState text="Nothing under surveillance. Watched tokens alert you when their coil crosses your threshold." />
+              firstRun ? null : (
+                <EmptyState text="Nothing under surveillance. Watched tokens alert you when their coil crosses your threshold." />
+              )
             ) : (
               <ul className="space-y-2">
                 {watches.map((w) => (
