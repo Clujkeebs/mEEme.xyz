@@ -28,11 +28,11 @@ export default async function Image() {
   try {
     const rows = await prisma.signalOutcome.findMany({
       where: { grade: { not: 'pending' } },
-      select: { grade: true, edgePct: true },
+      select: { grade: true, edgePct: true, signal: { select: { verdict: true } } },
       take: 5000,
       orderBy: { updatedAt: 'desc' },
     });
-    stats = summarize(rows);
+    stats = summarize(rows.map((r) => ({ ...r, verdict: r.signal.verdict })));
   } catch {
     stats = null;
   }

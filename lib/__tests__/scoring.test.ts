@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gradeSignal, summarize } from '../scoring';
+import { gradeSignal, sideOf, summarize } from '../scoring';
 
 const g = (verdict: Parameters<typeof gradeSignal>[0]['verdict'], from: number, to: number, max?: number, min?: number) =>
   gradeSignal({ verdict, priceAtSignal: from, priceAtHorizon: to, maxPrice: max ?? null, minPrice: min ?? null });
@@ -92,5 +92,72 @@ describe('summarize', () => {
     expect(s.total).toBe(0);
     expect(s.accuracy).toBeNull();
     expect(s.averageEdgePct).toBeNull();
+  });
+});
+
+describe('summarize payoff and side splits', () => {
+  // A win rate without a payoff profile is uninterpretable for an asymmetric
+  // strategy: 25% accuracy is excellent at 5x average winners and terrible at
+  // 1.1x. These assert the numbers that make the headline figure mean
+  // something actually get computed.
+  it('reports average winner and average loser separately', () => {
+    const s = summarize([
+      { grade: 'correct', edgePct: 2.0, verdict: 'SCALE_IN' },
+      { grade: 'correct', edgePct: 1.0, verdict: 'SCALE_IN' },
+      { grade: 'incorrect', edgePct: -0.5, verdict: 'SCALE_IN' },
+      { grade: 'neutral', edgePct: 0.01, verdict: 'SCALE_IN' },
+    ]);
+    expect(s.accuracy).toBeCloseTo(2 / 3, 10);
+    expect(s.averageWinPct).toBeCloseTo(1.5, 10);
+    expect(s.averageLossPct).toBeCloseTo(-0.5, 10);
+    // Average edge spans every graded call, neutrals included.
+    expect(s.averageEdgePct).toBeCloseTo((2.0 + 1.0 - 0.5 + 0.01) / 4, 10);
+  });
+
+  it('splits the ledger by what the call told you to do', () => {
+    const s = summarize([
+      { grade: 'correct', edgePct: 0.3, verdict: 'ARM_EXIT' },
+      { grade: 'correct', edgePct: 0.5, verdict: 'EXIT_IMMEDIATELY' },
+      { grade: 'incorrect', edgePct: -0.6, verdict: 'SCALE_IN' },
+      { grade: 'incorrect', edgePct: -0.4, verdict: 'APEX_ENTRY' },
+    ]);
+    expect(s.exitSide.correct).toBe(2);
+    expect(s.exitSide.incorrect).toBe(0);
+    expect(s.exitSide.accuracy).toBe(1);
+    expect(s.entrySide.correct).toBe(0);
+    expect(s.entrySide.incorrect).toBe(2);
+    expect(s.entrySide.accuracy).toBe(0);
+    // The two sides must reconstruct the whole, or the page is hiding calls.
+    expect(s.entrySide.correct + s.exitSide.correct).toBe(s.correct);
+    expect(s.entrySide.incorrect + s.exitSide.incorrect).toBe(s.incorrect);
+  });
+
+  it('files HOLD_THROUGH_NOISE and ARM_EXIT on the exit side', () => {
+    // Both are "do not add here" calls graded on drawdown avoided.
+    expect(sideOf('ARM_EXIT')).toBe('exit');
+    expect(sideOf('HOLD_THROUGH_NOISE')).toBe('exit');
+    expect(sideOf('NO_TOUCH')).toBe('exit');
+    expect(sideOf('SCALE_IN')).toBe('entry');
+    expect(sideOf('APEX_ENTRY')).toBe('entry');
+    expect(sideOf(undefined)).toBeNull();
+    expect(sideOf('SOMETHING_NEW')).toBeNull();
+  });
+
+  it('counts an unclassifiable verdict in the total but in neither side', () => {
+    const s = summarize([
+      { grade: 'correct', edgePct: 1, verdict: 'SCALE_IN' },
+      { grade: 'correct', edgePct: 1, verdict: null },
+    ]);
+    expect(s.correct).toBe(2);
+    expect(s.entrySide.correct).toBe(1);
+    expect(s.exitSide.correct).toBe(0);
+  });
+
+  it('has no payoff figures before anything is graded', () => {
+    const s = summarize([{ grade: 'pending', edgePct: null, verdict: 'SCALE_IN' }]);
+    expect(s.pending).toBe(1);
+    expect(s.averageWinPct).toBeNull();
+    expect(s.averageLossPct).toBeNull();
+    expect(s.accuracy).toBeNull();
   });
 });

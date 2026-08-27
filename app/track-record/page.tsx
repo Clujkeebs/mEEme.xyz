@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { prisma } from '@/lib/db';
 import type { Verdict } from '@/lib/engine/types';
 import { VERDICT_META } from '@/lib/engine/verdict';
-import { summarize, SCORING_VERSION } from '@/lib/scoring';
+import { summarize, SCORING_VERSION, type SliceStats } from '@/lib/scoring';
 import { formatPrice, shortAddress } from '@/lib/utils';
 import { ShareOnX } from '@/components/share-on-x';
 import { canonical, canonicalMetadata } from '@/lib/seo';
@@ -58,7 +58,11 @@ export default async function TrackRecordPage() {
   }
 
   const stats = summarize(
-    rows.map((r) => ({ grade: r.outcome?.grade ?? 'pending', edgePct: r.outcome?.edgePct ?? null })),
+    rows.map((r) => ({
+      grade: r.outcome?.grade ?? 'pending',
+      edgePct: r.outcome?.edgePct ?? null,
+      verdict: r.verdict,
+    })),
   );
 
   return (
@@ -90,14 +94,46 @@ export default async function TrackRecordPage() {
           value={stats.accuracy === null ? '—' : `${(stats.accuracy * 100).toFixed(0)}%`}
           sub={`${stats.correct} right · ${stats.incorrect} wrong`}
         />
+        {/* Accuracy alone cannot be read without these two. A 25% win rate is
+            excellent at 5x winners and ruinous at 1.1x, and publishing the
+            first number without the other two lets a reader draw either
+            conclusion. */}
+        <StatCard
+          label="average winner"
+          value={stats.averageWinPct === null ? '—' : `+${(stats.averageWinPct * 100).toFixed(0)}%`}
+          sub={`across ${stats.correct} correct calls`}
+        />
+        <StatCard
+          label="average loser"
+          value={stats.averageLossPct === null ? '—' : `${(stats.averageLossPct * 100).toFixed(0)}%`}
+          sub={`across ${stats.incorrect} wrong calls`}
+        />
         <StatCard
           label="average edge"
           value={stats.averageEdgePct === null ? '—' : `${(stats.averageEdgePct * 100).toFixed(1)}%`}
           sub="mean signed return per graded call"
         />
-        <StatCard label="graded" value={String(stats.correct + stats.incorrect)} sub={`${stats.neutral} landed in the noise`} />
-        <StatCard label="pending" value={String(stats.pending)} sub="inside the 4h horizon" />
       </section>
+
+      {/* The split that actually tells you what this tool is good at. mEEme is
+          an exit engine; the entry calls are a by-product of the scanner
+          running over tokens nobody holds. Collapsing both halves into one
+          headline hides which is carrying the record — in either direction —
+          and that is the first thing anyone assessing it needs. */}
+      {(stats.entrySide.accuracy !== null || stats.exitSide.accuracy !== null) && (
+        <section className="grid gap-4 sm:grid-cols-2">
+          <SideCard
+            title="Exit and hold calls"
+            blurb="EXIT IMMEDIATELY, SCALE OUT, NO TOUCH, ARM EXIT, HOLD — what the engine is built for."
+            slice={stats.exitSide}
+          />
+          <SideCard
+            title="Entry calls"
+            blurb="APEX ENTRY, SCALE IN — emitted by the scanner over tokens nobody holds, off the tool's core thesis."
+            slice={stats.entrySide}
+          />
+        </section>
+      )}
 
       <section className="rounded-lg border border-border/70 bg-card/40 p-5">
         <h2 className="hud-label mb-2">how a call is graded</h2>
@@ -189,6 +225,52 @@ export default async function TrackRecordPage() {
             </tbody>
           </table>
         </section>
+      )}
+    </div>
+  );
+}
+
+function SideCard({
+  title,
+  blurb,
+  slice,
+}: {
+  title: string;
+  blurb: string;
+  slice: SliceStats;
+}) {
+  const decided = slice.correct + slice.incorrect;
+  return (
+    <div className="rounded-lg border border-border/70 bg-card/40 p-5">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{blurb}</p>
+      {decided === 0 ? (
+        <p className="mt-3 font-mono text-sm text-muted-foreground">No graded calls yet.</p>
+      ) : (
+        <>
+          <p className="tnum mt-3 font-mono text-2xl font-semibold">
+            {slice.accuracy === null ? '—' : `${(slice.accuracy * 100).toFixed(0)}%`}
+            <span className="ml-2 align-middle text-xs font-normal text-muted-foreground">
+              {slice.correct} right · {slice.incorrect} wrong
+            </span>
+          </p>
+          <p className="tnum mt-1 font-mono text-[12px] text-muted-foreground">
+            {slice.averageWinPct !== null && (
+              <span className="text-primary">+{(slice.averageWinPct * 100).toFixed(0)}%</span>
+            )}
+            {slice.averageWinPct !== null && ' avg winner · '}
+            {slice.averageLossPct !== null && (
+              <span className="text-destructive">{(slice.averageLossPct * 100).toFixed(0)}%</span>
+            )}
+            {slice.averageLossPct !== null && ' avg loser'}
+          </p>
+          {decided < 20 && (
+            <p className="mt-2 text-[11px] text-warn">
+              Only {decided} graded {decided === 1 ? 'call' : 'calls'} — too few to draw a conclusion
+              from.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

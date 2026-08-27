@@ -94,48 +94,114 @@ export function gradeSignal(input: OutcomeInput): OutcomeResult {
   return { grade: change > 0 ? 'correct' : 'neutral', edgePct: change };
 }
 
-export interface TrackRecordStats {
-  total: number;
+/** Accuracy and payoff for one slice of the ledger. */
+export interface SliceStats {
   correct: number;
   incorrect: number;
   neutral: number;
-  pending: number;
   /** Correct / (correct + incorrect). Neutral calls are excluded, not counted as wins. */
   accuracy: number | null;
-  /** Mean signed edge across all graded calls. */
+  /** Mean signed edge across all graded calls in the slice. */
   averageEdgePct: number | null;
+  /**
+   * Mean edge of the winners and of the losers, separately.
+   *
+   * A win rate on its own is uninterpretable for this strategy and actively
+   * misleading: the whole thesis is asymmetry — be wrong often, be right big.
+   * Publishing "25% accurate" with no payoff attached invites a reader to
+   * judge it against a coin flip, which is the wrong yardstick. These two
+   * numbers are what make the accuracy figure mean anything, so they are
+   * reported everywhere it is.
+   */
+  averageWinPct: number | null;
+  averageLossPct: number | null;
 }
 
-export function summarize(
-  rows: { grade: string; edgePct: number | null }[],
-): TrackRecordStats {
-  let correct = 0;
-  let incorrect = 0;
-  let neutral = 0;
+export interface TrackRecordStats extends SliceStats {
+  total: number;
+  pending: number;
+  /**
+   * The same figures split by what the call told you to do.
+   *
+   * The engine is an exit engine; entry calls are a side effect of the scanner
+   * running over tokens nobody holds. Collapsing both into one headline hides
+   * which half is carrying the record, and that is the first thing anyone
+   * assessing the tool actually needs to know.
+   */
+  entrySide: SliceStats;
+  exitSide: SliceStats;
+}
+
+export interface SummaryRow {
+  grade: string;
+  edgePct: number | null;
+  /** Omitted rows are counted in the totals but not in either side. */
+  verdict?: Verdict | string | null;
+}
+
+/** Which half of the ledger a verdict belongs to, or null when unknown. */
+export function sideOf(verdict: Verdict | string | null | undefined): 'entry' | 'exit' | null {
+  if (!verdict) return null;
+  if (ENTRY_SIDE.has(verdict as Verdict)) return 'entry';
+  if (EXIT_SIDE.has(verdict as Verdict)) return 'exit';
+  // ARM_EXIT and HOLD_THROUGH_NOISE are both "do not add here" calls: they are
+  // judged on drawdown avoided, which is the exit side's question.
+  if (verdict === 'ARM_EXIT' || verdict === 'HOLD_THROUGH_NOISE') return 'exit';
+  return null;
+}
+
+function emptySlice(): {
+  correct: number; incorrect: number; neutral: number;
+  edgeSum: number; edgeCount: number;
+  winSum: number; winCount: number; lossSum: number; lossCount: number;
+} {
+  return { correct: 0, incorrect: 0, neutral: 0, edgeSum: 0, edgeCount: 0, winSum: 0, winCount: 0, lossSum: 0, lossCount: 0 };
+}
+
+function finishSlice(a: ReturnType<typeof emptySlice>): SliceStats {
+  const decided = a.correct + a.incorrect;
+  return {
+    correct: a.correct,
+    incorrect: a.incorrect,
+    neutral: a.neutral,
+    accuracy: decided > 0 ? a.correct / decided : null,
+    averageEdgePct: a.edgeCount > 0 ? a.edgeSum / a.edgeCount : null,
+    averageWinPct: a.winCount > 0 ? a.winSum / a.winCount : null,
+    averageLossPct: a.lossCount > 0 ? a.lossSum / a.lossCount : null,
+  };
+}
+
+function accumulate(a: ReturnType<typeof emptySlice>, row: SummaryRow): void {
+  if (row.grade === 'correct') a.correct++;
+  else if (row.grade === 'incorrect') a.incorrect++;
+  else if (row.grade === 'neutral') a.neutral++;
+
+  if (row.grade === 'pending' || row.edgePct === null || !Number.isFinite(row.edgePct)) return;
+  a.edgeSum += row.edgePct;
+  a.edgeCount++;
+  if (row.grade === 'correct') { a.winSum += row.edgePct; a.winCount++; }
+  else if (row.grade === 'incorrect') { a.lossSum += row.edgePct; a.lossCount++; }
+}
+
+export function summarize(rows: SummaryRow[]): TrackRecordStats {
+  const all = emptySlice();
+  const entry = emptySlice();
+  const exit = emptySlice();
   let pending = 0;
-  let edgeSum = 0;
-  let edgeCount = 0;
 
-  for (const r of rows) {
-    if (r.grade === 'correct') correct++;
-    else if (r.grade === 'incorrect') incorrect++;
-    else if (r.grade === 'neutral') neutral++;
-    else pending++;
-
-    if (r.grade !== 'pending' && r.edgePct !== null && Number.isFinite(r.edgePct)) {
-      edgeSum += r.edgePct;
-      edgeCount++;
-    }
+  for (const row of rows) {
+    if (row.grade === 'pending') pending++;
+    accumulate(all, row);
+    const side = sideOf(row.verdict);
+    if (side === 'entry') accumulate(entry, row);
+    else if (side === 'exit') accumulate(exit, row);
   }
 
-  const decided = correct + incorrect;
   return {
     total: rows.length,
-    correct,
-    incorrect,
-    neutral,
     pending,
-    accuracy: decided > 0 ? correct / decided : null,
-    averageEdgePct: edgeCount > 0 ? edgeSum / edgeCount : null,
+    ...finishSlice(all),
+    entrySide: finishSlice(entry),
+    exitSide: finishSlice(exit),
   };
 }

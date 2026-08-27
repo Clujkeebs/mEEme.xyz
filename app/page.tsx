@@ -22,11 +22,11 @@ async function headlineStats() {
   try {
     const rows = await prisma.signalOutcome.findMany({
       where: { grade: { not: 'pending' } },
-      select: { grade: true, edgePct: true },
+      select: { grade: true, edgePct: true, signal: { select: { verdict: true } } },
       take: 5000,
       orderBy: { updatedAt: 'desc' },
     });
-    return summarize(rows);
+    return summarize(rows.map((r) => ({ ...r, verdict: r.signal.verdict })));
   } catch {
     return null;
   }
@@ -103,10 +103,29 @@ export default async function HomePage() {
           </Button>
         </div>
 
+        {/* A bare "25% accurate" invites the reader to judge this against a
+            coin flip, which is the wrong yardstick for a strategy whose entire
+            thesis is asymmetry — and it contradicts the "win 15-25% of the
+            time, make 3-10x on winners" argument made further down this same
+            page. The payoff belongs next to the win rate, not three sections
+            below it. */}
         {stats && stats.accuracy !== null && (
-          <p className="mt-5 font-mono text-xs text-muted-foreground">
-            {(stats.accuracy * 100).toFixed(0)}% accurate across {stats.correct + stats.incorrect}{' '}
-            graded calls · every one of them public, wins and losses.
+          <p className="mt-5 font-mono text-xs leading-relaxed text-muted-foreground">
+            {(stats.accuracy * 100).toFixed(0)}% of {stats.correct + stats.incorrect} graded calls
+            landed
+            {stats.averageWinPct !== null && stats.averageLossPct !== null && (
+              <>
+                {' · winners average '}
+                <span className="text-primary">
+                  +{(stats.averageWinPct * 100).toFixed(0)}%
+                </span>
+                {', losers '}
+                <span className="text-destructive">
+                  {(stats.averageLossPct * 100).toFixed(0)}%
+                </span>
+              </>
+            )}
+            {' · every one public, wins and losses.'}
           </p>
         )}
         </div>
