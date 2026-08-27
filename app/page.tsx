@@ -2,6 +2,7 @@ import { ArrowRight, Crosshair, Radar, ShieldCheck, TrendingDown } from 'lucide-
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { HeroReadout } from '@/components/hero-readout';
 import { WorkedExample } from '@/components/worked-example';
 import { prisma } from '@/lib/db';
 import { runAlphaEngine } from '@/lib/engine';
@@ -63,10 +64,11 @@ export default async function HomePage() {
   return (
     <div className="space-y-28 py-12">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="relative">
+      <section className="relative grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
+        <div>
         <Badge className="mb-5">the EE is Exit Engine</Badge>
 
-        <h1 className="max-w-4xl text-[2.6rem] font-bold leading-[1.03] tracking-[-0.035em] sm:text-[4rem]">
+        <h1 className="text-[2.6rem] font-bold leading-[1.03] tracking-[-0.035em] sm:text-[3.5rem]">
           Every tool is built for the entry.
           <br />
           <span className="text-primary text-glow">Entry is a race you cannot win.</span>
@@ -107,6 +109,13 @@ export default async function HomePage() {
             graded calls · every one of them public, wins and losses.
           </p>
         )}
+        </div>
+
+        {/* The argument, demonstrated rather than asserted — and the reason the
+            right half of the hero is no longer empty at desktop widths. */}
+        <div className="lg:sticky lg:top-20">
+          <HeroReadout signal={example.signal} demo={example.demo} />
+        </div>
       </section>
 
       {/* ── Evidence, before any more claims ──────────────────────────────── */}

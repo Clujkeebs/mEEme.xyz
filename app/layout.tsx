@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { Toaster } from 'sonner';
 import { AffiliateCapture } from '@/components/affiliate-capture';
+import { MeemeLogo } from '@/components/brand';
 import { CookieConsent } from '@/components/cookie-consent';
 import { PromoBanner } from '@/components/promo-banner';
 import { SiteHeader } from '@/components/site-header';
@@ -133,10 +134,7 @@ function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <div>
-            <p className="text-[15px] font-extrabold tracking-tight">
-              m<span className="text-primary">EE</span>me
-              <span className="text-muted-foreground/70">.xyz</span>
-            </p>
+            <MeemeLogo />
             <p className="mt-3 max-w-md text-[13px] leading-relaxed text-muted-foreground">
               <span className="font-semibold text-foreground/90">Not financial advice.</span> mEEme is
               an analysis tool. It reads on-chain supply structure and tells you what it sees; it does
