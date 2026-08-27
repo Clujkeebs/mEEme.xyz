@@ -1,11 +1,13 @@
 'use client';
 
 import { X } from 'lucide-react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { signIn, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import * as React from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { PROMO_STORAGE_KEY } from '@/lib/promo-storage';
 
 /**
  * Mounted in the root layout, which wraps every route — including the
@@ -24,17 +26,17 @@ export function PromoBanner() {
   );
 }
 
-const STORAGE_KEY = 'meeme.pending-promo';
 
 /**
  * Captures a promo code from the URL and carries it through sign-in.
  *
  * The naive version — read `?promo=`, redeem it — breaks the moment a visitor
- * has to authenticate first, which is every first-time visitor. `/signin`'s
- * button hardcodes `callbackUrl: '/dashboard'`, so a query param on the
- * landing URL does not reliably survive the round trip through Google.
- * localStorage does: written the instant the code is seen, read back on every
- * page after sign-in completes, regardless of which page that happens to be.
+ * has to authenticate first, which is every first-time visitor: a query param
+ * on the landing URL does not reliably survive the round trip through Google
+ * OAuth, and doesn't exist at all if they land on /signin and create an
+ * account instead. localStorage does survive both: written the instant the
+ * code is seen, read back on every page after sign-in completes (or prefilled
+ * straight into the signup form's own code field — see SignInPanel).
  *
  * Mounted once in the root layout so it fires no matter which page a promo
  * link points at.
@@ -56,7 +58,7 @@ function PromoBannerInner() {
     if (fromUrl) {
       const code = fromUrl.trim().toUpperCase();
       try {
-        localStorage.setItem(STORAGE_KEY, code);
+        localStorage.setItem(PROMO_STORAGE_KEY, code);
       } catch {
         // Private browsing or a full quota — the code still works for this
         // page load via component state, it just will not survive a sign-in
@@ -71,7 +73,7 @@ function PromoBannerInner() {
       return;
     }
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(PROMO_STORAGE_KEY);
       if (stored) setPendingCode(stored);
     } catch {
       // No stored code reachable — nothing pending, which is the safe default.
@@ -95,7 +97,7 @@ function PromoBannerInner() {
       .then((res) => res.json())
       .then((json: { ok: boolean; error?: string; trialTier?: string; trialEndsAt?: string }) => {
         try {
-          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(PROMO_STORAGE_KEY);
         } catch {
           // Best-effort cleanup only.
         }
@@ -126,8 +128,8 @@ function PromoBannerInner() {
           activate.
         </p>
         <div className="flex items-center gap-3">
-          <Button size="sm" onClick={() => void signIn('google')}>
-            Sign in to activate
+          <Button size="sm" asChild>
+            <Link href="/signin">Sign in to activate</Link>
           </Button>
           <button
             type="button"
