@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import { recordAffiliateCommission } from '@/lib/affiliate';
 import { prisma } from '@/lib/db';
 import { getStripe } from '@/lib/stripe';
 import { tierForPriceId, type Tier } from '@/lib/tiers';
@@ -26,6 +27,7 @@ const RELEVANT = new Set([
   'customer.subscription.updated',
   'customer.subscription.deleted',
   'invoice.payment_failed',
+  'invoice.paid',
 ]);
 
 /** Statuses that should actually grant access. */
@@ -94,6 +96,12 @@ async function handleEvent(stripe: Stripe, event: Stripe.Event): Promise<void> {
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription;
       await applySubscription(subscription, subscription.metadata?.userId ?? null);
+      return;
+    }
+
+    case 'invoice.paid': {
+      const invoice = event.data.object as Stripe.Invoice;
+      await recordAffiliateCommission(invoice);
       return;
     }
 

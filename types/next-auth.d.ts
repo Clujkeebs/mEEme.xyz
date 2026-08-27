@@ -13,6 +13,7 @@ declare module 'next-auth' {
       referralCode: string | null;
       trialEndsAt: string | null;
       isAdmin: boolean;
+      isAffiliate: boolean;
     };
   }
 }

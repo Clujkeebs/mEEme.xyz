@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { Toaster } from 'sonner';
+import { AffiliateCapture } from '@/components/affiliate-capture';
 import { CookieConsent } from '@/components/cookie-consent';
 import { PromoBanner } from '@/components/promo-banner';
 import { SiteHeader } from '@/components/site-header';
@@ -83,6 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </a>
           <SiteHeader />
           <PromoBanner />
+          <AffiliateCapture />
           <main
             id="main-content"
             tabIndex={-1}

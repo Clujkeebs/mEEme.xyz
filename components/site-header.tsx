@@ -73,6 +73,11 @@ export function SiteHeader() {
                   <Link href="/admin/users">Admin</Link>
                 </Button>
               )}
+              {session.user.isAffiliate && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/affiliate">Affiliate</Link>
+                </Button>
+              )}
               <Badge variant={session.user.tier === 'FREE' ? 'muted' : 'default'}>
                 {session.user.tier}
               </Badge>
@@ -136,6 +141,11 @@ export function SiteHeader() {
                 {session.user.isAdmin && (
                   <Button variant="ghost" size="sm" asChild>
                     <Link href="/admin/users">Admin</Link>
+                  </Button>
+                )}
+                {session.user.isAffiliate && (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/affiliate">Affiliate</Link>
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void signOut()}>

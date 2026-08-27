@@ -4,9 +4,10 @@ import { cn } from '@/lib/utils';
 const LINKS = [
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/promo', label: 'Promo codes' },
+  { href: '/admin/affiliates', label: 'Affiliates' },
 ];
 
-export function AdminNav({ active }: { active: 'users' | 'promo' }) {
+export function AdminNav({ active }: { active: 'users' | 'promo' | 'affiliates' }) {
   return (
     <nav className="mt-4 flex gap-4 border-b border-border/60 pb-3 text-sm">
       {LINKS.map((link) => (

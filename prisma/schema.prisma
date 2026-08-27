@@ -72,6 +72,8 @@ model User {
   alerts    Alert[]
   apiKeys   ApiKey[]
 
+  affiliateReferral AffiliateReferral?
+
   @@index([referredByCode])
 }
 
@@ -351,6 +353,72 @@ model PromoRedemption {
   createdAt   DateTime  @default(now())
 
   @@index([promoCodeId])
+}
+
+/// A revenue-share partner. Deliberately not a User: an affiliate is not
+/// necessarily a mEEme customer themselves, so there is nothing to attach
+/// this to until they sign up. Dashboard access (see /affiliate) is granted
+/// by matching the signed-in viewer's email against `email` here — the same
+/// allowlist pattern ADMIN_EMAILS/isAdmin already uses for admin access, just
+/// stored in the database instead of an env var because there can be many
+/// affiliates and only ever one admin list.
+model Affiliate {
+  id            String   @id @default(cuid())
+  /// Always stored upper-cased; shareable as meeme.xyz/?ref=CODE.
+  code          String   @unique
+  email         String   @unique
+  name          String?
+  /// Percent of each referred subscriber's invoice total, for 12 months from
+  /// that subscriber's first paid invoice — not from their signup date.
+  commissionPct Float    @default(30)
+  active        Boolean  @default(true)
+  note          String?
+  createdAt     DateTime @default(now())
+
+  referrals AffiliateReferral[]
+
+  @@index([active])
+}
+
+/// One row per referred user, ever — first code seen wins, enforced by the
+/// unique constraint on userId, the same shape as PromoRedemption.
+model AffiliateReferral {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  /// Set on the first commission-eligible (nonzero) invoice — the 12-month
+  /// commission window runs from here, not from `createdAt`.
+  firstPaidAt DateTime?
+
+  commissions AffiliateCommission[]
+
+  @@index([affiliateId])
+}
+
+/// One row per commission-eligible Stripe invoice payment. `stripeInvoiceId`
+/// is the idempotency key: Stripe delivers webhooks at least once, not
+/// exactly once, and the unique constraint is what actually stops a retried
+/// invoice.paid event from paying the same commission twice — the same
+/// reasoning as ProcessedWebhook, just scoped to one invoice instead of one
+/// event delivery.
+model AffiliateCommission {
+  id              String            @id @default(cuid())
+  referralId      String
+  referral        AffiliateReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  affiliateId     String
+  stripeInvoiceId String            @unique
+  amountUsd       Float
+  commissionUsd   Float
+  /// Toggled from /admin/affiliates once the affiliate has actually been
+  /// paid — earned and paid are different questions, and this app has no
+  /// payment rail to pay them itself.
+  paidOut         Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+
+  @@index([affiliateId, createdAt])
 }
 
 /// API keys for the Apex tier.
