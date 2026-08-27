@@ -7,15 +7,20 @@ import { cn } from '@/lib/utils';
  * supply profile (bars of held supply at each price level) with the spot line
  * cutting through it. Everything above the line still has to sell into your
  * exit; everything below is already in profit. That is the thesis of the app
- * in four bars and a line.
+ * in two bars and a line.
  *
- * Two deliberate choices, both learned from the first attempt:
+ * Three deliberate choices, each learned from a version that failed:
  *
  *  - It sits in a bordered tile. Loose bars next to a wordmark read as a
  *    hamburger icon at header size; a contained tile reads as a logo.
- *  - The bar widths alternate rather than taper evenly, and the spot line
- *    over-hangs the bars on both sides. Even, tapering bars also read as a
- *    "sort" or "menu" glyph — the asymmetry is what makes it a distribution.
+ *  - The bars are asymmetric and the spot line over-hangs them on both sides.
+ *    Even, tapering bars read as a "sort" or "menu" glyph — the asymmetry is
+ *    what makes it a distribution.
+ *  - Three elements, not six. The five-bar version carried strokes at 0.42
+ *    opacity that contributed nothing at header size and turned to grey mush
+ *    in a browser tab. This is the same geometry the favicon and the
+ *    home-screen icon draw, so the mark is one shape everywhere rather than
+ *    three drawings that drift apart.
  *
  * Bars inherit `currentColor` so the mark survives monochrome contexts; only
  * the spot line is branded, which is what makes it legible at a glance.
@@ -50,15 +55,13 @@ export function MeemeMark({
       />
 
       {/* Supply above spot — the coil, still holding, still able to sell into you. */}
-      <rect x="7" y="7.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.42" />
-      <rect x="7" y="12.5" width="18" height="3" rx="1.5" fill="currentColor" opacity="0.72" />
+      <rect x="7" y="6.4" width="19" height="4" rx="2" fill="currentColor" opacity="0.85" />
 
       {/* Spot. Overhangs the bars on both sides — the line everything is measured against. */}
-      <rect x="4" y="17.6" width="24" height="2.4" rx="1.2" className="fill-primary" />
+      <rect x="3" y="13.9" width="26" height="4.2" rx="2.1" className="fill-primary" />
 
       {/* Supply below spot — already in profit, the trapdoor side. */}
-      <rect x="7" y="22.1" width="14" height="3" rx="1.5" fill="currentColor" opacity="0.72" />
-      <rect x="7" y="27" width="8" height="3" rx="1.5" fill="currentColor" opacity="0.42" />
+      <rect x="7" y="21.6" width="11" height="4" rx="2" fill="currentColor" opacity="0.5" />
     </svg>
   );
 }

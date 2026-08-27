@@ -33,11 +33,22 @@ export function canonicalMetadata(path: string) {
 export const SITE_NAME = 'mEEme.xyz';
 
 /**
- * The X account, if there is one. Left as an env var rather than hardcoded
- * because guessing a handle would attribute the site to whoever actually owns
- * it, and twitter:creator pointing at a stranger is worse than omitting it.
+ * The X account behind the site.
+ *
+ * This was previously env-only and unset, so the site shipped with no
+ * twitter:creator, no sameAs, and nowhere for a reader who liked it to follow
+ * the person who built it — the whole social loop was dark. The reason it was
+ * env-only was to avoid *guessing* a handle and attributing the site to a
+ * stranger; that reason is gone now the owner has named it, so it lives in
+ * code with the env var kept as an override.
  */
-export const X_HANDLE = process.env.NEXT_PUBLIC_X_HANDLE?.trim() || null;
+export const X_HANDLE = process.env.NEXT_PUBLIC_X_HANDLE?.trim() || 'clujkeebs';
+
+/** Bare handle, no leading @ — for building URLs. */
+export const X_HANDLE_BARE = X_HANDLE.replace(/^@/, '');
+
+/** Profile URL for the account behind the site. */
+export const X_PROFILE_URL = `https://x.com/${X_HANDLE_BARE}`;
 
 /** twitter:site / twitter:creator, only when a handle is actually configured. */
 export function twitterAccountMetadata() {
@@ -61,7 +72,7 @@ export function organizationSchema(): Json {
     logo: `${appUrl()}/apple-icon`,
     description:
       'mEEme.xyz reads how the supply of a Solana memecoin is distributed across cost bases and tells traders when to exit.',
-    ...(X_HANDLE ? { sameAs: [`https://x.com/${X_HANDLE.replace(/^@/, '')}`] } : {}),
+    sameAs: [X_PROFILE_URL],
   };
 }
 

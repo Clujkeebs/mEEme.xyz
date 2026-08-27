@@ -5,9 +5,10 @@ export const size = { width: 180, height: 180 };
 export const contentType = 'image/png';
 
 /**
- * Home-screen icon: the same supply-profile mark as the favicon, scaled up
- * with room to breathe, over the app's own glow. See components/brand.tsx for
- * what the bars and the spot line mean.
+ * Home-screen icon: the same three-element reduction as the favicon, scaled up
+ * over the app's own glow. See components/brand.tsx for what the bars and the
+ * spot line mean, and app/icon.tsx for why the tab mark drops to three
+ * elements rather than carrying all five from the full lockup.
  */
 export default function AppleIcon() {
   const bar = (top: number, width: number, opacity: number) => ({
@@ -15,8 +16,8 @@ export default function AppleIcon() {
     top,
     left: 26,
     width,
-    height: 15,
-    borderRadius: 7.5,
+    height: 23,
+    borderRadius: 11.5,
     background: '#e6f1ee',
     opacity,
   });
@@ -34,22 +35,22 @@ export default function AppleIcon() {
             'radial-gradient(ellipse at 30% 20%, rgba(0,224,138,0.28), transparent 62%)',
         }}
       >
-        <div style={bar(24, 52, 0.45)} />
-        <div style={bar(52, 86, 0.62)} />
-        <div style={bar(80, 121, 0.8)} />
+        {/* Same three-element reduction as the favicon, scaled to 180 — the
+            home-screen icon is often rendered small too, and two drawings of
+            one mark drifting apart is how a brand stops being recognisable. */}
+        <div style={bar(36, 107, 0.85)} />
         <div
           style={{
             position: 'absolute',
-            top: 110,
-            left: 13,
-            width: 154,
-            height: 10,
-            borderRadius: 5,
+            top: 78,
+            left: 11,
+            width: 158,
+            height: 24,
+            borderRadius: 12,
             background: '#00f0a0',
           }}
         />
-        <div style={bar(134, 75, 0.62)} />
-        <div style={bar(158, 40, 0.35)} />
+        <div style={bar(121, 62, 0.5)} />
       </div>
     ),
     size,
