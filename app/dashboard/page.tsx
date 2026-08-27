@@ -18,7 +18,7 @@ export default async function DashboardPage({
   searchParams: { add?: string; symbol?: string };
 }) {
   const viewer = await getViewer();
-  if (!viewer) redirect(databaseConfigured() ? '/signin' : '/lock');
+  if (!viewer) redirect(databaseConfigured() ? '/signin?next=%2Fdashboard' : '/lock');
 
   const [positions, closedPositions, watches, alerts, quota, account] = await Promise.all([
     prisma.position.findMany({
@@ -64,6 +64,7 @@ export default async function DashboardPage({
       tierName={TIERS[viewer.tier].name}
       trialEndsAt={viewer.trialEndsAt}
       hasStripeSubscription={Boolean(account?.stripeCustomerId)}
+      isAffiliate={viewer.isAffiliate}
       quota={{
         used: quota.used,
         limit: quota.unlimited ? null : quota.limit,

@@ -141,7 +141,7 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
             action: json.upgrade
               ? { label: 'Upgrade', onClick: () => { window.location.href = '/pricing'; } }
               : json.signIn
-                ? { label: 'Sign in', onClick: () => { window.location.href = '/signin'; } }
+                ? { label: 'Sign in', onClick: () => { window.location.href = '/signin?next=%2Flock'; } }
                 : undefined,
           });
           return;

@@ -63,6 +63,8 @@ export interface WatchtowerProps {
   /** Whether the user has a real Stripe subscription — distinct from `tier`,
    * which a promo trial can also raise. Only a real subscriber has billing to manage. */
   hasStripeSubscription: boolean;
+  /** Shows a pointer to /affiliate — a partner should not have to guess the URL. */
+  isAffiliate: boolean;
   quota: { used: number; limit: number | null; remaining: number | null };
   limits: { positions: number; watches: number };
   positions: PositionRow[];
@@ -83,6 +85,7 @@ export function Watchtower({
   tierName,
   trialEndsAt,
   hasStripeSubscription,
+  isAffiliate,
   quota,
   limits,
   positions,
@@ -558,6 +561,24 @@ export function Watchtower({
           </form>
 
           <ApiKeys available={apiAccess} dailyLimit={apiDailyLimit} />
+
+          {/* A revenue-share partner should never have to guess a URL to find
+              what they are owed. The header link alone was not enough — the
+              first partner onboarded could not find the dashboard at all. */}
+          {isAffiliate && (
+            <section className="hud-panel p-5">
+              <h2 className="hud-label flex items-center gap-2">
+                <CircleDollarSign className="h-3 w-3" /> affiliate
+              </h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                You have a revenue-share partnership on this account. Your referral link, signups and
+                commission owed live on your affiliate dashboard.
+              </p>
+              <Button asChild size="sm" className="mt-3 w-full">
+                <Link href="/affiliate">Open affiliate dashboard</Link>
+              </Button>
+            </section>
+          )}
 
           <div className="flex justify-center">
             <PromoRedeemForm />

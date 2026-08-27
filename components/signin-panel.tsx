@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PROMO_STORAGE_KEY } from '@/lib/promo-storage';
 
-export function SignInPanel({ googleEnabled }: { googleEnabled: boolean }) {
+export function SignInPanel({
+  googleEnabled,
+  next = '/dashboard',
+}: {
+  googleEnabled: boolean;
+  next?: string;
+}) {
   const router = useRouter();
   const [mode, setMode] = React.useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = React.useState('');
@@ -112,7 +118,7 @@ export function SignInPanel({ googleEnabled }: { googleEnabled: boolean }) {
         }
       }
 
-      router.push('/dashboard');
+      router.push(next);
       router.refresh();
     } finally {
       setBusy(false);
@@ -183,7 +189,7 @@ export function SignInPanel({ googleEnabled }: { googleEnabled: boolean }) {
               variant="secondary"
               className="w-full"
               size="lg"
-              onClick={() => void signIn('google', { callbackUrl: '/dashboard' })}
+              onClick={() => void signIn('google', { callbackUrl: next })}
             >
               Continue with Google
             </Button>

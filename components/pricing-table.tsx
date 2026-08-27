@@ -23,7 +23,9 @@ export function PricingTable({
 
   const checkout = async (tier: Tier) => {
     if (!signedIn) {
-      router.push('/signin');
+      // Come back to Pricing after signing in, so the plan they were about to
+      // buy is still one click away instead of two pages back.
+      router.push('/signin?next=%2Fpricing');
       return;
     }
     setPending(tier);
