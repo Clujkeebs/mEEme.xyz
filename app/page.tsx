@@ -7,18 +7,24 @@ import { CoiledGlyph, InsiderGlyph, TrappedGlyph } from '@/components/brand';
 import { Reveal } from '@/components/motion';
 import { WorkedExample } from '@/components/worked-example';
 import { prisma } from '@/lib/db';
+import { withDeadline } from '@/lib/deadline';
 import { runAlphaEngine } from '@/lib/engine';
 import { buildDemoSnapshot, buildSnapshot } from '@/lib/providers';
 import { summarize } from '@/lib/scoring';
 import { cn } from '@/lib/utils';
 
-// This page calls buildSnapshot() below, which hits live price providers
-// (DexScreener/GeckoTerminal/Birdeye) over the network. Rendering it
-// force-dynamic meant every homepage visit — the highest-traffic page in the
-// app — made its own live fetch, adding avoidable latency to every load and
-// risking GeckoTerminal's keyless rate limit (~30 req/min) under nothing more
-// than organic browsing. ISR caps that to at most one fetch per window,
-// however many visitors land on it in between.
+// This page calls buildSnapshot() below, which hits live providers over the
+// network. Rendering it force-dynamic meant every homepage visit — the
+// highest-traffic page in the app — made its own live fetch, adding avoidable
+// latency to every load and risking GeckoTerminal's keyless rate limit
+// (~30 req/min) under nothing more than organic browsing. ISR caps that to at
+// most one fetch per window, however many visitors land on it in between.
+//
+// The cost of that choice, learned the hard way: ISR also means this page is
+// rendered once during `next build`, so a slow or throttled provider stops
+// being a slow page and becomes a failed deploy. exampleSignal() below is what
+// keeps that from happening — it skips the live read entirely at build time,
+// and bounds it everywhere else.
 export const revalidate = 120;
 
 async function headlineStats() {
@@ -36,23 +42,49 @@ async function headlineStats() {
 }
 
 /**
+ * How long the live read gets before the page gives up and ships the demo.
+ *
+ * Next kills a static-generation worker at 60 seconds and retries three times
+ * before failing the whole build. buildSnapshot() below reaches Helius for
+ * asset data, token accounts and per-wallet transaction history, and Helius
+ * rate-limits — so with no bound on it, a page that renders in a second
+ * locally takes over a minute in CI and takes the deploy down with it. That is
+ * not hypothetical: it is exactly how three builds failed.
+ *
+ * Twelve seconds is generous for the happy path and far inside the budget for
+ * the unhappy one. The deadline protects the runtime too, where the same fetch
+ * runs on every revalidation.
+ */
+const EXAMPLE_DEADLINE_MS = 12_000;
+
+/**
  * The example is a real engine run, not a mockup. It prefers the most recent
- * high-conviction live call so the landing page shows the product working on an
+ * high-conviction live call so the landing page shows the product works on an
  * actual token; with no live data it falls back to the pinned demo scenario and
  * labels it, rather than quietly passing synthetic output off as real.
+ *
+ * During `next build` it does not attempt the live read at all. The build has
+ * no business depending on a third-party API being reachable and unthrottled
+ * at that moment — the page is revalidating every two minutes anyway, so the
+ * first request after deploy replaces the demo with a real read. Trading a
+ * couple of minutes of demo-labelled hero for a deploy that cannot be blocked
+ * by someone else's rate limiter is the right trade.
  */
 async function exampleSignal(): Promise<{ signal: Awaited<ReturnType<typeof runAlphaEngine>>; demo: boolean }> {
   const DEMO_ADDRESS = 'mEEmeDUMP1111111111111111111111111111111111';
+  const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
   try {
-    const recent = await prisma.signal.findFirst({
-      where: { synthetic: false, conviction: { gte: 0.4 } },
-      orderBy: { createdAt: 'desc' },
-      select: { tokenAddress: true },
-    });
-    if (recent) {
-      const result = await buildSnapshot(recent.tokenAddress);
-      if (result.mode === 'live') {
-        return { signal: runAlphaEngine(result.snapshot), demo: false };
+    if (!isBuild) {
+      const recent = await prisma.signal.findFirst({
+        where: { synthetic: false, conviction: { gte: 0.4 } },
+        orderBy: { createdAt: 'desc' },
+        select: { tokenAddress: true },
+      });
+      if (recent) {
+        const result = await withDeadline(buildSnapshot(recent.tokenAddress), EXAMPLE_DEADLINE_MS);
+        if (result && result.mode === 'live') {
+          return { signal: runAlphaEngine(result.snapshot), demo: false };
+        }
       }
     }
   } catch {
