@@ -26,7 +26,7 @@ import {
 // The chart library touches the DOM on construction, so it never renders on the server.
 const PriceChart = dynamic(() => import('./price-chart').then((m) => m.PriceChart), {
   ssr: false,
-  loading: () => <div className="h-[300px] animate-pulse rounded-lg bg-secondary/40" />,
+  loading: () => <div className="shimmer h-[300px] rounded-lg opacity-40" />,
 });
 
 /* ------------------------------ response types ----------------------------- */
@@ -648,11 +648,11 @@ function Row({ label, value }: { label: string; value: string }) {
 function LoadingSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="h-20 animate-pulse rounded-lg bg-secondary/40" />
-      <div className="h-32 animate-pulse rounded-lg bg-secondary/30" />
+      <div className="shimmer h-20 rounded-lg opacity-40" />
+      <div className="shimmer h-32 rounded-lg opacity-30" />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="h-[340px] animate-pulse rounded-lg bg-secondary/25" />
-        <div className="h-[340px] animate-pulse rounded-lg bg-secondary/25" />
+        <div className="shimmer h-[340px] rounded-lg opacity-25" />
+        <div className="shimmer h-[340px] rounded-lg opacity-25" />
       </div>
     </div>
   );

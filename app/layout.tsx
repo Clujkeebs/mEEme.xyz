@@ -53,6 +53,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           globals.css has a real fallback, so a blocked CDN costs character, not
           layout.
         */}
+        {/*
+          Motion gate.
+
+          Everything that animates in is hidden by CSS scoped under
+          html[data-motion="on"], and this is the only thing that sets it. So
+          the page is fully visible when JavaScript is off, when this script
+          fails, and when the visitor has asked for reduced motion — a fade-in
+          that never fires can never leave the page blank. It runs before first
+          paint, so there is no flash of content that then hides itself.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.setAttribute('data-motion','on')}}catch(e){}",
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/*

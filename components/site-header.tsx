@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Menu, X } from 'lucide-react';
 import * as React from 'react';
 import { MeemeLogo } from '@/components/brand';
 import { Button } from '@/components/ui/button';
@@ -36,6 +35,20 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
+      {/*
+        The spot line, run along the bottom edge of the header. The mark's
+        accent bar overhangs its supply bars; repeating that one gesture as the
+        page's top rule is what ties the chrome to the logo instead of leaving
+        the header a plain bordered strip.
+      */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-[-1px] h-px"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.55) 18%, hsl(var(--primary) / 0.15) 46%, transparent 72%)',
+        }}
+      />
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
         <Link
           href="/"
@@ -85,7 +98,7 @@ export function SiteHeader() {
               </Button>
             </>
           ) : status === 'loading' ? (
-            <div className="h-8 w-20 animate-pulse rounded bg-secondary" aria-hidden="true" />
+            <div className="shimmer h-8 w-20 rounded" aria-hidden="true" />
           ) : (
             <Button size="sm" asChild>
               <Link href="/signin">Sign in</Link>
@@ -93,15 +106,40 @@ export function SiteHeader() {
           )}
         </div>
 
+        {/*
+          Labelled, not a hamburger.
+
+          The logo is a supply profile — stacked horizontal bars — and at 30px
+          beside a three-line hamburger icon the two read as the same object,
+          so the header looked like it had two menu buttons and no brand. The
+          fix is on this side rather than the logo's: the mark is the product's
+          own core visual and earns its place, while the menu affordance is
+          generic and can be anything unambiguous. A bordered mono label says
+          exactly what it is, is a larger tap target than a 20px glyph, and
+          belongs to the terminal typography the rest of the app is built from.
+        */}
         <button
           type="button"
-          className="ml-auto -mr-2 rounded p-2 text-muted-foreground hover:text-foreground sm:hidden"
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          className={cn(
+            'ml-auto flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.16em] transition-colors sm:hidden',
+            menuOpen
+              ? 'border-primary/50 bg-primary/10 text-primary'
+              : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
+          )}
           aria-expanded={menuOpen}
           aria-controls="mobile-nav"
           onClick={() => setMenuOpen((v) => !v)}
         >
-          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {menuOpen ? 'Close' : 'Menu'}
+          <span
+            aria-hidden="true"
+            className={cn(
+              'text-[9px] leading-none transition-transform duration-200',
+              menuOpen && 'rotate-180',
+            )}
+          >
+            &#9660;
+          </span>
         </button>
       </div>
 
@@ -109,7 +147,7 @@ export function SiteHeader() {
         <nav
           id="mobile-nav"
           aria-label="Main"
-          className="border-t border-border/60 bg-background/95 px-4 py-3 sm:hidden"
+          className="enter origin-top border-t border-border/60 bg-background/95 px-4 py-3 sm:hidden"
         >
           <ul className="flex flex-col gap-1">
             {NAV.map((item) => {
@@ -152,7 +190,7 @@ export function SiteHeader() {
                 </Button>
               </>
             ) : status === 'loading' ? (
-              <div className="h-8 w-20 animate-pulse rounded bg-secondary" aria-hidden="true" />
+              <div className="shimmer h-8 w-20 rounded" aria-hidden="true" />
             ) : (
               <Button size="sm" className="w-full" asChild>
                 <Link href="/signin">Sign in</Link>

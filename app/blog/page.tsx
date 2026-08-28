@@ -28,7 +28,7 @@ export default function BlogIndex() {
       />
 
       <header className="max-w-3xl">
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary/70">
+        <p className="eyebrow text-primary/70">
           field notes
         </p>
         <h1 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-5xl">
@@ -45,7 +45,7 @@ export default function BlogIndex() {
           <li key={p.slug}>
             <Link
               href={`/blog/${p.slug}`}
-              className="hud-panel group block p-6 transition-colors hover:border-primary/40"
+              className="hud-panel lift glint group block p-6"
             >
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/80">

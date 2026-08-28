@@ -78,7 +78,7 @@ export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
             <div
               key={id}
               className={cn(
-                'hud-panel relative flex flex-col p-6',
+                'hud-panel lift relative flex flex-col p-6',
                 featured && 'border-primary/45 shadow-[0_0_40px_-20px_rgba(0,224,138,0.7)]',
               )}
             >

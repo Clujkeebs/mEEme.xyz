@@ -7,18 +7,16 @@ export const contentType = 'image/png';
 /**
  * The mark, reduced for tab size — see components/brand.tsx for what it means.
  *
- * The previous version carried all five bars from the full lockup at 2.6px
- * thick with opacities down to 0.35. Rendered at an actual 16px that is grey
- * mush: it reads as a tiny paragraph of text, not a mark. A favicon is not a
- * shrunken logo, it is a separate drawing of the same idea that has to survive
- * 16 pixels.
+ * A favicon is not a shrunken logo, it is a separate drawing of the same idea
+ * that has to survive 16 pixels. An earlier version carried all five bars from
+ * the full lockup at 2.6px thick with opacities down to 0.35; rendered at an
+ * actual 16px that is grey mush, and it reads as a tiny paragraph of text.
  *
- * So: three elements, not six. Thicker strokes, no ghost opacities, and a
- * descending stack — wide bar, spot line, narrow bar — which keeps the
- * distribution reading while making the silhouette impossible to confuse with
- * a hamburger menu, the failure the full logo already had to be rescued from
- * once. The spot line overhangs both bars on either side, as it does in the
- * lockup, and stays the only branded colour.
+ * So: four elements, not six. A vertical price axis with two unequal supply
+ * bars hanging off it and the spot line crossing. Two bars rather than three
+ * is the point — three horizontal bars is a hamburger icon at any size, and
+ * the axis is what turns the remaining strokes into a chart. Thicker strokes,
+ * no ghost opacities, and the spot line stays the only branded colour.
  *
  * Built from absolutely-positioned divs rather than the SVG component because
  * Satori (behind ImageResponse) supports only a subset of SVG/CSS.
@@ -51,22 +49,39 @@ export default function Icon() {
           borderRadius: 7.5,
         }}
       >
+        {/* The price axis the supply hangs off — the element that makes the
+            remaining strokes read as a chart rather than as a menu. */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 5.6,
+            left: 6.6,
+            // Thicker and brighter than the axis in the full lockup: at a
+            // real 16px, 2.2 units is barely one pixel and the axis — the
+            // element doing the work of saying "chart" — disappears entirely.
+            width: 3,
+            height: 20.8,
+            borderRadius: 1.5,
+            background: INK,
+            opacity: 0.55,
+          }}
+        />
         {/* Supply above the spot line. */}
-        <div style={bar(6.4, 7, 19, 0.85)} />
-        {/* The spot line — overhanging, and the only colour in the mark. */}
+        <div style={bar(7.4, 10.4, 15.4, 0.9)} />
+        {/* The spot line — crossing the axis, and the only colour in the mark. */}
         <div
           style={{
             position: 'absolute',
             top: 13.9,
-            left: 2,
-            width: 28,
+            left: 2.4,
+            width: 26.4,
             height: 4.2,
             borderRadius: 2.1,
             background: SPOT,
           }}
         />
         {/* Supply below it. */}
-        <div style={bar(21.6, 7, 11, 0.5)} />
+        <div style={bar(20.4, 10.4, 8.2, 0.62)} />
       </div>
     ),
     size,

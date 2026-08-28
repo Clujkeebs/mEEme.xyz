@@ -1,13 +1,16 @@
-import { ArrowRight, Crosshair, Radar, ShieldCheck, TrendingDown } from 'lucide-react';
+import { ArrowRight, Crosshair } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { HeroReadout } from '@/components/hero-readout';
+import { CoiledGlyph, InsiderGlyph, TrappedGlyph } from '@/components/brand';
+import { Reveal } from '@/components/motion';
 import { WorkedExample } from '@/components/worked-example';
 import { prisma } from '@/lib/db';
 import { runAlphaEngine } from '@/lib/engine';
 import { buildDemoSnapshot, buildSnapshot } from '@/lib/providers';
 import { summarize } from '@/lib/scoring';
+import { cn } from '@/lib/utils';
 
 // This page calls buildSnapshot() below, which hits live price providers
 // (DexScreener/GeckoTerminal/Birdeye) over the network. Rendering it
@@ -65,32 +68,46 @@ export default async function HomePage() {
     <div className="space-y-28 py-12">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
-        <div>
-        <Badge className="mb-5">the EE is Exit Engine</Badge>
+        {/*
+          Ambient field. Two slow-drifting pools of the brand green sitting
+          behind the headline, so the top of the page has depth instead of
+          being type on a flat panel. Purely atmospheric, which is why it is
+          aria-hidden and stops entirely under reduced motion.
+        */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="aurora left-[-12%] top-[-28%] h-[420px] w-[520px]" />
+          <div
+            className="aurora right-[6%] top-[-14%] h-[300px] w-[360px]"
+            style={{ animationDelay: '-9s', animationDuration: '28s' }}
+          />
+        </div>
 
-        <h1 className="text-[2.6rem] font-bold leading-[1.03] tracking-[-0.035em] sm:text-[3.5rem]">
+        <div>
+        <Badge className="enter mb-5">the EE is Exit Engine</Badge>
+
+        <h1 className="enter text-[2.6rem] font-bold leading-[1.03] tracking-[-0.035em] sm:text-[3.5rem]" style={{ '--reveal-delay': '70ms' } as React.CSSProperties}>
           Every tool is built for the entry.
           <br />
           <span className="text-primary text-glow">Entry is a race you cannot win.</span>
         </h1>
 
-        <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-muted-foreground">
+        <p className="enter mt-7 max-w-2xl text-[17px] leading-relaxed text-muted-foreground" style={{ '--reveal-delay': '150ms' } as React.CSSProperties}>
           Median hold time on a Solana memecoin is about 100 seconds. Co-located bots are ahead of you
           by 400 milliseconds, and roughly 87% of same-block snipes are already green before you have
           seen the ticker. You are not going to out-enter them.
         </p>
 
-        <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-foreground/90">
+        <p className="enter mt-4 max-w-2xl text-[17px] leading-relaxed text-foreground/90" style={{ '--reveal-delay': '210ms' } as React.CSSProperties}>
           But the exit is not a race. It is a decision — and it is where retail actually bleeds out.
           Around half of pump.fun wallets finish a month down, and 96% end flat or worse. Not because
           they picked wrong. Because they sold the 40× at 2× and held the rug to zero.
         </p>
 
-        <p className="mt-7 max-w-2xl font-display text-[1.4rem] font-semibold leading-snug tracking-tight">
+        <p className="enter mt-7 max-w-2xl font-display text-[1.4rem] font-semibold leading-snug tracking-tight" style={{ '--reveal-delay': '270ms' } as React.CSSProperties}>
           mEEme.xyz is the only tool built entirely for the second half of the trade.
         </p>
 
-        <div className="mt-9 flex flex-wrap gap-3">
+        <div className="enter mt-9 flex flex-wrap gap-3" style={{ '--reveal-delay': '330ms' } as React.CSSProperties}>
           <Button asChild size="lg">
             <Link href="/lock">
               <Crosshair className="h-4 w-4" /> Lock a contract — free
@@ -110,7 +127,7 @@ export default async function HomePage() {
             page. The payoff belongs next to the win rate, not three sections
             below it. */}
         {stats && stats.accuracy !== null && (
-          <p className="mt-5 font-mono text-xs leading-relaxed text-muted-foreground">
+          <p className="enter mt-5 font-mono text-xs leading-relaxed text-muted-foreground" style={{ '--reveal-delay': '390ms' } as React.CSSProperties}>
             {(stats.accuracy * 100).toFixed(0)}% of {stats.correct + stats.incorrect} graded calls
             landed
             {stats.averageWinPct !== null && stats.averageLossPct !== null && (
@@ -132,14 +149,14 @@ export default async function HomePage() {
 
         {/* The argument, demonstrated rather than asserted — and the reason the
             right half of the hero is no longer empty at desktop widths. */}
-        <div className="lg:sticky lg:top-20">
+        <div className="enter lg:sticky lg:top-20" style={{ '--reveal-delay': '430ms' } as React.CSSProperties}>
           <HeroReadout signal={example.signal} demo={example.demo} />
         </div>
       </section>
 
       {/* ── Evidence, before any more claims ──────────────────────────────── */}
-      <section>
-        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-primary">
+      <Reveal as="section">
+        <h2 className="eyebrow">
           what you actually get
         </h2>
         <p className="mb-7 mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
@@ -147,11 +164,11 @@ export default async function HomePage() {
           This is a live run of the same engine that serves the app.
         </p>
         <WorkedExample signal={example.signal} demo={example.demo} />
-      </section>
+      </Reveal>
 
       {/* ── The mechanic ──────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-primary">
+      <Reveal as="section">
+        <h2 className="eyebrow">
           the mechanic
         </h2>
         <h3 className="mt-4 max-w-3xl text-[2rem] font-bold leading-[1.12] tracking-[-0.03em] sm:text-[2.4rem]">
@@ -161,19 +178,22 @@ export default async function HomePage() {
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
           <Pillar
-            icon={TrendingDown}
+            delay={0}
+            glyph={<CoiledGlyph />}
             tone="coil"
             title="Coiled supply"
             body="Every holder cheaper than you is a coiled spring pointed at your exit — weighted by how far up they are and whether they have already started selling. A wallet up 50× is a nuclear seller. A wallet up 1.1× is inert."
           />
           <Pillar
-            icon={ShieldCheck}
+            delay={80}
+            glyph={<TrappedGlyph />}
             tone="trap"
             title="Trapped supply"
             body="Every holder more expensive than you is a bag that will not sell into weakness. That is structure, not risk — and it is why a token 'can't break' a level. That level is where 8% of supply gets whole."
           />
           <Pillar
-            icon={Radar}
+            delay={160}
+            glyph={<InsiderGlyph />}
             tone="warn"
             title="Insider coil"
             body="The same math, restricted to wallets linked to the deployer by funding. Everyone can tell you insiders exist. We tell you what they paid and how much they have already dumped."
@@ -190,11 +210,11 @@ export default async function HomePage() {
             round-number rule.
           </p>
         </div>
-      </section>
+      </Reveal>
 
       {/* ── Why it is unfair ──────────────────────────────────────────────── */}
-      <section>
-        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-primary">
+      <Reveal as="section">
+        <h2 className="eyebrow">
           why this is unfair
         </h2>
         <dl className="mt-7 grid gap-7 md:grid-cols-3">
@@ -211,10 +231,10 @@ export default async function HomePage() {
             def="The edge in memecoins is asymmetry: win 15–25% of the time, make 3–10× on winners. The ladder is precommitted, so it holds runners longer and cuts losers before they become losers."
           />
         </dl>
-      </section>
+      </Reveal>
 
       {/* ── Honesty ───────────────────────────────────────────────────────── */}
-      <section className="hud-panel border-primary/30 bg-primary/[0.05] p-8 sm:p-10">
+      <Reveal as="section" className="hud-panel lift glint border-primary/30 bg-primary/[0.05] p-8 sm:p-10">
         <h2 className="text-[1.85rem] font-bold leading-tight tracking-[-0.03em]">
           Every call is public. Including the bad ones.
         </h2>
@@ -229,9 +249,11 @@ export default async function HomePage() {
             Read the ledger <ArrowRight className="h-4 w-4" />
           </Link>
         </Button>
-      </section>
+      </Reveal>
 
-      <section className="text-center">
+      <Reveal as="section" className="relative text-center">
+        {/* The mark as punctuation: the page closes on the shape it opened with. */}
+        <div aria-hidden="true" className="supply-rule mx-auto mb-10 max-w-xs" />
         <h2 className="text-[2.1rem] font-bold leading-tight tracking-[-0.03em] sm:text-[2.5rem]">
           Point it at a bag you already hold.
         </h2>
@@ -244,29 +266,42 @@ export default async function HomePage() {
             <Crosshair className="h-4 w-4" /> Open the cockpit
           </Link>
         </Button>
-      </section>
+      </Reveal>
     </div>
   );
 }
 
 function Pillar({
-  icon: Icon,
+  glyph,
   title,
   body,
   tone,
+  delay,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  glyph: React.ReactNode;
   title: string;
   body: string;
   tone: 'coil' | 'trap' | 'warn';
+  delay: number;
 }) {
-  const toneClass = { coil: 'text-coil', trap: 'text-trap', warn: 'text-warn' }[tone];
+  // A hairline of the concept's own colour across the top edge, so the three
+  // cards are distinguishable in peripheral vision before any of them is read.
+  const edge = {
+    coil: 'from-coil/70',
+    trap: 'from-trap/70',
+    warn: 'from-warn/70',
+  }[tone];
+
   return (
-    <div className="hud-panel p-6 transition-colors hover:border-border">
-      <Icon className={`h-5 w-5 ${toneClass}`} />
+    <Reveal className="hud-panel lift glint overflow-hidden p-6" delay={delay}>
+      <span
+        aria-hidden="true"
+        className={cn('absolute inset-x-0 top-0 h-px bg-gradient-to-r to-transparent', edge)}
+      />
+      {glyph}
       <h4 className="mt-4 font-display text-[17px] font-semibold tracking-tight">{title}</h4>
       <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted-foreground">{body}</p>
-    </div>
+    </Reveal>
   );
 }
 

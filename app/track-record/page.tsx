@@ -278,7 +278,7 @@ function SideCard({
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="hud-panel p-4">
+    <div className="hud-panel lift p-4">
       <div className="hud-label">{label}</div>
       <div className="tnum mt-1 text-3xl font-bold">{value}</div>
       <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>

@@ -34,9 +34,9 @@ export function HeroReadout({ signal, demo }: { signal: AlphaSignal; demo: boole
   const trappedPct = Math.max(4, Math.min(100, coil.trappedSupply * 100));
 
   return (
-    <div className="hud-panel corner-bracket overflow-hidden">
+    <div className="hud-panel-hero corner-bracket lift glint overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2.5">
-        <span className="hud-label">live read</span>
+        <span className="hud-label caret">live read</span>
         <div className="flex items-center gap-2">
           <Badge variant="muted">${signal.snapshot.symbol}</Badge>
           {demo && <Badge variant="warn">demo</Badge>}
@@ -52,11 +52,11 @@ export function HeroReadout({ signal, demo }: { signal: AlphaSignal; demo: boole
         {/* Coil vs. trapped, as opposing bars around the spot line. */}
         <div className="space-y-2">
           <Row label="coiled supply" value={`${(coil.coiledSupply * 100).toFixed(0)}%`} tone="danger">
-            <div className="h-1.5 rounded-full bg-destructive/70" style={{ width: `${coilPct}%` }} />
+            <div className="grow-bar h-1.5 rounded-full bg-destructive/70" style={{ width: `${coilPct}%` }} />
           </Row>
           <div className="h-px bg-primary/60" aria-hidden="true" />
           <Row label="trapped supply" value={`${(coil.trappedSupply * 100).toFixed(0)}%`} tone="muted">
-            <div className="h-1.5 rounded-full bg-primary/50" style={{ width: `${trappedPct}%` }} />
+            <div className="grow-bar h-1.5 rounded-full bg-primary/50" style={{ width: `${trappedPct}%` }} />
           </Row>
         </div>
 

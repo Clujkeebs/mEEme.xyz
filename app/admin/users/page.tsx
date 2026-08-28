@@ -16,7 +16,7 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="py-8">
-      <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary/70">admin</p>
+      <p className="eyebrow text-primary/70">admin</p>
       <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">Users</h1>
       <AdminNav active="users" />
       <p className="mt-4 max-w-2xl text-sm text-muted-foreground">

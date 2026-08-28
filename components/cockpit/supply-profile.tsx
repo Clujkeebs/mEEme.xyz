@@ -155,6 +155,11 @@ export function SupplyProfile({
           const isCoiled = shelf.kind === 'coiled';
           return (
             <g key={`${shelf.priceUsd}-${i}`}>
+              {/* Bars grow out of the price axis, staggered top-down so the
+                  profile builds the way it is read — expensive supply first,
+                  down through spot to the trapdoor. The delay is capped so a
+                  chart with forty shelves does not spend four seconds drawing
+                  itself while someone is trying to read it. */}
               <rect
                 x={LABEL_WIDTH}
                 y={barY - 4}
@@ -162,6 +167,8 @@ export function SupplyProfile({
                 height={8}
                 rx={2}
                 fill={isCoiled ? 'url(#coilBar)' : 'url(#trapBar)'}
+                className="profile-bar"
+                style={{ '--bar-delay': `${Math.min(i * 22, 420)}ms` } as React.CSSProperties}
               />
               {/* Insider share is drawn as a solid core inside the bar — you can
                   see at a glance how much of a shelf is one coordinated actor. */}

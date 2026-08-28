@@ -9,7 +9,7 @@ import type { AffiliateDashboard } from '@/lib/affiliate';
 export function AffiliateDashboardView({ dashboard }: { dashboard: AffiliateDashboard }) {
   return (
     <div className="py-8">
-      <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary/70">affiliate</p>
+      <p className="eyebrow text-primary/70">affiliate</p>
       <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">Your referrals</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         You earn {dashboard.commissionPct}% of what a referred subscriber pays, for 12 months from their

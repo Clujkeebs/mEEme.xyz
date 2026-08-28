@@ -173,6 +173,264 @@
   .font-display { font-family: var(--font-display); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Motion.
+ *
+ * The rule everything here follows: motion is opt-in, and the page is correct
+ * without it. A tiny script in the document head sets `data-motion="on"` on
+ * <html> before first paint, and only when the visitor has not asked for
+ * reduced motion. Every rule that hides something to animate it in is scoped
+ * under that attribute — so with JavaScript off, or with reduced motion on,
+ * nothing is ever hidden waiting for an observer that will never fire. That
+ * failure mode (a "tasteful" fade-in leaving a page blank) is the one thing a
+ * scroll animation must never be able to do.
+ *
+ * The easing is the same everywhere: a fast-out, long-settle curve. Uniform
+ * timing is most of what separates an interface that feels engineered from one
+ * that feels like a pile of effects.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Decelerate hard, settle slowly. Reads as weight rather than speed. */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+@keyframes meeme-rise {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Supply bars fill from the axis outward, the way the underlying number is read. */
+@keyframes meeme-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* The spot line arriving: it overhangs the bars, so it draws from the centre. */
+@keyframes meeme-draw {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+/* A highlight crossing a panel once, on hover — a glance, not a loop. */
+@keyframes meeme-glint {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(220%); }
+}
+
+/* The ambient field behind the hero. Very slow: felt, not watched. */
+@keyframes meeme-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
+  50%      { transform: translate3d(2%, -1.5%, 0) scale(1.06); opacity: 1; }
+}
+
+/* Terminal caret on the live-read label. */
+@keyframes meeme-caret {
+  0%, 48%   { opacity: 1; }
+  49%, 100% { opacity: 0.15; }
+}
+
+@keyframes meeme-shimmer {
+  from { background-position: -180% 0; }
+  to   { background-position: 180% 0; }
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────────────────── */
+
+html[data-motion='on'] [data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0);
+}
+
+html[data-motion='on'] [data-reveal='shown'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 640ms var(--ease-settle),
+    transform 640ms var(--ease-settle);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+/*
+ * Bars fill from their axis rather than appearing at full length. A bar is a
+ * quantity, and watching it fill is how the eye takes the quantity in.
+ */
+html[data-motion='on'] .grow-bar {
+  transform-origin: left center;
+  animation: meeme-fill 820ms var(--ease-settle) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/*
+ * Inside a scroll-reveal the bar must wait for its block, or it plays out
+ * while still hidden and is already full by the time anyone sees it. The
+ * transition is driven by the reveal state instead, so the number and its bar
+ * land together.
+ */
+html[data-motion='on'] [data-reveal] .grow-bar {
+  animation: none;
+  transform: scaleX(0);
+}
+html[data-motion='on'] [data-reveal='shown'] .grow-bar {
+  transform: scaleX(1);
+  transition: transform 900ms var(--ease-settle);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 120ms);
+}
+
+@layer components {
+  /*
+   * The mark, used as punctuation.
+   *
+   * A supply profile is two unequal bars split by an overhanging line, and
+   * that shape is the product's whole thesis. Reusing it as the page's
+   * structural furniture — section markers, rules, empty states — is what
+   * makes the interface belong to this product rather than to a template. It
+   * is also honest: the shape means something, so repeating it is not
+   * decoration.
+   */
+  .supply-rule {
+    @apply relative flex h-6 w-full items-center;
+  }
+  .supply-rule::before {
+    /* Held supply: unequal, weighted left, the way a real profile is. */
+    content: '';
+    @apply absolute left-0 h-px w-full;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--border)) 0%,
+      hsl(var(--border)) 34%,
+      transparent 34%,
+      transparent 40%,
+      hsl(var(--border)) 40%,
+      hsl(var(--border)) 62%,
+      transparent 62%,
+      transparent 100%
+    );
+  }
+  .supply-rule::after {
+    /* Spot: shorter, brighter, sitting proud of the rule. */
+    content: '';
+    @apply absolute left-0 h-[2px] w-16 rounded-full;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0));
+  }
+
+  /*
+   * Section eyebrow. The bracket and the accent bar replace the bare mono
+   * caption that every dark developer-tool landing page uses.
+   */
+  .eyebrow {
+    font-family: var(--font-mono);
+    @apply relative flex items-center gap-2.5 pl-3 text-[11px] font-medium uppercase tracking-[0.22em] text-primary;
+  }
+  .eyebrow::before {
+    content: '';
+    @apply absolute left-0 top-1/2 h-3.5 w-[2px] -translate-y-1/2 rounded-full bg-primary;
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.75);
+  }
+
+  /*
+   * Panels lift toward the pointer. Small numbers on purpose: 2px and a
+   * brighter edge read as responsive, 8px and a scale read as a toy.
+   */
+  .lift {
+    transition:
+      transform 260ms var(--ease-settle),
+      border-color 260ms var(--ease-settle),
+      box-shadow 260ms var(--ease-settle);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.35);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 22px 50px -26px rgba(0, 240, 160, 0.35),
+      0 18px 46px -24px rgba(0, 0, 0, 0.95);
+  }
+
+  /* One highlight sweeping the panel on hover. Runs once per hover, not forever. */
+  .glint {
+    @apply relative overflow-hidden;
+  }
+  .glint::after {
+    content: '';
+    @apply pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 opacity-0;
+    background: linear-gradient(
+      100deg,
+      transparent,
+      rgba(124, 247, 212, 0.09),
+      transparent
+    );
+  }
+  html[data-motion='on'] .glint:hover::after {
+    @apply opacity-100;
+    animation: meeme-glint 900ms var(--ease-settle);
+  }
+
+  /* Ambient field. Sits behind the hero, drifts, never asks to be looked at. */
+  .aurora {
+    @apply pointer-events-none absolute -z-10 rounded-full blur-3xl;
+    background: radial-gradient(circle, rgba(0, 240, 160, 0.14), transparent 68%);
+  }
+  html[data-motion='on'] .aurora {
+    animation: meeme-drift 22s ease-in-out infinite;
+  }
+
+  .caret::after {
+    content: '';
+    @apply ml-1 inline-block h-[1em] w-[0.5ch] translate-y-[0.12em] bg-primary align-baseline;
+  }
+  html[data-motion='on'] .caret::after {
+    animation: meeme-caret 1.15s steps(1, end) infinite;
+  }
+}
+
+@layer utilities {
+  /* Entrance for above-the-fold content, which is on screen before any observer runs. */
+  html[data-motion='on'] .enter {
+    animation: meeme-rise 700ms var(--ease-settle) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+
+  html[data-motion='on'] .draw-in {
+    animation: meeme-draw 800ms var(--ease-settle) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+
+  .shimmer {
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--secondary)) 0%,
+      hsl(var(--accent)) 45%,
+      hsl(var(--secondary)) 90%
+    );
+    background-size: 220% 100%;
+  }
+  html[data-motion='on'] .shimmer {
+    animation: meeme-shimmer 1.5s ease-in-out infinite;
+  }
+
+  /*
+   * SVG supply bars growing out of the price axis.
+   *
+   * `transform-box: fill-box` is what makes transform-origin mean "this rect's
+   * own left edge" rather than the origin of the whole SVG canvas — without it
+   * every bar scales from the top-left of the chart and the profile appears to
+   * slide in from off-canvas. Only the rects carry this, so the price labels
+   * beside them stay put while the supply fills toward them.
+   */
+  html[data-motion='on'] .profile-bar {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: meeme-fill 700ms var(--ease-settle) both;
+    animation-delay: var(--bar-delay, 0ms);
+  }
+
+  /* Numbers changing in place should not jump the layout around them. */
+  .tnum-lock { font-variant-numeric: tabular-nums; }
+}
+
 /*
  * Reduced motion.
  *

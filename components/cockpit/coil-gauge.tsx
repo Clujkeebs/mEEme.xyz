@@ -44,6 +44,24 @@ export function colorForCoil(score: number): string {
 
 export function CoilGauge({ score, confidence, size = 168, className }: CoilGaugeProps) {
   const clamped = Math.max(0, Math.min(1, score));
+
+  /*
+   * The arc already transitions between scores, but on first paint it was
+   * simply there — the one number a trader looks at first arrived with no
+   * movement at all. Sweeping it up from zero on mount reads as the gauge
+   * taking a measurement. It only runs when the page opted into motion; with
+   * reduced motion the arc renders at its true value immediately, because a
+   * gauge stuck at zero would be a wrong reading, not a calmer one.
+   */
+  const [swept, setSwept] = React.useState(true);
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.documentElement.getAttribute('data-motion') !== 'on') return;
+    setSwept(false);
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => setSwept(true)));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 14;
@@ -87,11 +105,11 @@ export function CoilGauge({ score, confidence, size = 168, className }: CoilGaug
           stroke={color}
           strokeWidth={10}
           strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference}`}
+          strokeDasharray={`${swept ? filled : 0} ${circumference}`}
           style={{
             filter: `drop-shadow(0 0 14px ${color}99)`,
             opacity: 0.35 + 0.65 * Math.max(0, Math.min(1, confidence)),
-            transition: 'stroke-dasharray 700ms cubic-bezier(0.16,1,0.3,1)',
+            transition: 'stroke-dasharray 900ms cubic-bezier(0.16,1,0.3,1)',
           }}
         />
       </svg>
