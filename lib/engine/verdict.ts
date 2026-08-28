@@ -54,6 +54,12 @@ export const VERDICT_META: Record<Verdict, VerdictMeta> = {
     imperative: 'The distribution is underway. Liquidity is the only thing that matters now.',
     tone: 'danger',
   },
+  NO_SIGNAL: {
+    label: 'NO SIGNAL',
+    imperative:
+      'Nothing here is coiled and nothing is distributing. That is not a buy — it is an absence of evidence either way.',
+    tone: 'neutral',
+  },
   NO_TOUCH: {
     label: 'NO TOUCH',
     imperative: 'The structure is built to take your money. There is no entry price that fixes this.',
@@ -62,6 +68,13 @@ export const VERDICT_META: Record<Verdict, VerdictMeta> = {
 };
 
 const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
+
+/**
+ * Minimum share of float that must sit in profit before the engine will make
+ * a directional entry call. Below this the coiled/trapped question it is built
+ * to answer has no meaningful input.
+ */
+export const MIN_COILED_SUPPLY_FOR_ENTRY = 0.05;
 
 /**
  * Threat ordering: the worst true statement wins. We check the severe cases
@@ -87,8 +100,47 @@ export function decideVerdict(snapshot: TokenSnapshot, coil: CoilReport): Verdic
   const supportHeavy = coil.trappedSupply > coil.coiledSupply;
   const accumulating = coil.velocityOfRealization < -0.15;
 
-  if (coil.coilScore < 0.2 && cleanStructure && supportHeavy && accumulating) return 'APEX_ENTRY';
-  return 'SCALE_IN';
+  // The engine reasons about supply that can *profitably* sell into your exit.
+  // When almost none of the float is in profit there is no such supply, so the
+  // thesis has no input — and a token where nobody is above water is far more
+  // often one that has already died than one that is coiled for a run.
+  //
+  // This is the condition that produced the entry record: coilScore is a
+  // threat score, the `- supportNorm` term drives an all-underwater token
+  // toward zero, and zero used to fall straight through to SCALE_IN. Of the
+  // first 120 published entry calls, 28 were emitted at a coil score of
+  // exactly 0.000 — at an average confidence of 0.80, because confidence
+  // measures data coverage rather than whether there is anything to say — and
+  // they averaged -32% edge.
+  const hasProfitableSupply = coil.coiledSupply >= MIN_COILED_SUPPLY_FOR_ENTRY;
+
+  if (
+    coil.coilScore < 0.2 &&
+    cleanStructure &&
+    supportHeavy &&
+    accumulating &&
+    hasProfitableSupply
+  ) {
+    return 'APEX_ENTRY';
+  }
+
+  // An entry call now needs positive evidence, not merely the absence of a
+  // threat: real support underneath, a clean contract, and flow that is not
+  // walking out of the door.
+  if (
+    cleanStructure &&
+    supportHeavy &&
+    hasProfitableSupply &&
+    coil.velocityOfRealization < 0.05
+  ) {
+    return 'SCALE_IN';
+  }
+
+  // Nothing above was true, so the engine has nothing to say. Saying so is the
+  // whole point of this branch: the absence of a sell signal is not a buy
+  // signal, and a tool that must always emit a direction will be wrong most of
+  // the time by construction.
+  return 'NO_SIGNAL';
 }
 
 /**
@@ -222,6 +274,8 @@ function buildHeadline(snapshot: TokenSnapshot, coil: CoilReport, verdict: Verdi
       return `${s} is quiet: coil ${coil.coilScore.toFixed(2)}, ${pct(coil.trappedSupply)} of float trapped above.`;
     case 'APEX_ENTRY':
       return `${s} is the setup — clean contract, ${pct(coil.trappedSupply)} trapped overhead, flow accumulating.`;
+    case 'NO_SIGNAL':
+      return `${s} reads flat: only ${pct(coil.coiledSupply)} of float is in profit, so there is no coil to measure and nothing to call.`;
   }
 }
 

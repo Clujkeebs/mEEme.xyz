@@ -117,7 +117,13 @@ function shapeFor(scenario: Scenario, rng: () => number): ScenarioShape {
       return {
         ageMinutes: 60 + rng() * 240,
         peakMultiple: 2.5 + rng() * 3,
-        drawdownFromPeak: 0.45 + rng() * 0.3,
+        // Was 0.45-0.75 — i.e. down 45 to 75% from the high, which leaves
+        // nobody in profit and is a token that already round-tripped, not the
+        // setup this scenario is named for. It only ever produced an entry
+        // verdict because the decision function fell through to one; with the
+        // engine now requiring profitable float, it correctly reads as
+        // NO_SIGNAL. A consolidation is what this is meant to illustrate.
+        drawdownFromPeak: 0.12 + rng() * 0.18,
         insiderSupply: rng() * 0.04,
         insiderRealized: rng() * 0.08,
         flowBias: -0.35 - rng() * 0.3,

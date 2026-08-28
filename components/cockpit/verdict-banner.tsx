@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, ArrowDownRight, Crosshair, Hand, ShieldOff, TrendingUp, Zap } from 'lucide-react';
+import { AlertTriangle, ArrowDownRight, Crosshair, Hand, Minus, ShieldOff, TrendingUp, Zap } from 'lucide-react';
 import * as React from 'react';
 import { CoilGauge } from './coil-gauge';
 import { VERDICT_META } from '@/lib/engine/verdict';
@@ -8,6 +8,7 @@ import type { Verdict } from '@/lib/engine/types';
 import { cn, formatCountdown } from '@/lib/utils';
 
 const ICONS: Record<Verdict, React.ComponentType<{ className?: string }>> = {
+  NO_SIGNAL: Minus,
   APEX_ENTRY: Crosshair,
   SCALE_IN: TrendingUp,
   HOLD_THROUGH_NOISE: Hand,

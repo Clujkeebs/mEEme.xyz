@@ -127,6 +127,15 @@ export interface SupplyShelf {
 }
 
 export type Verdict =
+  /**
+   * The structure says nothing actionable.
+   *
+   * This exists because coilScore is a *threat* score, and the absence of a
+   * threat is not the presence of an opportunity. Without this the decision
+   * function had no way to decline, so every unremarkable token fell through
+   * to an entry call.
+   */
+  | 'NO_SIGNAL'
   | 'APEX_ENTRY'
   | 'SCALE_IN'
   | 'HOLD_THROUGH_NOISE'

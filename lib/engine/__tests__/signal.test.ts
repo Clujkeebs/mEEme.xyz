@@ -210,22 +210,31 @@ describe('decideVerdict', () => {
   });
 
   it('reserves APEX_ENTRY for clean structure, trapped float and accumulation', () => {
+    // coiledSupply raised from 0.02 to 0.09: an entry call now also requires
+    // enough float in profit for the coiled/trapped question to have an
+    // answer. The intent of this test — that APEX_ENTRY needs a clean
+    // contract, trapped float and accumulating flow — is unchanged.
     const v = decideVerdict(
       snapshot(),
-      coilOf({ coilScore: 0.1, trappedSupply: 0.3, coiledSupply: 0.02, velocityOfRealization: -0.4 }),
+      coilOf({ coilScore: 0.1, trappedSupply: 0.3, coiledSupply: 0.09, velocityOfRealization: -0.4 }),
     );
     expect(v).toBe('APEX_ENTRY');
   });
 
-  it('will not call APEX_ENTRY when the contract is flagged', () => {
+  it('will not call an entry on a flagged contract', () => {
+    // This previously asserted SCALE_IN — that a token with an unburned LP
+    // should still be recommended as a buy, just a less enthusiastic one.
+    // That was the fall-through bug written down as an expectation: there was
+    // no verdict for "no", so "yes, but quieter" stood in for it. A flagged
+    // contract is not an entry at any size.
     const v = decideVerdict(
       snapshot(),
       coilOf({
-        coilScore: 0.1, trappedSupply: 0.3, coiledSupply: 0.02,
+        coilScore: 0.1, trappedSupply: 0.3, coiledSupply: 0.09,
         velocityOfRealization: -0.4, structuralFlags: ['LP not burned'],
       }),
     );
-    expect(v).toBe('SCALE_IN');
+    expect(v).toBe('NO_SIGNAL');
   });
 
   it('lets the worst true statement win over the best one', () => {
@@ -354,5 +363,79 @@ describe('runAlphaEngine end to end', () => {
     expect(a.verdict).toBe(b.verdict);
     expect(a.coil.coilScore).toBe(b.coil.coilScore);
     expect(a.ladder!.rungs.map((r) => r.priceUsd)).toEqual(b.ladder!.rungs.map((r) => r.priceUsd));
+  });
+});
+
+describe('the engine declines rather than defaulting to a buy', () => {
+  /**
+   * This is the fault that produced the published entry record. coilScore is a
+   * *threat* score, so a quiet token scores near zero — and the decision
+   * function used to fall through from "no threat" straight to SCALE_IN. Of
+   * the first 120 published entry calls, 28 were emitted at a coil score of
+   * exactly 0.000 and averaged -32% edge.
+   */
+  it('refuses to call a token where almost none of the float is in profit', () => {
+    // Everyone is far underwater: nothing can profitably sell, so the coiled/
+    // trapped question the engine exists to answer has no input.
+    const allUnderwater = snapshot({
+      priceUsd: 0.0002,
+      holders: [
+        holder(300_000_000, 0.002),
+        holder(250_000_000, 0.0018),
+        holder(200_000_000, 0.0015),
+      ],
+    });
+    const coil = analyzeCoil(allUnderwater);
+    expect(coil.coiledSupply).toBeLessThan(0.05);
+    expect(decideVerdict(allUnderwater, coil)).toBe('NO_SIGNAL');
+  });
+
+  it('never returns an entry verdict without profitable supply to reason about', () => {
+    // Sweep the space the old fall-through covered: whatever else is true, an
+    // entry call requires the thesis to have an input.
+    for (let coiled = 0; coiled < 0.05; coiled += 0.005) {
+      for (const vor of [-0.4, -0.2, 0, 0.2]) {
+        const verdict = decideVerdict(snapshot(), coilOf({
+          coilScore: 0.05,
+          coiledSupply: coiled,
+          trappedSupply: 0.4,
+          velocityOfRealization: vor,
+          structuralFlags: [],
+        }));
+        expect(['NO_SIGNAL', 'HOLD_THROUGH_NOISE']).toContain(verdict);
+      }
+    }
+  });
+
+  it('still calls SCALE_IN when there is real support and real profitable float', () => {
+    const verdict = decideVerdict(snapshot(), coilOf({
+      coilScore: 0.1,
+      coiledSupply: 0.12,
+      trappedSupply: 0.5,
+      velocityOfRealization: -0.05,
+      structuralFlags: [],
+    }));
+    expect(verdict).toBe('SCALE_IN');
+  });
+
+  it('will not enter on a token with structural flags, however quiet it looks', () => {
+    const verdict = decideVerdict(snapshot(), coilOf({
+      coilScore: 0.02,
+      coiledSupply: 0.2,
+      trappedSupply: 0.6,
+      velocityOfRealization: -0.3,
+      structuralFlags: ['LP is not locked'],
+    }));
+    expect(['NO_SIGNAL', 'HOLD_THROUGH_NOISE']).toContain(verdict);
+  });
+
+  it('has a headline and metadata for every verdict it can return', () => {
+    // A verdict with no VERDICT_META entry renders as a blank card.
+    const all = Object.keys(VERDICT_META);
+    expect(all).toContain('NO_SIGNAL');
+    for (const v of all) {
+      expect(VERDICT_META[v as keyof typeof VERDICT_META].label.length).toBeGreaterThan(0);
+      expect(VERDICT_META[v as keyof typeof VERDICT_META].imperative.length).toBeGreaterThan(0);
+    }
   });
 });

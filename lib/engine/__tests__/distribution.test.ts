@@ -245,8 +245,23 @@ describe('degradation to obtainable data', () => {
       const b = runAlphaEngine(obtainable);
 
       expect(b.coil.method).toBe('hybrid');
-      expect(b.verdict).toBe(a.verdict);
       expect(b.coil.shelves.length).toBeGreaterThan(0);
+
+      // Threat verdicts must survive losing cost basis: failing to see a rug
+      // because the data thinned is the one degradation that is never
+      // acceptable.
+      const THREAT = new Set(['NO_TOUCH', 'EXIT_IMMEDIATELY', 'SCALE_OUT_NOW', 'ARM_EXIT']);
+      if (THREAT.has(a.verdict)) {
+        expect(b.verdict).toBe(a.verdict);
+      } else {
+        // Entry verdicts are allowed to degrade to NO_SIGNAL — needing more
+        // evidence to say "buy" than to say "nothing" is the asymmetry that
+        // was missing. What is forbidden is the other direction: thinner data
+        // must never manufacture an entry call that perfect data did not make.
+        const ENTRY = new Set(['APEX_ENTRY', 'SCALE_IN']);
+        if (!ENTRY.has(a.verdict)) expect(ENTRY.has(b.verdict)).toBe(false);
+        expect(THREAT.has(b.verdict)).toBe(false);
+      }
     }
   });
 

@@ -60,6 +60,12 @@ export function gradeSignal(input: OutcomeInput): OutcomeResult {
     return { grade: 'pending', edgePct: null };
   }
 
+  // NO_SIGNAL is a refusal to call, not a call. Grading it either way would be
+  // scoring the engine on a prediction it explicitly declined to make — and
+  // counting the ones that happened to go up as wins is exactly the kind of
+  // free credit this file exists to refuse.
+  if (verdict === 'NO_SIGNAL') return { grade: 'neutral', edgePct: null };
+
   const change = (priceAtHorizon - priceAtSignal) / priceAtSignal;
 
   if (EXIT_SIDE.has(verdict)) {

@@ -21,6 +21,13 @@ export async function recordSignal(
 ): Promise<{ id: string; shareSlug: string } | null> {
   if (signal.snapshot.dataQuality.synthetic) return null;
 
+  // The scanner's job is to surface calls worth publishing, and a refusal to
+  // call is not one — publishing it would bury the ledger under rows that can
+  // never be graded. A read a person asked for is different: that is their own
+  // history and it should be complete, including the times the answer was
+  // "nothing here".
+  if (signal.verdict === 'NO_SIGNAL' && userId === null) return null;
+
   try {
     const row = await prisma.signal.create({
       data: {
