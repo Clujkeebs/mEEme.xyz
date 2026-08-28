@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { runAlphaEngine } from '@/lib/engine';
 import type { TokenSnapshot, Verdict } from '@/lib/engine/types';
 import { flushPendingAlerts } from '@/lib/notify';
+import { captureError } from '@/lib/observability';
 import { buildSnapshot } from '@/lib/providers';
 import { SCAN_MIN_LIQUIDITY_USD, discoverCandidates } from '@/lib/providers/discover';
 import { gradeSignal } from '@/lib/scoring';
@@ -74,6 +75,7 @@ export async function runSweep(): Promise<SweepResult> {
     (address) => buildSnapshot(address),
     (err, address) => {
       console.warn('[sweep] snapshot fetch failed for', address, err instanceof Error ? err.message : err);
+      captureError('sweep:snapshot', err, { address });
       return null;
     },
   );
@@ -250,6 +252,7 @@ export async function runScore(): Promise<ScoreResult> {
     (address) => buildSnapshot(address),
     (err, address) => {
       console.warn('[score] snapshot fetch failed for', address, err instanceof Error ? err.message : err);
+      captureError('score:snapshot', err, { address });
       return null;
     },
   );
@@ -358,6 +361,7 @@ export async function runScan(): Promise<ScanResult> {
     (candidate) => buildSnapshot(candidate.address),
     (err, candidate) => {
       console.warn('[scan] snapshot fetch failed for', candidate.address, err instanceof Error ? err.message : err);
+      captureError('scan:snapshot', err, { address: candidate.address });
       return null;
     },
   );

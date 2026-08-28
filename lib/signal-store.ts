@@ -1,5 +1,6 @@
 import type { AlphaSignal } from '@/lib/engine/types';
 import { prisma } from './db';
+import { captureError } from './observability';
 
 /**
  * Persisting a signal is what makes the track record possible. Two rules:
@@ -51,6 +52,7 @@ export async function recordSignal(
   } catch (err) {
     // Never fail a trader's read because we could not write history.
     console.warn('[signal-store] failed to record signal:', err instanceof Error ? err.message : err);
+    captureError('signal-store:record', err);
     return null;
   }
 }

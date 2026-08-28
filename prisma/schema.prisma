@@ -519,3 +519,33 @@ model JobLease {
 
   @@index([expiresAt])
 }
+
+/// A deduplicated application error.
+///
+/// Everything used to go to console.error, which on Railway means an
+/// ephemeral, unaggregated stream nobody reads until a user complains. This
+/// keeps the same information somewhere it survives a restart and can be
+/// looked at as a list.
+///
+/// Rows are keyed by fingerprint and counted rather than appended, so a fault
+/// firing in a hot loop produces one row with a large count instead of a table
+/// that grows until it becomes the outage.
+model ErrorEvent {
+  id          String    @id @default(cuid())
+  /// Stable hash of scope + message shape, so the same fault coalesces.
+  fingerprint String    @unique
+  /// Where it came from — "cron:sweep", "provider:helius", "client".
+  scope       String
+  message     String
+  stack       String?
+  /// JSON: whatever context the call site had. Never request bodies or secrets.
+  context     String?
+  count       Int       @default(1)
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  /// Set when someone marks it handled; cleared if it recurs afterwards.
+  resolvedAt  DateTime?
+
+  @@index([resolvedAt, lastSeenAt])
+  @@index([lastSeenAt])
+}

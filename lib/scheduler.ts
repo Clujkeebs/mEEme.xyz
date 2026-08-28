@@ -16,6 +16,7 @@
  */
 
 import { withLease } from './lease';
+import { captureError } from './observability';
 
 interface Job {
   name: string;
@@ -86,8 +87,11 @@ export function startScheduler(): void {
         }
         console.log(`[cron:${job.name}] ok in ${Date.now() - started}ms`, JSON.stringify(result));
       } catch (err) {
-        // One failing job must never stop the schedule.
+        // One failing job must never stop the schedule — but it must also not
+        // vanish. A cron that quietly stops means alerts stop and the track
+        // record stops filling, with nothing on any page to say so.
         console.error(`[cron:${job.name}] failed:`, err instanceof Error ? err.message : err);
+        captureError(`cron:${job.name}`, err);
       }
     };
 
