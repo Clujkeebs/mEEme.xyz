@@ -349,11 +349,21 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
       0 18px 46px -24px rgba(0, 0, 0, 0.95);
   }
 
-  /* One highlight sweeping the panel on hover. Runs once per hover, not forever. */
+  /*
+   * One highlight sweeping the panel on hover. Runs once per hover, not
+   * forever.
+   *
+   * The :not() is load-bearing. `.corner-bracket` draws its two brackets with
+   * ::before and ::after, and an element can only have one of each — so on a
+   * panel carrying both classes these rules would silently replace the
+   * bottom-right bracket with a stray gradient wearing the bracket's borders.
+   * Excluding those panels degrades to no glint, which is invisible, rather
+   * than to a broken bracket, which is not.
+   */
   .glint {
     @apply relative overflow-hidden;
   }
-  .glint::after {
+  .glint:not(.corner-bracket)::after {
     content: '';
     @apply pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 opacity-0;
     background: linear-gradient(
@@ -363,7 +373,7 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
       transparent
     );
   }
-  html[data-motion='on'] .glint:hover::after {
+  html[data-motion='on'] .glint:not(.corner-bracket):hover::after {
     @apply opacity-100;
     animation: meeme-glint 900ms var(--ease-settle);
   }

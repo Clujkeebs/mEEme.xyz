@@ -34,7 +34,7 @@ export function HeroReadout({ signal, demo }: { signal: AlphaSignal; demo: boole
   const trappedPct = Math.max(4, Math.min(100, coil.trappedSupply * 100));
 
   return (
-    <div className="hud-panel-hero corner-bracket lift glint overflow-hidden">
+    <div className="hud-panel-hero corner-bracket lift overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2.5">
         <span className="hud-label caret">live read</span>
         <div className="flex items-center gap-2">
