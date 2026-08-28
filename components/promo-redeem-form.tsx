@@ -2,6 +2,7 @@
 
 import { Loader2, Ticket } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import * as React from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -12,8 +13,14 @@ import { Input } from '@/components/ui/input';
  * arrive via a `?promo=` link — e.g. a creator says "use code X" out loud
  * rather than posting a clickable one.
  */
-export function PromoRedeemForm() {
+/**
+ * `signedInOnly` lets a static page mount this without the server needing to
+ * know who is viewing — the component hides itself until the session says
+ * there is somebody to redeem against.
+ */
+export function PromoRedeemForm({ signedInOnly = false }: { signedInOnly?: boolean } = {}) {
   const router = useRouter();
+  const { status } = useSession();
   const [open, setOpen] = React.useState(false);
   const [code, setCode] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -41,6 +48,9 @@ export function PromoRedeemForm() {
       setBusy(false);
     }
   };
+
+  // Nothing to redeem against until there is an account.
+  if (signedInOnly && status !== 'authenticated') return null;
 
   if (!open) {
     return (

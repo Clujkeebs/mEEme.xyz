@@ -13,6 +13,13 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+
+  // NOTE: when moving to Supabase's transaction pooler to lift the connection
+  // ceiling, add `directUrl = env("DIRECT_URL")` here — but set DIRECT_URL in
+  // the environment FIRST. Prisma treats a referenced-but-unset env var as a
+  // hard schema validation error (P1012), and the start command runs
+  // `prisma migrate deploy` before the server, so an unset DIRECT_URL does not
+  // degrade: it stops the container from booting at all.
 }
 
 // ——— auth (NextAuth) ———
@@ -490,4 +497,25 @@ model ApiKey {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
+}
+
+/// A named lease, used to elect one runner for a scheduled job.
+///
+/// The in-process scheduler guards against starting twice inside one process,
+/// but nothing stopped a second replica from running the same sweep — which
+/// would double every provider call against an already rate-limited Helius
+/// quota and race the same rows. Holding a short lease in the database makes
+/// "exactly one replica runs this tick" true across however many replicas
+/// exist, which is what lets the service scale horizontally at all.
+///
+/// A lease expires rather than being released explicitly, so a replica that
+/// dies mid-job cannot wedge the schedule forever.
+model JobLease {
+  name       String   @id
+  /// Random per-process id, so a holder can tell its own lease from a rival's.
+  holder     String
+  acquiredAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
 }

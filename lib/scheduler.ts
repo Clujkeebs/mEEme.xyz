@@ -15,11 +15,20 @@
  * than the thing it replaces.
  */
 
+import { withLease } from './lease';
+
 interface Job {
   name: string;
   intervalMs: number;
   /** Delay before the first run, so a cold boot does not fire everything at once. */
   initialDelayMs: number;
+  /**
+   * How long this job may hold its lease. Must exceed the job's worst-case
+   * runtime, or a second replica will start the same work while it is still
+   * going; must stay under the interval, or the next tick finds its own lease
+   * still held.
+   */
+  leaseMs: number;
   run: () => Promise<unknown>;
 }
 
@@ -44,18 +53,21 @@ export function startScheduler(): void {
       name: 'sweep',
       intervalMs: 5 * 60_000,
       initialDelayMs: 30_000,
+      leaseMs: 4 * 60_000,
       run: async () => (await import('@/lib/jobs')).runSweep(),
     },
     {
       name: 'score',
       intervalMs: 60 * 60_000,
       initialDelayMs: 90_000,
+      leaseMs: 10 * 60_000,
       run: async () => (await import('@/lib/jobs')).runScore(),
     },
     {
       name: 'scan',
       intervalMs: 30 * 60_000,
       initialDelayMs: 150_000,
+      leaseMs: 20 * 60_000,
       run: async () => (await import('@/lib/jobs')).runScan(),
     },
   ];
@@ -64,7 +76,14 @@ export function startScheduler(): void {
     const tick = async (): Promise<void> => {
       const started = Date.now();
       try {
-        const result = await job.run();
+        // Every replica ticks; only the one that wins the lease does the work.
+        // Without this, adding a second replica doubles every provider call
+        // against a quota that is already rate-limited at one replica.
+        const result = await withLease(`cron:${job.name}`, job.leaseMs, () => job.run());
+        if (result === null) {
+          console.log(`[cron:${job.name}] skipped — another replica holds the lease`);
+          return;
+        }
         console.log(`[cron:${job.name}] ok in ${Date.now() - started}ms`, JSON.stringify(result));
       } catch (err) {
         // One failing job must never stop the schedule.

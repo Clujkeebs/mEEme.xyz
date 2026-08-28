@@ -2,6 +2,7 @@
 
 import { Check, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import * as React from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -9,16 +10,26 @@ import { Button } from '@/components/ui/button';
 import { TIERS, type Tier } from '@/lib/tiers';
 import { cn } from '@/lib/utils';
 
-export function PricingTable({
-  currentTier,
-  signedIn,
-  paymentsLive,
-}: {
-  currentTier: Tier | null;
-  signedIn: boolean;
-  paymentsLive: boolean;
-}) {
+/**
+ * Reads the session itself rather than taking it as a prop.
+ *
+ * Pricing used to be force-dynamic solely so the server could answer "is this
+ * person signed in", which cost a session lookup and a database round trip on
+ * every single view — measured at 117 req/s and a 613ms p95, the slowest route
+ * in the app and one of the first a launch crowd opens. Everything else on the
+ * page is built from TIERS and identical for everyone, so the page is now
+ * static and the one personalised bit resolves on the client, where the
+ * session provider is already mounted for the header.
+ */
+export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const signedIn = status === 'authenticated';
+  const currentTier = (session?.user?.tier as Tier | undefined) ?? null;
+  // While the session is resolving, say nothing about who they are: a label
+  // that flips from "Sign in to get Degen" to "Upgrade to Degen" a beat later
+  // reads as a bug.
+  const authKnown = status !== 'loading';
   const [pending, setPending] = React.useState<Tier | null>(null);
 
   const checkout = async (tier: Tier) => {
@@ -111,7 +122,7 @@ export function PricingTable({
                     onClick={() => void checkout(id)}
                   >
                     {pending === id && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {signedIn ? `Upgrade to ${spec.name}` : `Sign in to get ${spec.name}`}
+                    {!authKnown ? `Get ${spec.name}` : signedIn ? `Upgrade to ${spec.name}` : `Sign in to get ${spec.name}`}
                   </Button>
                 )}
               </div>

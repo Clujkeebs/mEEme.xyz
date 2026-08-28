@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { PricingTable } from '@/components/pricing-table';
 import { PromoRedeemForm } from '@/components/promo-redeem-form';
-import { getViewer } from '@/lib/auth';
 import { stripeConfigured } from '@/lib/stripe';
 import { breadcrumbSchema, canonicalMetadata, jsonLdGraph, softwareApplicationSchema } from '@/lib/seo';
 import { TIERS } from '@/lib/tiers';
@@ -12,10 +11,14 @@ export const metadata: Metadata = {
   ...canonicalMetadata('/pricing'),
 };
 
-export const dynamic = 'force-dynamic';
+// Static. Everything here is built from TIERS and identical for every
+// visitor; the only personalised bits (which plan you are on, whether the
+// promo form applies) now resolve on the client. Pricing was the slowest route
+// in the app at 117 req/s purely because a session lookup made it dynamic, and
+// it is one of the first pages a launch crowd opens.
+export const revalidate = 3600;
 
-export default async function PricingPage() {
-  const viewer = await getViewer();
+export default function PricingPage() {
   return (
     <div className="py-10">
       {/* Offers are built from TIERS, so the price a crawler is shown can never
@@ -45,13 +48,11 @@ export default async function PricingPage() {
         </p>
       </header>
 
-      <PricingTable currentTier={viewer?.tier ?? null} signedIn={Boolean(viewer)} paymentsLive={stripeConfigured()} />
+      <PricingTable paymentsLive={stripeConfigured()} />
 
-      {viewer && (
-        <div className="mt-8 flex justify-center">
-          <PromoRedeemForm />
-        </div>
-      )}
+      <div className="mt-8 flex justify-center">
+        <PromoRedeemForm signedInOnly />
+      </div>
     </div>
   );
 }
