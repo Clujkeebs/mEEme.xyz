@@ -33,6 +33,16 @@ export interface AdminAnalytics {
   };
   /** Daily signups, oldest first, for the trend strip. */
   signupTrend: { day: string; count: number }[];
+  /**
+   * Daily product usage, oldest first — the thing the user-count and signup
+   * numbers can't show. A visitor who pastes a contract and never makes an
+   * account is invisible to every other number on this page; this is the one
+   * signal that captures them without adding any tracking beyond what the
+   * rate limiter already records (an hourly-salted IP hash, never a cookie).
+   */
+  locksTrend: { day: string; signedIn: number; anon: number; uniqueAnonVisitors: number }[];
+  /** Where signups actually came from. Null key means no referral code at all. */
+  referralSources: { code: string | null; count: number }[];
   engine: {
     totalSignals: number;
     last24h: number;
@@ -75,6 +85,7 @@ export async function loadAdminAnalytics(): Promise<AdminAnalytics> {
   const since24h = new Date(now.getTime() - DAY_MS);
   const since30d = new Date(now.getTime() - 30 * DAY_MS);
   const sinceTrend = new Date(now.getTime() - TREND_DAYS * DAY_MS);
+  const sinceTrendDayKey = dayKey(sinceTrend);
 
   const [
     totalUsers,
@@ -85,6 +96,9 @@ export async function loadAdminAnalytics(): Promise<AdminAnalytics> {
     referredTotal,
     activeSubs,
     trendUsers,
+    referralGroups,
+    trendUsageDays,
+    trendAnonUsageDays,
     totalSignals,
     signalsLast24h,
     signalsLast7d,
@@ -113,6 +127,23 @@ export async function loadAdminAnalytics(): Promise<AdminAnalytics> {
     prisma.user.findMany({
       where: { createdAt: { gte: sinceTrend } },
       select: { createdAt: true },
+    }),
+    // `_count: { referredByCode: true }` looks like "rows in this group", but
+    // Prisma counts non-null occurrences of that specific field — inside the
+    // null group every value *is* null, so that count comes back 0 for the
+    // direct/organic bucket regardless of how many users are actually in it.
+    // `_count: { _all: true }` counts rows, which is what a group size means.
+    prisma.user.groupBy({ by: ['referredByCode'], _count: { _all: true } }),
+    // UsageDay and AnonUsage key on a "YYYY-MM-DD" string, not a DateTime —
+    // lexical comparison on an ISO date string sorts the same as the date
+    // itself, so a plain string `gte` is exact here.
+    prisma.usageDay.findMany({
+      where: { day: { gte: sinceTrendDayKey } },
+      select: { day: true, locks: true },
+    }),
+    prisma.anonUsage.findMany({
+      where: { day: { gte: sinceTrendDayKey } },
+      select: { day: true, locks: true },
     }),
     prisma.signal.count({ where: { synthetic: false } }),
     prisma.signal.count({ where: { synthetic: false, createdAt: { gte: since24h } } }),
@@ -168,6 +199,30 @@ export async function loadAdminAnalytics(): Promise<AdminAnalytics> {
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([day, count]) => ({ day, count }));
 
+  const locksTrendMap = new Map<string, { signedIn: number; anon: number; uniqueAnonVisitors: number }>();
+  for (let i = 0; i < TREND_DAYS; i++) {
+    locksTrendMap.set(dayKey(new Date(now.getTime() - i * DAY_MS)), { signedIn: 0, anon: 0, uniqueAnonVisitors: 0 });
+  }
+  for (const row of trendUsageDays) {
+    const bucket = locksTrendMap.get(row.day);
+    if (bucket) bucket.signedIn += row.locks;
+  }
+  for (const row of trendAnonUsageDays) {
+    const bucket = locksTrendMap.get(row.day);
+    if (!bucket) continue;
+    bucket.anon += row.locks;
+    // (ipHash, day) is unique on this table, so one row is one visitor for
+    // that day regardless of how many locks they used.
+    bucket.uniqueAnonVisitors += 1;
+  }
+  const locksTrend = [...locksTrendMap.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([day, v]) => ({ day, ...v }));
+
+  const referralSources = referralGroups
+    .map((r) => ({ code: r.referredByCode, count: r._count._all }))
+    .sort((a, b) => b.count - a.count);
+
   const verdictCountMap = new Map(verdictCounts.map((v) => [v.verdict as Verdict, v._count.verdict]));
   const byVerdict = (Object.keys(VERDICT_META) as Verdict[])
     .map((verdict) => ({
@@ -201,6 +256,8 @@ export async function loadAdminAnalytics(): Promise<AdminAnalytics> {
       byTier: revenueByTier,
     },
     signupTrend,
+    locksTrend,
+    referralSources,
     engine: {
       totalSignals,
       last24h: signalsLast24h,

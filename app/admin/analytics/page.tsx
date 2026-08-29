@@ -49,6 +49,9 @@ export default async function AdminAnalyticsPage() {
   const maxVerdictCount = Math.max(1, ...a.engine.byVerdict.map((v) => v.count));
   const maxTrend = Math.max(1, ...a.signupTrend.map((d) => d.count));
   const decidedTotal = a.trackRecord.correct + a.trackRecord.incorrect + a.trackRecord.neutral;
+  const maxLocks = Math.max(1, ...a.locksTrend.map((d) => d.signedIn + d.anon));
+  const totalReferred = a.referralSources.filter((r) => r.code !== null).reduce((sum, r) => sum + r.count, 0);
+  const totalDirect = a.referralSources.find((r) => r.code === null)?.count ?? 0;
 
   return (
     <div className="py-8">
@@ -176,6 +179,80 @@ export default async function AdminAnalyticsPage() {
             </ul>
             <p className="mt-3 border-t border-border/60 pt-3 text-[12px] text-muted-foreground">
               {a.trackRecord.pending.toLocaleString('en-US')} calls still awaiting the 4-hour grading window.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Traffic ──────────────────────────────────────────────────────── */}
+      <section className="mt-10">
+        <h2 className="eyebrow">traffic, last 14 days</h2>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+          Every other number on this page counts someone only after they make an account. A visitor
+          who pastes a contract and leaves is invisible to all of it — this is the one signal that
+          catches them. It uses the free-tier rate limiter, already keyed to an hourly-salted IP hash
+          rather than a cookie, so it costs nothing extra and adds no tracking beyond what the site&rsquo;s
+          own cookie policy already discloses.
+        </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div className="hud-panel p-5">
+            <div className="flex items-baseline justify-between">
+              <span className="hud-label">locks per day</span>
+              <span className="flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full bg-primary" /> signed in
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full bg-primary/30" /> anonymous
+                </span>
+              </span>
+            </div>
+            <div className="mt-4 flex h-28 items-stretch gap-1.5" role="img" aria-label="Locks per day, signed-in versus anonymous, over the last 14 days">
+              {a.locksTrend.map((d) => {
+                const total = d.signedIn + d.anon;
+                return (
+                  <div
+                    key={d.day}
+                    className="group relative flex flex-1 flex-col-reverse"
+                    title={`${d.day}: ${d.signedIn} signed in, ${d.anon} anonymous (${d.uniqueAnonVisitors} unique visitor${d.uniqueAnonVisitors === 1 ? '' : 's'})`}
+                  >
+                    <div
+                      className={cn('grow-bar w-full origin-bottom bg-primary/30', total === 0 && 'bg-border')}
+                      style={{ height: `${Math.max(total === 0 ? 3 : 0, (d.anon / maxLocks) * 100)}%` }}
+                    />
+                    <div
+                      className="grow-bar w-full origin-bottom rounded-t-sm bg-primary transition-colors group-hover:bg-primary/80"
+                      style={{ height: `${(d.signedIn / maxLocks) * 100}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground/70">
+              <span>{a.locksTrend[0]?.day}</span>
+              <span>{a.locksTrend[a.locksTrend.length - 1]?.day}</span>
+            </div>
+          </div>
+
+          <div className="hud-panel p-5">
+            <span className="hud-label">signups by source</span>
+            {a.referralSources.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">No users yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {a.referralSources.slice(0, 6).map((r) => (
+                  <li key={r.code ?? 'direct'} className="flex items-baseline justify-between gap-3">
+                    <span className="truncate font-mono text-[12px]">
+                      {r.code ?? <span className="text-muted-foreground">direct / no code</span>}
+                    </span>
+                    <span className="tnum shrink-0 font-mono text-[12px] text-muted-foreground">{r.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-4 border-t border-border/60 pt-3 text-[12px] text-muted-foreground">
+              {totalReferred} via a referral code, {totalDirect} direct — this is how you tell whether a
+              specific post or affiliate link actually converted, not just whether the app got a visit.
             </p>
           </div>
         </div>
