@@ -49,11 +49,17 @@ interface LevelMarker {
 }
 
 /**
- * Level labels are computed from independent prices, so two of them can land on
- * the same pixel. Sort by position and push each one down until it clears the
- * previous — the line stays at the true price, only the text moves.
+ * Labels are computed from independent prices, so two of them can land on the
+ * same pixel — or, with real holder data, close enough together that the text
+ * overlaps even when the bars themselves are perfectly readable. Sort by
+ * position and push each one down until it clears the previous. The bar or
+ * line stays at the true price; only the text moves. Generic because this
+ * runs twice: once for the four level markers (SPOT, TRAPDOOR, CEILING, YOUR
+ * ENTRY), and once for however many shelf price labels a real token produces,
+ * which was not decluttered at all before and overlapped visibly on any token
+ * with a few closely-priced shelves.
  */
-function declutter(markers: LevelMarker[]): LevelMarker[] {
+function declutter<T extends { labelY: number }>(markers: T[]): T[] {
   const sorted = [...markers].sort((a, b) => a.labelY - b.labelY);
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
@@ -114,6 +120,13 @@ export function SupplyProfile({
 
   const { y, width } = geometry;
   const spotY = y(spotUsd);
+
+  // Same nudge-apart treatment as the level markers below, keyed by index so
+  // the render loop (which needs the original order for bar stacking and the
+  // staggered entrance delay) can look each one back up.
+  const shelfLabelY = new Map(
+    declutter(shelves.map((s, i) => ({ i, labelY: y(s.priceUsd) + 3 }))).map((s) => [s.i, s.labelY]),
+  );
 
   const markers = declutter(
     [
@@ -185,7 +198,7 @@ export function SupplyProfile({
               )}
               <text
                 x={LABEL_WIDTH - 8}
-                y={barY + 3}
+                y={shelfLabelY.get(i)}
                 textAnchor="end"
                 className="fill-muted-foreground font-mono text-[9px]"
               >
@@ -197,7 +210,7 @@ export function SupplyProfile({
               {barWidth > BAR_AREA * 0.82 ? (
                 <text
                   x={LABEL_WIDTH + barWidth - 5}
-                  y={barY + 3}
+                  y={shelfLabelY.get(i)}
                   textAnchor="end"
                   className="fill-background font-mono text-[9px] font-semibold"
                 >
@@ -206,7 +219,7 @@ export function SupplyProfile({
               ) : (
                 <text
                   x={LABEL_WIDTH + barWidth + 6}
-                  y={barY + 3}
+                  y={shelfLabelY.get(i)}
                   className="fill-muted-foreground/80 font-mono text-[9px]"
                 >
                   {formatPct(shelf.supplyFraction, 1)}

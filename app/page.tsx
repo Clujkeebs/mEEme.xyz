@@ -100,20 +100,6 @@ export default async function HomePage() {
     <div className="space-y-28 py-12">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
-        {/*
-          Ambient field. Two slow-drifting pools of the brand green sitting
-          behind the headline, so the top of the page has depth instead of
-          being type on a flat panel. Purely atmospheric, which is why it is
-          aria-hidden and stops entirely under reduced motion.
-        */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="aurora left-[-12%] top-[-28%] h-[420px] w-[520px]" />
-          <div
-            className="aurora right-[6%] top-[-14%] h-[300px] w-[360px]"
-            style={{ animationDelay: '-9s', animationDuration: '28s' }}
-          />
-        </div>
-
         <div>
         <Badge className="enter mb-5">the EE is Exit Engine</Badge>
 
@@ -124,25 +110,26 @@ export default async function HomePage() {
         </h1>
 
         <p className="enter mt-7 max-w-2xl text-[17px] leading-relaxed text-muted-foreground" style={{ '--reveal-delay': '150ms' } as React.CSSProperties}>
-          Median hold time on a Solana memecoin is about 100 seconds. Co-located bots are ahead of you
-          by 400 milliseconds, and roughly 87% of same-block snipes are already green before you have
-          seen the ticker. You are not going to out-enter them.
+          Median hold time on a Solana memecoin is about 100 seconds. Co-located bots beat you to the
+          block by 400 milliseconds. Roughly 87% of same-block snipes are already green before you have
+          even seen the ticker. You will not out-enter them, and no dashboard changes that.
         </p>
 
         <p className="enter mt-4 max-w-2xl text-[17px] leading-relaxed text-foreground/90" style={{ '--reveal-delay': '210ms' } as React.CSSProperties}>
-          But the exit is not a race. It is a decision — and it is where retail actually bleeds out.
-          Around half of pump.fun wallets finish a month down, and 96% end flat or worse. Not because
-          they picked wrong. Because they sold the 40× at 2× and held the rug to zero.
+          The exit is different. It plays out over minutes, sometimes hours, and that is a timescale a
+          person can actually work in. It is also where most people lose the trade: around half of
+          pump.fun wallets finish a month down, and 96% end flat or worse. Most of them did not pick a
+          bad coin. They rode the 40&times; back to 2&times; and then rode it the rest of the way to zero.
         </p>
 
         <p className="enter mt-7 max-w-2xl font-display text-[1.4rem] font-semibold leading-snug tracking-tight" style={{ '--reveal-delay': '270ms' } as React.CSSProperties}>
-          mEEme.xyz is the only tool built entirely for the second half of the trade.
+          mEEme.xyz only does the second half of the trade.
         </p>
 
         <div className="enter mt-9 flex flex-wrap gap-3" style={{ '--reveal-delay': '330ms' } as React.CSSProperties}>
           <Button asChild size="lg">
             <Link href="/lock">
-              <Crosshair className="h-4 w-4" /> Lock a contract — free
+              <Crosshair className="h-4 w-4" /> Lock a contract, free
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg">
@@ -204,8 +191,8 @@ export default async function HomePage() {
           the mechanic
         </h2>
         <h3 className="mt-4 max-w-3xl text-[2rem] font-bold leading-[1.12] tracking-[-0.03em] sm:text-[2.4rem]">
-          A memecoin&rsquo;s next move is not in the candles. It is in the unrealized PnL of the people
-          already holding it.
+          The candles do not show where a memecoin goes next. The unrealized PnL of everyone already
+          holding it does.
         </h3>
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
@@ -214,21 +201,21 @@ export default async function HomePage() {
             glyph={<CoiledGlyph />}
             tone="coil"
             title="Coiled supply"
-            body="Every holder cheaper than you is a coiled spring pointed at your exit — weighted by how far up they are and whether they have already started selling. A wallet up 50× is a nuclear seller. A wallet up 1.1× is inert."
+            body="Every holder cheaper than you is a spring pointed at your exit, weighted by how far up they are and whether they have already started selling. Someone up 50× can dump on you any second. Someone up 1.1× has nothing to run from."
           />
           <Pillar
             delay={80}
             glyph={<TrappedGlyph />}
             tone="trap"
             title="Trapped supply"
-            body="Every holder more expensive than you is a bag that will not sell into weakness. That is structure, not risk — and it is why a token 'can't break' a level. That level is where 8% of supply gets whole."
+            body="Every holder more expensive than you is a bag that will not sell into weakness, because there is nothing to take. That is why a level 'holds' right where 8% of supply finally gets back to breakeven."
           />
           <Pillar
             delay={160}
             glyph={<InsiderGlyph />}
             tone="warn"
             title="Insider coil"
-            body="The same math, restricted to wallets linked to the deployer by funding. Everyone can tell you insiders exist. We tell you what they paid and how much they have already dumped."
+            body="The same math, run only on wallets we can trace back to the deployer's own funding. Anyone can tell you insiders exist in a launch. We tell you what they paid, and exactly how much of it they have already sold."
           />
         </div>
 
@@ -236,10 +223,10 @@ export default async function HomePage() {
           <h4 className="hud-label mb-3">what comes out</h4>
           <p className="text-lg leading-relaxed">
             Not a score. A <span className="font-semibold text-primary">ladder</span> and a{' '}
-            <span className="font-semibold text-coil">trapdoor</span> — the exact price at which the
-            largest block of in-profit supply goes to breakeven and paper gains become a stampede.
-            That is your stop, derived from the order book&rsquo;s own structure instead of a
-            round-number rule.
+            <span className="font-semibold text-coil">trapdoor</span>: the price where the largest
+            block of in-profit supply goes to breakeven and paper gains turn into a stampede for the
+            door. That price is your stop. It comes from the order book itself, not a round number
+            someone picked because it looked clean.
           </p>
         </div>
       </Reveal>
@@ -252,15 +239,15 @@ export default async function HomePage() {
         <dl className="mt-7 grid gap-7 md:grid-cols-3">
           <Reason
             term="It is non-consensus data"
-            def="RugCheck tells you a token is risky. DexScreener tells you the price. Neither will tell you the cost basis of the people who are about to dump on you. That number is derived, and nobody sells it."
+            def="RugCheck tells you a token is risky. DexScreener tells you the price. Neither one will tell you what the people about to dump on you actually paid. That number has to be derived, and nobody else is selling it."
           />
           <Reason
-            term="Latency does not kill you"
-            def="Exit decisions play out over minutes, not milliseconds. A web app genuinely competes here. On entry it never could — which is why every entry tool is a losing fight against a bot."
+            term="Latency does not kill you here"
+            def="An exit decision plays out over minutes, not milliseconds, which is a timescale a web app can actually compete in. Entry never had that luxury. Every entry tool is fighting a bot it cannot beat."
           />
           <Reason
             term="It beats your own hands"
-            def="The edge in memecoins is asymmetry: win 15–25% of the time, make 3–10× on winners. The ladder is precommitted, so it holds runners longer and cuts losers before they become losers."
+            def="Memecoin edge is asymmetric: you win maybe 15 to 25% of the time, and make 3 to 10× on the ones that hit. A ladder set in advance holds a runner longer than you would and cuts a loser before you would."
           />
         </dl>
       </Reveal>
@@ -268,13 +255,14 @@ export default async function HomePage() {
       {/* ── Honesty ───────────────────────────────────────────────────────── */}
       <Reveal as="section" className="hud-panel lift glint border-primary/30 bg-primary/[0.05] p-8 sm:p-10">
         <h2 className="text-[1.85rem] font-bold leading-tight tracking-[-0.03em]">
-          Every call is public. Including the bad ones.
+          Every call is public. Including the ones that were wrong.
         </h2>
         <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-muted-foreground">
-          Every tool in this space claims a win rate and none of them will tell you how it was
-          measured. Ours is fixed in code, versioned in git, and applied automatically four hours
-          after each call. Calls that landed in the noise are graded neutral and excluded — not
-          quietly counted as wins. Demo reads never enter the ledger at all.
+          Every tool in this space claims a win rate. Almost none of them will show you the rule they
+          used to measure it. Ours sits in the repo, in plain code, and grades every call four hours
+          after it fires with no human touching the outcome. A call that lands in the noise gets marked
+          neutral and dropped from the average instead of being quietly counted as a win, and demo reads
+          never make it onto the ledger at all.
         </p>
         <Button asChild variant="outline" className="mt-6">
           <Link href="/track-record">
@@ -290,8 +278,9 @@ export default async function HomePage() {
           Point it at a bag you already hold.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          Three free locks a day, no account needed, ladder included. If the read is wrong you will
-          know within the hour — and so will everyone else.
+          Three free locks a day. No account, no wallet connect, ladder included in the first read.
+          If it gets the call wrong, that shows up on the ledger within the hour, same as everything
+          else.
         </p>
         <Button asChild size="lg" className="mt-6">
           <Link href="/lock">

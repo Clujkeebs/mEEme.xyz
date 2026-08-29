@@ -42,7 +42,7 @@ export default function PricingPage() {
           The read is free. The vigil is not.
         </h1>
         <p className="mt-4 text-muted-foreground">
-          Every tier gets the whole thing — verdict, reasoning, exit ladder, structural stop. Three a
+          Every tier gets the whole thing: verdict, reasoning, exit ladder, structural stop. Three a
           day, no account needed. What you pay for is the engine re-reading your positions every few
           minutes and waking you when a rung fills, a stop breaks, or the insiders start selling.
         </p>

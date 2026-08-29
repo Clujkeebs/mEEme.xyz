@@ -200,7 +200,7 @@ export function Watchtower({
     try {
       const res = await fetch(`/api/positions?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success('Position removed — no exit price recorded.');
+        toast.success('Position removed. No exit price recorded.');
         router.refresh();
       } else toast.error('Could not remove that.');
     } finally {
@@ -266,7 +266,7 @@ export function Watchtower({
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Watchtower</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             The half of mEEme that works while you are asleep. The sweep re-reads every position and
-            watched token every few minutes and alerts you on crossings — not on levels.
+            watched token every few minutes, and alerts you on crossings, not on levels.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -344,8 +344,8 @@ export function Watchtower({
               />
 
               <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
-                Anyone who signs up after following that link is credited to you. Signups alone earn
-                nothing — you earn when one of them starts paying.
+                Anyone who signs up after following that link is credited to you. A signup alone earns
+                nothing. You earn once one of them starts paying.
               </p>
 
               <Button asChild size="sm" variant="outline" className="mt-3">
@@ -661,8 +661,8 @@ export function Watchtower({
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Add to surveillance
             </Button>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              No position needed — the sweep re-reads this token every few minutes and alerts you
-              when its coil score crosses your threshold.
+              No position needed. The sweep re-reads this token every few minutes and alerts you when
+              its coil score crosses your threshold.
             </p>
           </form>
 
@@ -705,7 +705,7 @@ function PositionMark({
   if (!valuation.marked) {
     return (
       <p className="mt-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
-        Not marked yet — the sweep picks it up within 5 minutes.
+        Not marked yet. The sweep picks it up within 5 minutes.
       </p>
     );
   }

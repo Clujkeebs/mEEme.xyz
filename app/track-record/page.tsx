@@ -73,14 +73,14 @@ export default async function TrackRecordPage() {
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Every non-demo call mEEme has made, in order, with what happened next. The grading rule
           lives in <code className="rounded bg-secondary px-1">lib/scoring.ts</code> (v{SCORING_VERSION}),
-          is versioned in git, and runs automatically four hours after each call — so it cannot be
-          retuned once the results are in.
+          is versioned in git, and runs automatically four hours after each call. Nobody touches it
+          once the results are in.
         </p>
         </div>
         <ShareOnX
           text={
             stats.accuracy === null
-              ? 'mEEme publishes every call it makes — win or lose — graded automatically by a rule fixed in code beforehand.'
+              ? 'mEEme publishes every call it makes, win or lose, graded automatically by a rule fixed in code before the fact.'
               : `mEEme's public track record: ${(stats.accuracy * 100).toFixed(0)}% accuracy over ${stats.correct + stats.incorrect} graded calls. Every call published, win or lose.`
           }
           url={canonical('/track-record')}
@@ -149,7 +149,7 @@ export default async function TrackRecordPage() {
           </li>
           <li>
             <span className="text-foreground/85">ARM EXIT</span> is vindicated by the drawdown it
-            warned about, even if price later recovered — that is what a warning is for.
+            warned about, even if price later recovered. That is what a warning is for.
           </li>
           <li>
             Anything that moved less than that is <span className="text-foreground/85">neutral</span>{' '}
@@ -166,7 +166,7 @@ export default async function TrackRecordPage() {
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border/70 px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            No calls recorded yet. Run a Target Lock against a real contract and it will appear here —
+            No calls recorded yet. Run a Target Lock against a real contract and it will appear here,
             graded, win or lose.
           </p>
           <Link href="/lock" className="mt-3 inline-block text-sm text-primary underline-offset-4 hover:underline">
@@ -266,8 +266,7 @@ function SideCard({
           </p>
           {decided < 20 && (
             <p className="mt-2 text-[11px] text-warn">
-              Only {decided} graded {decided === 1 ? 'call' : 'calls'} — too few to draw a conclusion
-              from.
+              Only {decided} graded {decided === 1 ? 'call' : 'calls'}, too few to draw a conclusion from.
             </p>
           )}
         </>

@@ -219,12 +219,6 @@
   to   { transform: translateX(220%); }
 }
 
-/* The ambient field behind the hero. Very slow: felt, not watched. */
-@keyframes meeme-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
-  50%      { transform: translate3d(2%, -1.5%, 0) scale(1.06); opacity: 1; }
-}
-
 /* Terminal caret on the live-read label. */
 @keyframes meeme-caret {
   0%, 48%   { opacity: 1; }
@@ -376,15 +370,6 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
   html[data-motion='on'] .glint:not(.corner-bracket):hover::after {
     @apply opacity-100;
     animation: meeme-glint 900ms var(--ease-settle);
-  }
-
-  /* Ambient field. Sits behind the hero, drifts, never asks to be looked at. */
-  .aurora {
-    @apply pointer-events-none absolute -z-10 rounded-full blur-3xl;
-    background: radial-gradient(circle, rgba(0, 240, 160, 0.14), transparent 68%);
-  }
-  html[data-motion='on'] .aurora {
-    animation: meeme-drift 22s ease-in-out infinite;
   }
 
   .caret::after {
