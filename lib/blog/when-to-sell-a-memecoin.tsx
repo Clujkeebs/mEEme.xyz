@@ -5,7 +5,7 @@ export const post: Post = {
   slug: 'when-to-sell-a-memecoin',
   title: 'When to sell a memecoin: a decision framework, not a feeling',
   description:
-    'Most memecoin losses are exit failures, not entry failures. A structured way to decide where to sell, how much, and where to stop — before you are in the trade.',
+    'Most memecoin losses are exit failures, not entry failures. A structured way to decide where to sell, how much, and where to stop, before you are in the trade.',
   published: '2026-08-27',
   minutes: 13,
   tag: 'Exit strategy',
@@ -17,7 +17,7 @@ export const post: Post = {
         good number sold at 2x and then watched the rest happen without them.
       </P>
       <P>
-        Entry gets all the tooling because entry is legible — there is a moment, a button, a
+        Entry gets all the tooling because entry is legible. There is a moment, a button, a
         feeling of having done something. The exit is a series of small decisions made while your
         position is moving and your judgement is worst. That asymmetry, not bad picking, is where
         most of the money goes.
@@ -38,7 +38,7 @@ export const post: Post = {
           </>,
           <>
             <strong>Holding the loser to zero.</strong> The position is down 40% and selling would
-            make it real, so you wait for &ldquo;breakeven&rdquo; — a price that has no meaning to
+            make it real, so you wait for &ldquo;breakeven,&rdquo; a price that has no meaning to
             anyone but you.
           </>,
           <>
@@ -54,7 +54,7 @@ export const post: Post = {
 
       <H2 id="wrong-unit">Start by fixing the unit</H2>
       <P>
-        The default ladder — 25% at 2x, 25% at 3x, let the rest ride — is better than nothing and
+        The default ladder (25% at 2x, 25% at 3x, let the rest ride) is better than nothing and
         worse than it looks. Its problem is the unit. Your entry price is a fact about you. The
         market has never heard of it and has no reason to pause at twice it.
       </P>
@@ -89,7 +89,7 @@ export const post: Post = {
 
       <H3 id="step-2">2. Place rungs at supply shelves, not at multiples</H3>
       <P>
-        Find the price levels where meaningful blocks of holders change psychological state — where
+        Find the price levels where meaningful blocks of holders change psychological state, where
         a cluster goes from down to even, or from small green to life-changing green. Those are
         where selling pressure appears. Sell into it rather than under it.
       </P>
@@ -110,7 +110,7 @@ export const post: Post = {
       <H3 id="step-4">4. Automate the watching, not the deciding</H3>
       <P>
         The decision should be yours and it should already be made. What should not be yours is the
-        vigil — no one watches a chart for eleven hours and makes a good decision at hour eleven.
+        vigil: no one watches a chart for eleven hours and makes a good decision at hour eleven.
         Something should be checking whether your levels have been hit and telling you, so the only
         thing you have to do in the moment is execute a decision you made when you were calm.
       </P>
@@ -132,7 +132,7 @@ export const post: Post = {
       <P>
         This is why a win rate quoted with no payoff attached is a meaningless number, and why you
         should be suspicious of anyone who quotes one. Ask what the average winner and the average
-        loser were. We publish ours, including the parts that do not flatter us — the reasoning is
+        loser were. We publish ours, including the parts that do not flatter us. The reasoning is
         in{' '}
         <A href="/blog/why-we-publish-every-call">why we publish every call</A>, and the ledger
         itself is on the <A href="/track-record">track record</A>.
@@ -142,8 +142,8 @@ export const post: Post = {
       <UL
         items={[
           <>
-            <strong>Moving the stop down.</strong> If you would not enter here, you are not holding
-            — you are hoping. Moving a stop to avoid being stopped out converts a small planned
+            <strong>Moving the stop down.</strong> If you would not enter here, you are not holding,
+            you are hoping. Moving a stop to avoid being stopped out converts a small planned
             loss into an unplanned large one.
           </>,
           <>
@@ -180,7 +180,7 @@ export const post: Post = {
         that matter.
       </P>
 
-      <CTA href="/lock" label="Get a ladder and a stop — free">
+      <CTA href="/lock" label="Get a ladder and a stop, free">
         Paste a contract address. You get the verdict, the exit ladder, the structural stop and the
         reasoning behind all three.
       </CTA>

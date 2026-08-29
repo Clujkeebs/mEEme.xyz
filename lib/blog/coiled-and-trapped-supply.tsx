@@ -28,7 +28,7 @@ export const post: Post = {
         ways.
       </P>
 
-      <H3 id="coiled">Coiled supply — below spot, in profit</H3>
+      <H3 id="coiled">Coiled supply: below spot, in profit</H3>
       <P>
         Holders who bought lower than the current price. They are up, they can leave whenever they
         like, and nothing is stopping them. This is the overhang you are racing: the more of the
@@ -38,10 +38,10 @@ export const post: Post = {
       <P>
         Coiled supply is not automatically bearish. Early holders who have held through several
         drawdowns have demonstrated they are not quick sellers. But it is potential energy, and
-        when it releases it releases fast — which is where the name comes from.
+        when it releases it releases fast, which is where the name comes from.
       </P>
 
-      <H3 id="trapped">Trapped supply — above spot, underwater</H3>
+      <H3 id="trapped">Trapped supply: above spot, underwater</H3>
       <P>
         Holders who bought higher and are down. They are not choosing to hold; they are waiting to
         get out. Each cluster of them forms a ceiling, because as price climbs back toward their
@@ -62,7 +62,7 @@ export const post: Post = {
       <H2 id="reconstructing">How you get the distribution without wallet data</H2>
       <P>
         The obvious approach is to walk every holder&rsquo;s transaction history on-chain and compute
-        their actual cost basis. It is accurate, and it is expensive — thousands of wallets, each
+        their actual cost basis. It is accurate, and it is expensive: thousands of wallets, each
         needing full history, through a paid RPC provider. For a token that launched four hours ago
         with 9,000 holders, that is not a request you can make on demand.
       </P>
@@ -70,8 +70,8 @@ export const post: Post = {
         The alternative is to infer it from the traded volume profile. Every candle in a
         token&rsquo;s history has a price range and a volume, so it tells you how much was bought
         near that price. Weight each price bucket by the volume that traded there, apply a decay for
-        turnover — supply bought early gets partly resold as the token trades, so old buckets should
-        not be counted at full weight forever — and you get an estimated distribution of where the
+        turnover (supply bought early gets partly resold as the token trades, so old buckets should
+        not be counted at full weight forever), and you get an estimated distribution of where the
         float currently sits.
       </P>
       <P>
@@ -81,7 +81,7 @@ export const post: Post = {
       </P>
 
       <Aside>
-        Which is why every read states its method and its coverage — what fraction of the float it
+        Which is why every read states its method and its coverage: what fraction of the float it
         could actually price. A read covering 80% of supply and a read covering 12% are different
         objects, and collapsing them into one confident-looking score is the main way tools like
         this mislead people. See the <A href="/blog/why-we-publish-every-call">grading policy</A>{' '}
@@ -98,7 +98,7 @@ export const post: Post = {
           <>
             <strong className="text-foreground/90">Where support is real.</strong> A dense band of
             coiled supply just below spot is a level people defended by buying. Losing it means the
-            people who bought there are now underwater — the band flips from support to ceiling.
+            people who bought there are now underwater, and the band flips from support to ceiling.
           </>,
           <>
             <strong className="text-foreground/90">Whether a &ldquo;dip&rdquo; is a dip.</strong> If
@@ -115,7 +115,7 @@ export const post: Post = {
       <H2 id="insiders">Why insider supply is counted separately</H2>
       <P>
         Not all coiled supply is equal. Float held by wallets that were funded by the same source
-        shortly before launch behaves as one decision, not many — it does not trickle out, it leaves
+        shortly before launch behaves as one decision, not many. It does not trickle out; it leaves
         together. Treating a cluster like that as ordinary retail float understates the risk badly,
         so it is scored on its own rather than averaged into the crowd.
       </P>
@@ -126,7 +126,7 @@ export const post: Post = {
       </P>
 
       <CTA href="/lock" label="See the distribution">
-        Paste a contract address and mEEme will show you the supply profile — coiled below spot,
+        Paste a contract address and mEEme will show you the supply profile: coiled below spot,
         trapped above, with the coverage it was built from.
       </CTA>
     </>

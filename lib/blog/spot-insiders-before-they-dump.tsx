@@ -3,7 +3,7 @@ import type { Post } from './types';
 
 export const post: Post = {
   slug: 'how-to-tell-if-insiders-are-about-to-dump',
-  title: 'How to tell if insiders are about to dump — before they do',
+  title: 'How to tell if insiders are about to dump, before they do',
   description:
     'Bundle checkers tell you insiders exist. That is the wrong question. Here is how to read whether they have started selling, and how much room is left.',
   published: '2026-08-27',
@@ -20,7 +20,7 @@ export const post: Post = {
       <P>
         So the standard advice is: check for bundles before you buy. Run the contract through a
         rug scanner, look at the top ten holders, see whether the supply is concentrated. That
-        advice is fine and you should do it. It is also, on its own, close to useless — because it
+        advice is fine and you should do it. It is also, on its own, close to useless, because it
         answers a question that has almost no predictive power.
       </P>
 
@@ -62,8 +62,8 @@ export const post: Post = {
       </P>
       <P>
         Both wallets show up identically in a top-holder list. They are not remotely the same risk.
-        The number that separates them is reconstructed cost basis — what each holder actually
-        paid — and it is the single most informative thing you can know about a holder.
+        The number that separates them is reconstructed cost basis, what each holder actually
+        paid, and it is the single most informative thing you can know about a holder.
       </P>
 
       <H3 id="q2-realized">2. Have they already started?</H3>
@@ -73,7 +73,7 @@ export const post: Post = {
       </P>
       <P>
         A cluster that still holds 100% of what it bought is a risk. A cluster that has sold 40% of
-        what it bought is not a risk — it is an event already in progress. Distribution is not a
+        what it bought is not a risk: it is an event already in progress. Distribution is not a
         moment, it is a process, and it is visible in the balance history before it is visible in
         the candles. The wallets that sell first sell into strength, precisely because selling into
         strength is what does not move the price.
@@ -145,7 +145,7 @@ export const post: Post = {
           </>,
           <>
             <strong>It does not stop a contract-level rug.</strong> If mint authority is live or
-            the LP is unlocked, holder analysis is irrelevant — the answer is no before you get
+            the LP is unlocked, holder analysis is irrelevant. The answer is no before you get
             this far. Check the contract first; this is the layer after that one.
           </>,
           <>
@@ -170,7 +170,7 @@ export const post: Post = {
         understands and a token it does not is lying to you about one of them.
       </P>
 
-      <CTA href="/lock" label="Run a contract through it — free">
+      <CTA href="/lock" label="Run a contract through it, free">
         Paste a mint address and see the cluster, its cost basis, and how much of its bag it has
         already sold.
       </CTA>
@@ -178,7 +178,7 @@ export const post: Post = {
       <H2 id="checklist">The short version</H2>
       <UL
         items={[
-          <>Check the contract first — mint authority, freeze authority, LP lock. That gate is binary.</>,
+          <>Check the contract first: mint authority, freeze authority, LP lock. That gate is binary.</>,
           <>Do not ask whether insiders exist. They do. Ask what they paid.</>,
           <>The leading indicator is realized fraction, not concentration.</>,
           <>Rising realized fraction while price holds is the pattern that precedes the dump.</>,

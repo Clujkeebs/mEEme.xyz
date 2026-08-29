@@ -41,7 +41,7 @@ export function ManageBilling() {
 
       if (json.portalUnavailable) {
         setPortalDown(true);
-        toast.error('Billing portal unavailable — use the cancellation link instead.');
+        toast.error('Billing portal unavailable. Use the cancellation link instead.');
         return;
       }
 

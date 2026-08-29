@@ -79,7 +79,7 @@ export function SignInPanel({
       if (!result || result.error) {
         toast.error(
           mode === 'signup'
-            ? 'Account created, but sign-in failed — try signing in below.'
+            ? 'Account created, but sign-in failed. Try signing in below.'
             : 'Wrong email or password.',
         );
         if (mode === 'signup') setMode('signin');
@@ -103,12 +103,12 @@ export function SignInPanel({
             trialTier?: string;
           };
           if (redeemJson.ok) {
-            toast.success(`${promoCode.trim().toUpperCase()} applied — ${redeemJson.trialTier} unlocked, on us.`);
+            toast.success(`${promoCode.trim().toUpperCase()} applied. ${redeemJson.trialTier} unlocked, on us.`);
           } else {
             toast.error(redeemJson.error ?? 'Could not redeem that code.');
           }
         } catch {
-          toast.error('Account created, but the promo code could not be applied — try it again from Watchtower.');
+          toast.error('Account created, but the promo code could not be applied. Try it again from Watchtower.');
         } finally {
           try {
             localStorage.removeItem(PROMO_STORAGE_KEY);
@@ -197,7 +197,7 @@ export function SignInPanel({
         )}
 
         <p className="mt-6 text-xs text-muted-foreground">
-          No wallet connection, ever. mEEme reads public chain data — it never asks you to sign a
+          No wallet connection, ever. mEEme reads public chain data. It never asks you to sign a
           transaction, and it cannot move your funds.
         </p>
       </div>

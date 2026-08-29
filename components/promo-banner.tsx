@@ -103,7 +103,7 @@ function PromoBannerInner() {
         }
         setPendingCode(null);
         if (json.ok) {
-          toast.success(`${pendingCode} applied — ${json.trialTier} unlocked, on us.`);
+          toast.success(`${pendingCode} applied. ${json.trialTier} unlocked, on us.`);
           router.refresh();
         } else if (json.error && !/already used|no upgrade needed/i.test(json.error)) {
           // A code that is simply stale (expired, already redeemed) is not

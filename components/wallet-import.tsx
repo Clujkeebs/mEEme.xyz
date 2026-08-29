@@ -125,8 +125,8 @@ export function WalletImport({ available }: { available: boolean }) {
         <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
         <span>
           Paste a <strong className="text-foreground/80">public</strong> address. No wallet connection,
-          no signature, no approval — the same data any block explorer shows. mEEme cannot move your
-          funds because it is never given the ability to.
+          no signature, no approval. Just the same data any block explorer shows. mEEme cannot move
+          your funds because it is never given the ability to.
         </span>
       </p>
 
@@ -157,7 +157,7 @@ export function WalletImport({ available }: { available: boolean }) {
         <div className="mt-4">
           {entriesUnavailable && (
             <p className="mb-2 rounded border border-warn/30 bg-warn/[0.05] px-3 py-2 text-[11px] text-warn">
-              Could not reconstruct entry prices — your buys are older than the history window. Rows
+              Could not reconstruct entry prices. Your buys are older than the history window, so rows
               without an entry cannot be tracked automatically; add those by hand.
             </p>
           )}

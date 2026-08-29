@@ -3,7 +3,7 @@ import type { Post } from './types';
 
 export const post: Post = {
   slug: 'sell-25-percent-at-2x-is-arbitrary',
-  title: 'Why "sell 25% at 2x" is arbitrary — and what to use instead',
+  title: 'Why "sell 25% at 2x" is arbitrary, and what to use instead',
   description:
     'The standard memecoin exit ladder is a round number applied to a chart that has never heard of it. Here is what actually decides whether a level fills.',
   published: '2026-08-26',
@@ -37,7 +37,7 @@ export const post: Post = {
       <P>
         What the market does care about is where <em>other people</em> bought. Those are the prices
         with pending decisions attached. A trader who bought at $0.004 and watches price climb back
-        to $0.004 after a drawdown is not neutral there — they are a seller waiting to happen, and
+        to $0.004 after a drawdown is not neutral there. They are a seller waiting to happen, and
         they have been waiting the whole way up.
       </P>
       <P>
@@ -58,8 +58,8 @@ export const post: Post = {
           </>,
           <>
             <strong className="text-foreground/90">Whether that supply is above or below spot.</strong>{' '}
-            Holders underwater are trapped — they sell into strength to get out flat. Holders in
-            profit are coiled — they sell into strength to take the win. Both are supply, but they
+            Holders underwater are trapped: they sell into strength to get out flat. Holders in
+            profit are coiled: they sell into strength to take the win. Both are supply, but they
             behave on different triggers.
           </>,
           <>
@@ -72,15 +72,15 @@ export const post: Post = {
 
       <Aside>
         The vocabulary matters here because it is doing real work. <strong>Coiled supply</strong> is
-        float sitting below spot in profit — it can leave at any time and it is the overhang you are
-        racing. <strong>Trapped supply</strong> is float above spot underwater — it is the ceiling
+        float sitting below spot in profit. It can leave at any time, and it is the overhang you are
+        racing. <strong>Trapped supply</strong> is float above spot underwater: the ceiling
         you have to eat through on the way up. A full explanation is in{' '}
         <A href="/blog/coiled-and-trapped-supply">coiled and trapped supply</A>.
       </Aside>
 
       <H2 id="structural-ladder">A ladder built on structure instead of round numbers</H2>
       <P>
-        The replacement is not more complicated to execute — it is the same laddered exit. What
+        The replacement is not more complicated to execute. It is the same laddered exit. What
         changes is where the rungs go. Instead of picking multiples of your entry, you place rungs
         relative to the supply structure above you:
       </P>
@@ -99,7 +99,7 @@ export const post: Post = {
           <>
             <strong className="text-foreground/90">With a stop set where the thesis breaks</strong>,
             not at a fixed percentage. If the reason you are holding is a band of coiled supply
-            below acting as support, then losing that band is the signal — not an arbitrary
+            below acting as support, then losing that band is the signal, not an arbitrary
             &minus;40%.
           </>,
         ]}
@@ -113,7 +113,7 @@ export const post: Post = {
       <H2 id="honest-limits">Where this is harder than it sounds</H2>
       <P>
         Reading the supply structure requires knowing where holders actually bought, and that is not
-        published anywhere. It has to be reconstructed — either by walking wallets on-chain, or by
+        published anywhere. It has to be reconstructed, either by walking wallets on-chain or by
         inferring it from the traded volume profile. Both are estimates. We are explicit about which
         one produced a given read and how much of the float it covered, because a confident-looking
         number built on 12% coverage should not be treated like one built on 80%.
@@ -121,7 +121,7 @@ export const post: Post = {
       <P>
         It also does not save you from the base rate. Most memecoins go to approximately zero, and a
         better exit plan on a token that rugs is still a loss. This is about not giving back a win
-        you already had — which, going by how most positions actually end, is where the money
+        you already had, which, going by how most positions actually end, is where the money
         mostly goes.
       </P>
 
@@ -132,7 +132,7 @@ export const post: Post = {
       </Key>
 
       <CTA href="/lock" label="Read a token">
-        mEEme builds the structural ladder for you — paste a contract address and it will show the
+        mEEme builds the structural ladder for you. Paste a contract address and it will show the
         shelves, the coiled and trapped supply, and where the rungs land.
       </CTA>
     </>

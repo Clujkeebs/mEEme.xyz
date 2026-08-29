@@ -57,7 +57,7 @@ export function CookieConsent() {
                 This site uses only essential cookies.
               </span>{' '}
               They keep you signed in and remember this choice. There is no analytics, no
-              advertising, and no cross-site tracking here — so there is nothing to opt out of.
+              advertising, and no cross-site tracking here, so there is nothing to opt out of.
             </>
           )}{' '}
           <Link href="/cookies" className="text-primary underline underline-offset-4">

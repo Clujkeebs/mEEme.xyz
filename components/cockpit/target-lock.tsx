@@ -149,7 +149,7 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
 
         setResult(json);
         if (json.mode === 'demo') {
-          toast.info('Demo data — this deployment has no live market feed configured.');
+          toast.info('Demo data: this deployment has no live market feed configured.');
         }
       } catch {
         toast.error('Could not reach the engine. Try again.');
@@ -217,7 +217,7 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
           aria-controls="position-fields"
           className="mt-3 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          {showPosition ? '− Hide my position' : '+ I already hold this — read it from my entry'}
+          {showPosition ? '− Hide my position' : '+ I already hold this, read it from my entry'}
         </button>
 
         {showPosition && (
@@ -295,7 +295,7 @@ function LockResult({
       {mode === 'demo' && (
         <div className="rounded-lg border border-warn/40 bg-warn/[0.06] px-4 py-3 text-sm text-warn">
           <strong className="font-semibold">Demo data.</strong> The engine below is real and running
-          on a synthetic token. This deployment has no live market feed — see{' '}
+          on a synthetic token. This deployment has no live market feed, see{' '}
           <code className="rounded bg-black/30 px-1">/api/diagnostics</code>. Demo reads are never
           counted in the public track record.
         </div>
@@ -355,9 +355,9 @@ function LockResult({
             <p className="section-note mb-4">Where the float sits relative to spot.</p>
             <div className="grid grid-cols-2 gap-2.5">
               <Metric label="coiled" value={formatPct(coil.coiledSupply)} tone="coil"
-                hint="in profit — can sell into you" />
+                hint="in profit: can sell into you" />
               <Metric label="trapped" value={formatPct(coil.trappedSupply)} tone="trap"
-                hint="underwater — structural support" />
+                hint="underwater: structural support" />
               <Metric label="insider coil" value={formatPct(coil.insiderCoil)} tone="warn"
                 hint="held by the linked cluster" />
               <Metric label="insider sold" value={formatPct(coil.insiderRealized)} tone="warn"
@@ -524,7 +524,7 @@ function Metric({
 function ReasoningPanel({ reasoning }: { reasoning: string[] }) {
   return (
     <section className="hud-panel p-6">
-      <h3 className="section-title">Why — the evidence</h3>
+      <h3 className="section-title">Why: the evidence</h3>
       <p className="section-note mb-5">
         A tool that says sell without saying why is a coin flip with a logo.
       </p>
@@ -592,7 +592,7 @@ function InsiderTable({ wallets, spotUsd }: { wallets: InsiderWallet[]; spotUsd:
 const METHOD_COPY: Record<string, { label: string; note: string }> = {
   wallet: {
     label: 'per-wallet',
-    note: 'Cost basis reconstructed wallet by wallet. The strongest read — it sees who has already begun selling.',
+    note: 'Cost basis reconstructed wallet by wallet. The strongest read: it sees who has already begun selling.',
   },
   hybrid: {
     label: 'profile + insiders',

@@ -30,7 +30,7 @@ export function FirstRun({
       icon: Crosshair,
       title: 'Track something you hold',
       body:
-        'Tell the engine what you own and it re-reads the ladder and the stop for it every few minutes — that is the whole point of this page.',
+        'Tell the engine what you own. It re-reads the ladder and the stop for it every few minutes, which is the whole point of this page.',
       action: null,
       hint: 'Use “track a position” on the right, or import a wallet above.',
     },
@@ -67,7 +67,7 @@ export function FirstRun({
 
       <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
         The Target Lock gives you a read on demand. The Watchtower is the half that runs without
-        you — but only once it knows what to watch and where to reach you.
+        you, once it knows what to watch and where to reach you.
       </p>
 
       <ol className="mt-5 space-y-3">

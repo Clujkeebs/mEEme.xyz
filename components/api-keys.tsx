@@ -97,7 +97,7 @@ export function ApiKeys({ available, dailyLimit }: { available: boolean; dailyLi
       {justIssued && (
         <div className="rounded border border-primary/45 bg-primary/[0.07] p-3">
           <p className="mb-2 text-[11px] font-medium text-primary">
-            Copy this now — it is stored only as a hash and cannot be shown again.
+            Copy this now. It is stored only as a hash and cannot be shown again.
           </p>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded bg-background/60 px-2 py-1.5 font-mono text-[11px]">

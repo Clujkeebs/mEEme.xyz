@@ -204,7 +204,7 @@ export function PriceChart({
         style={{ height }}
       >
         <p className="max-w-xs text-sm text-muted-foreground">
-          No candles available for this token. Add a Birdeye key to turn the chart on — the engine
+          No candles available for this token. Add a Birdeye key to turn the chart on. The engine
           works without it, but the stop falls back to a default range assumption.
         </p>
       </div>

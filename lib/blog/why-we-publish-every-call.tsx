@@ -19,7 +19,7 @@ export const post: Post = {
       </P>
       <P>
         So mEEme publishes the whole ledger. Every non-demo call the engine has ever made appears on
-        the <A href="/track-record">track record</A>, in order, with what happened next — wins,
+        the <A href="/track-record">track record</A>, in order, with what happened next: wins,
         losses and the ones that went nowhere.
       </P>
 
@@ -53,7 +53,7 @@ export const post: Post = {
           </>,
           <>
             <strong className="text-foreground/90">Anything smaller</strong> is neutral and excluded
-            from accuracy entirely. Neutral calls are <em>not</em> counted as wins — the easiest way
+            from accuracy entirely. Neutral calls are <em>not</em> counted as wins. The easiest way
             to inflate an accuracy figure is to quietly bank the noise.
           </>,
         ]}
@@ -68,7 +68,7 @@ export const post: Post = {
       <H2 id="asymmetry">Why exit calls are graded asymmetrically</H2>
       <P>
         A 10% fall makes an exit call right, but it takes a 15% run to make it wrong. That gap is
-        deliberate and it is not flattering — it reflects that the two errors do not cost the same
+        deliberate and it is not flattering. It reflects that the two errors do not cost the same
         thing.
       </P>
       <P>
@@ -109,7 +109,7 @@ export const post: Post = {
       />
 
       <P>
-        None of that makes the ledger worthless — it makes it a measurement with stated limits,
+        None of that makes the ledger worthless. It makes it a measurement with stated limits,
         which is the only kind worth trusting. The alternative on offer everywhere else is a
         screenshot.
       </P>

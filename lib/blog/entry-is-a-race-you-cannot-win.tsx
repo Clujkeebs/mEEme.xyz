@@ -25,7 +25,7 @@ export const post: Post = {
 
       <Key>
         You cannot out-enter a bot. But a bot cannot decide, at 3am, whether the 40x in front of you
-        is the top. That is not a speed problem — and it is where the money is actually lost.
+        is the top. That is not a speed problem, and it is where the money is actually lost.
       </Key>
 
       <H2 id="where-money-goes">Where retail actually bleeds</H2>
@@ -53,25 +53,25 @@ export const post: Post = {
       <H2 id="why-exit-is-tractable">Why the exit is the tractable half</H2>
       <P>
         The entry is contested by adversaries who are faster than you. The exit is contested mostly
-        by yourself — and unlike latency, that is a problem you can pre-commit your way out of.
+        by yourself, and unlike latency, that is a problem you can pre-commit your way out of.
       </P>
       <P>
         It is also the half where information actually helps. At entry, everyone sees the same
         near-empty chart. By the time you are holding, the token has traded, and that trading has
-        left a record of where people bought — which means there is something real to read about who
+        left a record of where people bought. That record is something real to read about who
         still has to sell and at what price. That is the basis of{' '}
         <A href="/blog/coiled-and-trapped-supply">coiled and trapped supply</A>.
       </P>
 
       <Aside>
-        This is why mEEme has no launch feed, no sniper and no new-pair alerts. Not because those
-        are hard to build — because they compete in the half of the trade where you have no edge,
-        and their existence is what convinces people the entry is where the skill is.
+        This is why mEEme has no launch feed, no sniper and no new-pair alerts. They are not hard to
+        build; they compete in the half of the trade where you have no edge, and their existence is
+        what convinces people the entry is where the skill is.
       </Aside>
 
       <H2 id="what-changes">What a plan actually changes</H2>
       <P>
-        The value of a pre-committed exit is not that it is optimal. It usually is not — a laddered
+        The value of a pre-committed exit is not that it is optimal. It usually is not: a laddered
         exit will underperform a perfect top-tick every time, and you will always be able to look
         back and see money you left behind.
       </P>
@@ -93,7 +93,7 @@ export const post: Post = {
         Most memecoins go to approximately zero, and a disciplined exit on a token that rugs in one
         block is still a total loss. Nothing here changes the base rate, and no read of the supply
         structure catches a contract written specifically to defeat it. This is about not giving
-        back the wins you did have — which, going by how most positions end, is where the money
+        back the wins you did have, which, going by how most positions end, is where the money
         mostly goes.
       </P>
 

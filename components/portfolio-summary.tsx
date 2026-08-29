@@ -54,7 +54,7 @@ export function PortfolioSummaryPanel({ summary }: { summary: Summary }) {
           {summary.openCount === 0 ? (
             'No open positions'
           ) : summary.oldestMarkAgeMs === null ? (
-            'Awaiting first mark — the sweep runs every 5 minutes'
+            'Awaiting first mark, the sweep runs every 5 minutes'
           ) : (
             <>
               marked {markAge(summary.oldestMarkAgeMs)}

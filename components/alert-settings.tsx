@@ -178,7 +178,7 @@ export function AlertSettings({
         )}
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
           Coil crossings are held during quiet hours. A stop being hit or insiders distributing will
-          still wake you — those are the reason you are here.
+          still wake you, since those are the reason you are here.
         </p>
       </div>
     </div>

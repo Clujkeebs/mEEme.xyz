@@ -13,7 +13,7 @@ export function AffiliateDashboardView({ dashboard }: { dashboard: AffiliateDash
       <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">Your referrals</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         You earn {dashboard.commissionPct}% of what a referred subscriber pays, for 12 months from their
-        first payment. Signing up alone earns nothing — only a paying subscriber does.
+        first payment. Signing up alone earns nothing. Only a paying subscriber does.
       </p>
 
       <ReferralLink code={dashboard.code} className="hud-panel mt-6 p-4" />
