@@ -79,7 +79,7 @@ export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
               key={id}
               className={cn(
                 'hud-panel lift relative flex flex-col p-6',
-                featured && 'border-primary/45 shadow-[0_0_40px_-20px_rgba(0,224,138,0.7)]',
+                featured && 'border-primary/45 shadow-[0_20px_44px_-28px_rgba(0,224,138,0.4)]',
               )}
             >
               {featured && (

@@ -77,18 +77,23 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
     font-feature-settings: 'cv02','cv03','cv04','cv11','ss01';
-    background-image:
-      radial-gradient(ellipse 90% 55% at 50% -12%, rgba(0, 240, 160, 0.09), transparent 70%),
-      radial-gradient(ellipse 60% 40% at 88% 8%, rgba(47, 111, 237, 0.05), transparent 70%),
-      linear-gradient(rgba(124, 247, 212, 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124, 247, 212, 0.018) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 52px 52px, 52px 52px;
+    /*
+     * One quiet source of light near the top of the page, nothing else. The
+     * previous version stacked a second off-hue glow under it plus a faint
+     * graph-paper grid across the whole viewport — a grid is a technical
+     * instrument's furniture, and a page that draws one on every screen before
+     * anyone has asked to plot anything reads as a template's default, not a
+     * decision. One glow, gone by the second screen height, states the
+     * palette without turning the whole app into an instrument face.
+     */
+    background-image: radial-gradient(ellipse 70% 45% at 50% -10%, rgba(0, 240, 160, 0.07), transparent 72%);
     background-attachment: fixed;
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.022em;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
   }
 
   ::selection { background: rgba(0, 240, 160, 0.3); color: #fff; }
@@ -108,29 +113,27 @@
 
 @layer components {
   /*
-   * One panel treatment, with a light top edge so cards read as lit from above
-   * rather than as flat rectangles. The previous version gave every card the
-   * same weight, which meant nothing on the page had priority.
+   * One panel treatment: a single soft ambient shadow and a quiet top
+   * highlight, not the stacked glass-and-glow of an instrument face. Weight on
+   * a page should come from size, spacing and what a panel says — not from
+   * every card competing to look the most lit.
    */
   .hud-panel {
     @apply relative rounded-xl border border-border/70;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 34%),
-      hsl(var(--card) / 0.72);
-    backdrop-filter: blur(10px);
+    background: hsl(var(--card) / 0.78);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.055),
-      0 1px 2px rgba(0,0,0,0.35),
-      0 12px 40px -20px rgba(0,0,0,0.95);
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      0 1px 2px rgba(0,0,0,0.2),
+      0 10px 28px -18px rgba(0,0,0,0.6);
   }
 
-  /* The one card that matters on a screen. */
+  /* The one card that matters on a screen: same recipe, held a little further off the page. */
   .hud-panel-hero {
     @apply hud-panel;
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.08),
-      0 1px 3px rgba(0,0,0,0.4),
-      0 26px 70px -26px rgba(0,0,0,1);
+      inset 0 1px 0 rgba(255,255,255,0.05),
+      0 1px 2px rgba(0,0,0,0.25),
+      0 20px 48px -24px rgba(0,0,0,0.7);
   }
 
   /*
@@ -139,7 +142,7 @@
    */
   .hud-label {
     font-family: var(--font-mono);
-    @apply text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80;
+    @apply text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/85;
   }
 
   /* Section headings are headings — readable, not decorative. */
@@ -151,23 +154,32 @@
     @apply mt-0.5 text-[13px] leading-relaxed text-muted-foreground;
   }
 
+  /*
+   * Retired as a visual device — a viewfinder bracket on every panel is a
+   * targeting-HUD cliché, and stacking one on dozens of cards read as an
+   * effect applied everywhere rather than a decision made anywhere. The class
+   * stays a no-op so the ~15 components already using it keep working; the
+   * corners it used to draw are gone.
+   */
   .corner-bracket::before,
   .corner-bracket::after {
-    content: '';
-    @apply pointer-events-none absolute h-3.5 w-3.5 border-primary/40;
+    content: none;
   }
-  .corner-bracket::before { @apply left-0 top-0 rounded-tl-xl border-l border-t; }
-  .corner-bracket::after  { @apply bottom-0 right-0 rounded-br-xl border-b border-r; }
 
   .scanline {
-    @apply pointer-events-none absolute inset-x-0 h-px opacity-45;
+    @apply pointer-events-none absolute inset-x-0 h-px opacity-25;
     background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
   }
 }
 
 @layer utilities {
-  .text-glow { text-shadow: 0 0 22px rgba(0, 240, 160, 0.5); }
-  .text-glow-red { text-shadow: 0 0 22px rgba(255, 70, 60, 0.5); }
+  /*
+   * A hairline lift, not a neon sign. The glow used to be strong enough to
+   * read as backlighting; the colour itself already does the signalling, and
+   * text that glows on every occurrence of it stops meaning "look here."
+   */
+  .text-glow { text-shadow: 0 0 10px rgba(0, 240, 160, 0.22); }
+  .text-glow-red { text-shadow: 0 0 10px rgba(255, 70, 60, 0.22); }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .font-display { font-family: var(--font-display); }
@@ -217,12 +229,6 @@
 @keyframes meeme-glint {
   from { transform: translateX(-120%); }
   to   { transform: translateX(220%); }
-}
-
-/* Terminal caret on the live-read label. */
-@keyframes meeme-caret {
-  0%, 48%   { opacity: 1; }
-  49%, 100% { opacity: 0.15; }
 }
 
 @keyframes meeme-shimmer {
@@ -310,17 +316,18 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
   }
 
   /*
-   * Section eyebrow. The bracket and the accent bar replace the bare mono
-   * caption that every dark developer-tool landing page uses.
+   * Section eyebrow — an editorial kicker: a small colour tick and tracked
+   * caps above a headline, the way a magazine section label sits above its
+   * story. The tick used to carry its own neon glow, which made a caption
+   * read as a status light rather than a label.
    */
   .eyebrow {
     font-family: var(--font-mono);
-    @apply relative flex items-center gap-2.5 pl-3 text-[11px] font-medium uppercase tracking-[0.22em] text-primary;
+    @apply relative flex items-center gap-2.5 pl-3 text-[11px] font-medium uppercase tracking-[0.14em] text-primary;
   }
   .eyebrow::before {
     content: '';
-    @apply absolute left-0 top-1/2 h-3.5 w-[2px] -translate-y-1/2 rounded-full bg-primary;
-    box-shadow: 0 0 12px hsl(var(--primary) / 0.75);
+    @apply absolute left-0 top-1/2 h-3 w-[2px] -translate-y-1/2 rounded-full bg-primary/80;
   }
 
   /*
@@ -372,12 +379,16 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
     animation: meeme-glint 900ms var(--ease-settle);
   }
 
+  /*
+   * A live-read mark, not a blinking terminal cursor. It used to step
+   * on/off forever, which reads as a CLI prompt waiting for input rather than
+   * a value that is actually live — the wrong association for a number a
+   * trader is meant to trust at a glance.
+   */
   .caret::after {
     content: '';
-    @apply ml-1 inline-block h-[1em] w-[0.5ch] translate-y-[0.12em] bg-primary align-baseline;
-  }
-  html[data-motion='on'] .caret::after {
-    animation: meeme-caret 1.15s steps(1, end) infinite;
+    @apply ml-1.5 inline-block h-1.5 w-1.5 translate-y-[-0.05em] rounded-full bg-primary align-middle;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
   }
 }
 

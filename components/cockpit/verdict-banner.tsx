@@ -21,20 +21,22 @@ const ICONS: Record<Verdict, React.ComponentType<{ className?: string }>> = {
 /**
  * Each tone carries its own surface, not just a text colour. A trader glancing
  * at this mid-position should know the answer from the colour of the card
- * before a single word is read.
+ * before a single word is read. The glow is a held-off ambient shadow rather
+ * than a neon outline now — enough to tint the space around the card without
+ * turning the single most important number on the page into a light show.
  */
 const TONE = {
   apex: {
     text: 'text-primary',
     border: 'border-primary/45',
     surface: 'from-primary/[0.13] via-primary/[0.04] to-transparent',
-    glow: 'shadow-[0_0_90px_-30px_rgba(0,240,160,0.75)]',
+    glow: 'shadow-[0_24px_56px_-36px_rgba(0,240,160,0.4)]',
   },
   good: {
     text: 'text-primary',
     border: 'border-primary/35',
     surface: 'from-primary/[0.09] via-primary/[0.03] to-transparent',
-    glow: 'shadow-[0_0_80px_-34px_rgba(0,240,160,0.6)]',
+    glow: 'shadow-[0_20px_48px_-34px_rgba(0,240,160,0.3)]',
   },
   neutral: {
     text: 'text-hud',
@@ -46,13 +48,13 @@ const TONE = {
     text: 'text-warn',
     border: 'border-warn/45',
     surface: 'from-warn/[0.12] via-warn/[0.04] to-transparent',
-    glow: 'shadow-[0_0_80px_-32px_rgba(255,176,32,0.6)]',
+    glow: 'shadow-[0_20px_48px_-32px_rgba(255,176,32,0.32)]',
   },
   danger: {
     text: 'text-destructive',
     border: 'border-destructive/50',
     surface: 'from-destructive/[0.15] via-destructive/[0.05] to-transparent',
-    glow: 'shadow-[0_0_90px_-28px_rgba(255,70,60,0.75)]',
+    glow: 'shadow-[0_24px_56px_-32px_rgba(255,70,60,0.4)]',
   },
 } as const;
 
@@ -93,12 +95,12 @@ export function VerdictBanner({
       aria-label={`Verdict: ${meta.label}`}
     >
       <div className={cn('absolute inset-0 bg-gradient-to-br', tone.surface)} aria-hidden />
-      {urgent && <div className="scanline top-0 animate-sweep" aria-hidden />}
+      {urgent && <div className="scanline top-0" aria-hidden />}
 
       <div className="relative flex flex-col gap-7 p-6 sm:p-8 lg:flex-row lg:items-center lg:gap-10">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <Icon className={cn('h-5 w-5 shrink-0', tone.text, urgent && 'animate-flicker')} />
+            <Icon className={cn('h-5 w-5 shrink-0', tone.text)} />
             <span className={cn('hud-label !text-[11px]', tone.text, '!opacity-90')}>the call</span>
           </div>
 
