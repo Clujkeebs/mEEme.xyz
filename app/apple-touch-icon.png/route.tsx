@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 const size = { width: 180, height: 180 };
 
 /**
- * Same reasoning as app/favicon.ico/route.ts: iOS looks for this literal path
+ * Same reasoning as public/favicon.ico: iOS looks for this literal path
  * before it reads <link rel="apple-touch-icon">, and app/apple-icon.tsx alone
  * only serves that link's target, not this path. Same drawing as
  * app/apple-icon.tsx, served where iOS actually asks for it.
