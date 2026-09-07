@@ -21,40 +21,44 @@ const ICONS: Record<Verdict, React.ComponentType<{ className?: string }>> = {
 /**
  * Each tone carries its own surface, not just a text colour. A trader glancing
  * at this mid-position should know the answer from the colour of the card
- * before a single word is read. The glow is a held-off ambient shadow rather
- * than a neon outline now — enough to tint the space around the card without
- * turning the single most important number on the page into a light show.
+ * before a single word is read.
+ *
+ * The emphasis is a heavy rule along the top edge in the tone's own colour —
+ * the masthead device the rest of the redesign uses — rather than an ambient
+ * glow. A card that lights up the space around it is the one thing that made
+ * the old build read as a generated dashboard, and it was loudest here, on the
+ * single most important element in the product.
  */
 const TONE = {
   apex: {
     text: 'text-primary',
     border: 'border-primary/45',
-    surface: 'from-primary/[0.13] via-primary/[0.04] to-transparent',
-    glow: 'shadow-[0_24px_56px_-36px_rgba(0,240,160,0.4)]',
+    surface: 'from-primary/[0.10] via-primary/[0.03] to-transparent',
+    rule: 'border-t-2 border-t-primary',
   },
   good: {
     text: 'text-primary',
     border: 'border-primary/35',
-    surface: 'from-primary/[0.09] via-primary/[0.03] to-transparent',
-    glow: 'shadow-[0_20px_48px_-34px_rgba(0,240,160,0.3)]',
+    surface: 'from-primary/[0.07] via-primary/[0.02] to-transparent',
+    rule: 'border-t-2 border-t-primary/70',
   },
   neutral: {
     text: 'text-hud',
     border: 'border-hud/35',
-    surface: 'from-hud/[0.08] via-hud/[0.02] to-transparent',
-    glow: '',
+    surface: 'from-hud/[0.06] via-hud/[0.02] to-transparent',
+    rule: 'border-t-2 border-t-hud/60',
   },
   warn: {
     text: 'text-warn',
     border: 'border-warn/45',
-    surface: 'from-warn/[0.12] via-warn/[0.04] to-transparent',
-    glow: 'shadow-[0_20px_48px_-32px_rgba(255,176,32,0.32)]',
+    surface: 'from-warn/[0.09] via-warn/[0.03] to-transparent',
+    rule: 'border-t-2 border-t-warn',
   },
   danger: {
     text: 'text-destructive',
     border: 'border-destructive/50',
-    surface: 'from-destructive/[0.15] via-destructive/[0.05] to-transparent',
-    glow: 'shadow-[0_24px_56px_-32px_rgba(255,70,60,0.4)]',
+    surface: 'from-destructive/[0.11] via-destructive/[0.04] to-transparent',
+    rule: 'border-t-2 border-t-destructive',
   },
 } as const;
 
@@ -89,7 +93,7 @@ export function VerdictBanner({
       className={cn(
         'hud-panel-hero corner-bracket relative overflow-hidden border',
         tone.border,
-        tone.glow,
+        tone.rule,
         className,
       )}
       aria-label={`Verdict: ${meta.label}`}
@@ -106,7 +110,7 @@ export function VerdictBanner({
 
           <h2
             className={cn(
-              'mt-2.5 font-display text-[2.1rem] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[2.75rem]',
+              'mt-2.5 font-display text-[2.3rem] leading-[1.04] tracking-[-0.015em] sm:text-[3rem]',
               tone.text,
             )}
           >

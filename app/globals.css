@@ -5,295 +5,177 @@
 @layer base {
   :root {
     /*
-     * Three faces, each doing one job.
-     *
-     * Space Grotesk carries the verdicts and headings — it has enough character
-     * to give the product an identity, which a pure system stack never will.
-     * Inter carries prose because it is the most legible thing available at
-     * small sizes. JetBrains Mono carries every number, so prices and
-     * percentages align in columns and can be compared down a page.
-     *
-     * All three list real fallbacks: the fonts load from Google at runtime, and
-     * if that fails the page must still look deliberate rather than broken.
+     * Instrument Serif carries display type only — headlines, verdicts, the
+     * numbers that lead a page. IBM Plex Sans carries prose and IBM Plex Mono
+     * carries data. The serif/mono contrast is the whole identity: it reads as
+     * a market publication rather than a dashboard, and mono numerals column
+     * up so figures can be compared down a page.
      */
-    --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    --font-display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
       Consolas, 'Liberation Mono', monospace;
 
+    /* Square corners are load-bearing, not a detail. */
+    --radius: 0px;
+
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 24 10% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 24 10% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 160 84% 39%;
+    --popover-foreground: 24 10% 10%;
+    --primary: 158 72% 34%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
+    --secondary: 30 6% 95%;
+    --secondary-foreground: 24 10% 10%;
+    --muted: 30 6% 95%;
+    --muted-foreground: 25 6% 42%;
+    --accent: 30 6% 95%;
+    --accent-foreground: 24 10% 10%;
+    --destructive: 4 74% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 160 84% 39%;
-    --radius: 0.625rem;
+    --border: 25 8% 87%;
+    --input: 25 8% 87%;
+    --ring: 158 72% 34%;
   }
 
-  /* mEEme is a cockpit. Dark is the design, not a mode. */
+  /*
+   * Dark is the design, not a mode — but the ground is warm ink rather than the
+   * blue-black every crypto dashboard ships with. The hue is what stops this
+   * reading as a template before a single word is.
+   */
   .dark, :root {
-    --background: 224 39% 4%;
-    --foreground: 180 20% 95%;
-    --card: 223 32% 7%;
-    --card-foreground: 180 20% 95%;
-    --popover: 223 34% 6%;
-    --popover-foreground: 180 20% 95%;
-    --primary: 158 100% 48%;
-    --primary-foreground: 224 47% 5%;
-    --secondary: 222 24% 13%;
-    --secondary-foreground: 180 20% 95%;
-    --muted: 222 24% 12%;
+    --background: 24 6% 6%;
+    --foreground: 40 8% 92%;
+    --card: 24 5% 8%;
+    --card-foreground: 40 8% 92%;
+    --popover: 24 6% 7%;
+    --popover-foreground: 40 8% 92%;
+    /* Deepened off neon: a signal colour, not a light source. */
+    --primary: 158 68% 46%;
+    --primary-foreground: 24 10% 6%;
+    --secondary: 24 5% 13%;
+    --secondary-foreground: 40 8% 92%;
+    --muted: 24 5% 12%;
     /*
-     * Deliberately lighter than the usual muted grey. Secondary text on this
-     * app is not decorative — it is the engine's reasoning, the thing a trader
-     * reads before risking money. At 58% it was washed out and skipped.
+     * Secondary text here is the engine's reasoning — the thing read before
+     * money moves. Kept bright enough to actually be read.
      */
-    --muted-foreground: 213 18% 70%;
-    --accent: 222 24% 15%;
-    --accent-foreground: 180 20% 95%;
-    --destructive: 4 92% 62%;
+    --muted-foreground: 30 5% 66%;
+    --accent: 24 5% 15%;
+    --accent-foreground: 40 8% 92%;
+    --destructive: 4 78% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 24% 16%;
-    --input: 220 24% 18%;
-    --ring: 158 100% 48%;
+    /* Rules carry the structure now, so the border must be visible. */
+    --border: 26 6% 19%;
+    --input: 26 6% 22%;
+    --ring: 158 68% 46%;
   }
 
   * { @apply border-border; }
 
   body {
+    /* Flat ink. No radial glow, no grid, no atmosphere. */
     @apply bg-background font-sans text-foreground antialiased;
-    font-feature-settings: 'cv02','cv03','cv04','cv11','ss01';
-    /*
-     * One quiet source of light near the top of the page, nothing else. The
-     * previous version stacked a second off-hue glow under it plus a faint
-     * graph-paper grid across the whole viewport — a grid is a technical
-     * instrument's furniture, and a page that draws one on every screen before
-     * anyone has asked to plot anything reads as a template's default, not a
-     * decision. One glow, gone by the second screen height, states the
-     * palette without turning the whole app into an instrument face.
-     */
-    background-image: radial-gradient(ellipse 70% 45% at 50% -10%, rgba(0, 240, 160, 0.07), transparent 72%);
-    background-attachment: fixed;
   }
 
-  h1, h2, h3, h4 {
+  /*
+   * Serif above, sans below. Editorial typography puts the display face only
+   * where it has room to show its contrast; a 15px serif heading just looks
+   * weak, so small headings stay sans with tight tracking.
+   */
+  h1, h2 {
     font-family: var(--font-display);
-    letter-spacing: -0.025em;
-    line-height: 1.15;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    line-height: 1.06;
   }
 
-  ::selection { background: rgba(0, 240, 160, 0.3); color: #fff; }
+  h3, h4 {
+    @apply font-sans font-semibold;
+    letter-spacing: -0.012em;
+    line-height: 1.25;
+  }
+
+  ::selection { background: hsl(var(--primary) / 0.25); }
 
   /* Numbers must align down a column to be comparable. */
   .tnum { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
   ::-webkit-scrollbar-track { background: hsl(var(--background)); }
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
-    border-radius: 6px;
-    border: 2px solid hsl(var(--background));
+    border: 3px solid hsl(var(--background));
   }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(220 20% 26%); }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(26 6% 30%); }
 }
 
 @layer components {
   /*
-   * One panel treatment: a single soft ambient shadow and a quiet top
-   * highlight, not the stacked glass-and-glow of an instrument face. Weight on
-   * a page should come from size, spacing and what a panel says — not from
-   * every card competing to look the most lit.
+   * A panel is a ruled block, not a floating card. No shadow, no lift, no
+   * translucency — structure comes from the hairline and the space around it,
+   * the way a column rule works on a page. This single change is most of what
+   * separates this from a generated dashboard.
    */
   .hud-panel {
-    @apply relative rounded-xl border border-border/70;
-    background: hsl(var(--card) / 0.78);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.04),
-      0 1px 2px rgba(0,0,0,0.2),
-      0 10px 28px -18px rgba(0,0,0,0.6);
-  }
-
-  /* The one card that matters on a screen: same recipe, held a little further off the page. */
-  .hud-panel-hero {
-    @apply hud-panel;
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.05),
-      0 1px 2px rgba(0,0,0,0.25),
-      0 20px 48px -24px rgba(0,0,0,0.7);
+    @apply relative border border-border bg-card;
   }
 
   /*
-   * Reserved for genuine micro-captions above a number. It used to label every
-   * section on the page, at which point it stopped signalling anything.
+   * The one block that leads a screen. It earns emphasis from a heavier rule
+   * along its top edge — a print masthead device — rather than from elevation.
    */
+  .hud-panel-hero {
+    @apply relative border border-border bg-card;
+    border-top-width: 2px;
+    border-top-color: hsl(var(--primary));
+  }
+
+  /* Reserved for a genuine micro-caption above a number. */
   .hud-label {
     font-family: var(--font-mono);
-    @apply text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/85;
+    @apply text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground;
   }
 
   /* Section headings are headings — readable, not decorative. */
   .section-title {
-    font-family: var(--font-display);
-    @apply text-[15px] font-semibold tracking-tight text-foreground;
+    @apply font-sans text-[15px] font-semibold tracking-tight text-foreground;
   }
   .section-note {
-    @apply mt-0.5 text-[13px] leading-relaxed text-muted-foreground;
+    @apply mt-1 text-[13px] leading-relaxed text-muted-foreground;
   }
 
   /*
-   * Retired as a visual device — a viewfinder bracket on every panel is a
-   * targeting-HUD cliché, and stacking one on dozens of cards read as an
-   * effect applied everywhere rather than a decision made anywhere. The class
-   * stays a no-op so the ~15 components already using it keep working; the
-   * corners it used to draw are gone.
+   * Retired viewfinder brackets. Kept as a no-op so the components still
+   * carrying the class keep working without a sweep through every file.
    */
   .corner-bracket::before,
   .corner-bracket::after {
     content: none;
   }
 
-  .scanline {
-    @apply pointer-events-none absolute inset-x-0 h-px opacity-25;
-    background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
-  }
-}
-
-@layer utilities {
   /*
-   * A hairline lift, not a neon sign. The glow used to be strong enough to
-   * read as backlighting; the colour itself already does the signalling, and
-   * text that glows on every occurrence of it stops meaning "look here."
+   * Retired. A sweeping line across an urgent panel is HUD furniture; the
+   * verdict's own colour and rule already carry the urgency.
    */
-  .text-glow { text-shadow: 0 0 10px rgba(0, 240, 160, 0.22); }
-  .text-glow-red { text-shadow: 0 0 10px rgba(255, 70, 60, 0.22); }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  .font-display { font-family: var(--font-display); }
-}
+  .scanline {
+    display: none;
+  }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Motion.
- *
- * The rule everything here follows: motion is opt-in, and the page is correct
- * without it. A tiny script in the document head sets `data-motion="on"` on
- * <html> before first paint, and only when the visitor has not asked for
- * reduced motion. Every rule that hides something to animate it in is scoped
- * under that attribute — so with JavaScript off, or with reduced motion on,
- * nothing is ever hidden waiting for an observer that will never fire. That
- * failure mode (a "tasteful" fade-in leaving a page blank) is the one thing a
- * scroll animation must never be able to do.
- *
- * The easing is the same everywhere: a fast-out, long-settle curve. Uniform
- * timing is most of what separates an interface that feels engineered from one
- * that feels like a pile of effects.
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-:root {
-  /* Decelerate hard, settle slowly. Reads as weight rather than speed. */
-  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-snap: cubic-bezier(0.34, 1.3, 0.64, 1);
-}
-
-@keyframes meeme-rise {
-  from { opacity: 0; transform: translate3d(0, 16px, 0); }
-  to   { opacity: 1; transform: none; }
-}
-
-/* Supply bars fill from the axis outward, the way the underlying number is read. */
-@keyframes meeme-fill {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
-}
-
-/* The spot line arriving: it overhangs the bars, so it draws from the centre. */
-@keyframes meeme-draw {
-  from { transform: scaleX(0); opacity: 0; }
-  to   { transform: scaleX(1); opacity: 1; }
-}
-
-/* A highlight crossing a panel once, on hover — a glance, not a loop. */
-@keyframes meeme-glint {
-  from { transform: translateX(-120%); }
-  to   { transform: translateX(220%); }
-}
-
-@keyframes meeme-shimmer {
-  from { background-position: -180% 0; }
-  to   { background-position: 180% 0; }
-}
-
-/* ── Scroll reveal ───────────────────────────────────────────────────────── */
-
-html[data-motion='on'] [data-reveal] {
-  opacity: 0;
-  transform: translate3d(0, 16px, 0);
-}
-
-html[data-motion='on'] [data-reveal='shown'] {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 640ms var(--ease-settle),
-    transform 640ms var(--ease-settle);
-  transition-delay: var(--reveal-delay, 0ms);
-}
-
-/*
- * Bars fill from their axis rather than appearing at full length. A bar is a
- * quantity, and watching it fill is how the eye takes the quantity in.
- */
-html[data-motion='on'] .grow-bar {
-  transform-origin: left center;
-  animation: meeme-fill 820ms var(--ease-settle) both;
-  animation-delay: var(--reveal-delay, 0ms);
-}
-
-/*
- * Inside a scroll-reveal the bar must wait for its block, or it plays out
- * while still hidden and is already full by the time anyone sees it. The
- * transition is driven by the reveal state instead, so the number and its bar
- * land together.
- */
-html[data-motion='on'] [data-reveal] .grow-bar {
-  animation: none;
-  transform: scaleX(0);
-}
-html[data-motion='on'] [data-reveal='shown'] .grow-bar {
-  transform: scaleX(1);
-  transition: transform 900ms var(--ease-settle);
-  transition-delay: calc(var(--reveal-delay, 0ms) + 120ms);
-}
-
-@layer components {
   /*
    * The mark, used as punctuation.
    *
-   * A supply profile is two unequal bars split by an overhanging line, and
-   * that shape is the product's whole thesis. Reusing it as the page's
-   * structural furniture — section markers, rules, empty states — is what
-   * makes the interface belong to this product rather than to a template. It
-   * is also honest: the shape means something, so repeating it is not
-   * decoration.
+   * A supply profile is two unequal bars split by an overhanging line, and that
+   * shape is the product's whole thesis. Reusing it as structural furniture is
+   * what makes the interface belong to this product rather than to a template.
    */
   .supply-rule {
     @apply relative flex h-6 w-full items-center;
   }
   .supply-rule::before {
-    /* Held supply: unequal, weighted left, the way a real profile is. */
     content: '';
     @apply absolute left-0 h-px w-full;
     background: linear-gradient(
@@ -309,98 +191,133 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
     );
   }
   .supply-rule::after {
-    /* Spot: shorter, brighter, sitting proud of the rule. */
     content: '';
-    @apply absolute left-0 h-[2px] w-16 rounded-full;
-    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0));
+    @apply absolute left-0 h-[2px] w-16 bg-primary;
   }
 
   /*
-   * Section eyebrow — an editorial kicker: a small colour tick and tracked
-   * caps above a headline, the way a magazine section label sits above its
-   * story. The tick used to carry its own neon glow, which made a caption
-   * read as a status light rather than a label.
+   * Section kicker — a mono label over a rule, the way a broadsheet marks a
+   * section above its headline. No coloured pill, no glow.
    */
   .eyebrow {
     font-family: var(--font-mono);
-    @apply relative flex items-center gap-2.5 pl-3 text-[11px] font-medium uppercase tracking-[0.14em] text-primary;
-  }
-  .eyebrow::before {
-    content: '';
-    @apply absolute left-0 top-1/2 h-3 w-[2px] -translate-y-1/2 rounded-full bg-primary/80;
+    @apply flex items-center gap-3 border-t border-border pt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-primary;
   }
 
   /*
-   * Panels lift toward the pointer. Small numbers on purpose: 2px and a
-   * brighter edge read as responsive, 8px and a scale read as a toy.
+   * Hover is a change of edge, not a change of altitude. Nothing here moves,
+   * scales, or lights up.
    */
   .lift {
-    transition:
-      transform 260ms var(--ease-settle),
-      border-color 260ms var(--ease-settle),
-      box-shadow 260ms var(--ease-settle);
+    transition: border-color 180ms var(--ease-settle),
+      background-color 180ms var(--ease-settle);
   }
   .lift:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--primary) / 0.35);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 1px 2px rgba(0, 0, 0, 0.4),
-      0 22px 50px -26px rgba(0, 240, 160, 0.35),
-      0 18px 46px -24px rgba(0, 0, 0, 0.95);
+    border-color: hsl(var(--primary) / 0.55);
   }
 
-  /*
-   * One highlight sweeping the panel on hover. Runs once per hover, not
-   * forever.
-   *
-   * The :not() is load-bearing. `.corner-bracket` draws its two brackets with
-   * ::before and ::after, and an element can only have one of each — so on a
-   * panel carrying both classes these rules would silently replace the
-   * bottom-right bracket with a stray gradient wearing the bracket's borders.
-   * Excluding those panels degrades to no glint, which is invisible, rather
-   * than to a broken bracket, which is not.
-   */
-  .glint {
-    @apply relative overflow-hidden;
-  }
-  .glint:not(.corner-bracket)::after {
-    content: '';
-    @apply pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 opacity-0;
-    background: linear-gradient(
-      100deg,
-      transparent,
-      rgba(124, 247, 212, 0.09),
-      transparent
-    );
-  }
-  html[data-motion='on'] .glint:not(.corner-bracket):hover::after {
-    @apply opacity-100;
-    animation: meeme-glint 900ms var(--ease-settle);
-  }
+  /* Retired: a highlight sweeping a panel is decoration pretending to be feedback. */
+  .glint::after { content: none; }
 
-  /*
-   * A live-read mark, not a blinking terminal cursor. It used to step
-   * on/off forever, which reads as a CLI prompt waiting for input rather than
-   * a value that is actually live — the wrong association for a number a
-   * trader is meant to trust at a glance.
-   */
+  /* A live-read mark. A small solid dot, nothing pulsing. */
   .caret::after {
     content: '';
     @apply ml-1.5 inline-block h-1.5 w-1.5 translate-y-[-0.05em] rounded-full bg-primary align-middle;
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
   }
 }
 
 @layer utilities {
-  /* Entrance for above-the-fold content, which is on screen before any observer runs. */
+  /* Retired — no text on this site glows. Kept as no-ops for existing callers. */
+  .text-glow, .text-glow-red { text-shadow: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .font-display { font-family: var(--font-display); font-weight: 400; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Motion.
+ *
+ * Motion is opt-in and the page is correct without it. A script in the head
+ * sets data-motion="on" before first paint, and only when the visitor has not
+ * asked for reduced motion. Every rule that hides something in order to animate
+ * it in is scoped under that attribute — so with JavaScript off, or reduced
+ * motion on, nothing is ever left hidden waiting for an observer that will
+ * never fire.
+ *
+ * What survives here is only motion that carries meaning: content arriving, and
+ * a bar filling to show a quantity. Everything decorative is gone.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+@keyframes meeme-rise {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Supply bars fill from the axis outward, the way the number is read. */
+@keyframes meeme-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes meeme-draw {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes meeme-shimmer {
+  from { background-position: -180% 0; }
+  to   { background-position: 180% 0; }
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────────────────── */
+
+html[data-motion='on'] [data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+}
+
+html[data-motion='on'] [data-reveal='shown'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 520ms var(--ease-settle),
+    transform 520ms var(--ease-settle);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+html[data-motion='on'] .grow-bar {
+  transform-origin: left center;
+  animation: meeme-fill 700ms var(--ease-settle) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/*
+ * Inside a scroll-reveal the bar must wait for its block, or it plays out while
+ * still hidden and is already full by the time anyone sees it.
+ */
+html[data-motion='on'] [data-reveal] .grow-bar {
+  animation: none;
+  transform: scaleX(0);
+}
+html[data-motion='on'] [data-reveal='shown'] .grow-bar {
+  transform: scaleX(1);
+  transition: transform 760ms var(--ease-settle);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 100ms);
+}
+
+@layer utilities {
   html[data-motion='on'] .enter {
-    animation: meeme-rise 700ms var(--ease-settle) both;
+    animation: meeme-rise 560ms var(--ease-settle) both;
     animation-delay: var(--reveal-delay, 0ms);
   }
 
   html[data-motion='on'] .draw-in {
-    animation: meeme-draw 800ms var(--ease-settle) both;
+    animation: meeme-draw 680ms var(--ease-settle) both;
     animation-delay: var(--reveal-delay, 0ms);
   }
 
@@ -418,39 +335,29 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
   }
 
   /*
-   * SVG supply bars growing out of the price axis.
-   *
-   * `transform-box: fill-box` is what makes transform-origin mean "this rect's
-   * own left edge" rather than the origin of the whole SVG canvas — without it
-   * every bar scales from the top-left of the chart and the profile appears to
-   * slide in from off-canvas. Only the rects carry this, so the price labels
-   * beside them stay put while the supply fills toward them.
+   * `transform-box: fill-box` makes transform-origin mean this rect's own left
+   * edge rather than the origin of the whole SVG canvas — without it every bar
+   * scales from the top-left of the chart and the profile slides in from
+   * off-canvas.
    */
   html[data-motion='on'] .profile-bar {
     transform-box: fill-box;
     transform-origin: left center;
-    animation: meeme-fill 700ms var(--ease-settle) both;
+    animation: meeme-fill 620ms var(--ease-settle) both;
     animation-delay: var(--bar-delay, 0ms);
   }
 
-  /* Numbers changing in place should not jump the layout around them. */
   .tnum-lock { font-variant-numeric: tabular-nums; }
 }
 
 /*
  * Reduced motion.
  *
- * The cockpit leans on continuous motion — a scanline sweeping an urgent
- * verdict, pulsing glows, animated gauges. For a visitor with a vestibular
- * disorder that is not decoration, it is a symptom trigger, and WCAG 2.1
- * treats honouring this preference as a requirement rather than a nicety.
- *
- * Everything is reduced to a single near-instant step instead of being
- * removed outright: a state change still registers, so nothing that was
- * communicated by motion becomes invisible. `animation: none` on an infinite
- * sweep would be fine, but on a one-shot entrance animation it can leave an
- * element stuck at its starting opacity, which is how "accessible" versions
- * of pages end up with content nobody can see.
+ * Reduced to a single near-instant step rather than removed outright: a state
+ * change still registers, so nothing communicated by motion becomes invisible.
+ * `animation: none` on a one-shot entrance can leave an element stuck at its
+ * starting opacity, which is how "accessible" pages end up with content nobody
+ * can see.
  */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -461,28 +368,18 @@ html[data-motion='on'] [data-reveal='shown'] .grow-bar {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-
-  /* Purely decorative sweeps have nothing to communicate — drop them. */
-  .scanline {
-    display: none !important;
-  }
 }
 
 /*
- * Focus visibility.
- *
- * Interactive components define their own focus-visible ring, but links in
- * prose, table controls and anything rendered as a bare anchor did not have
- * one. A keyboard user who cannot see where focus currently sits cannot use
- * the site at all, so this is the floor rather than a refinement.
+ * Focus visibility. Interactive components define their own ring, but links in
+ * prose and bare anchors did not have one, and a keyboard user who cannot see
+ * where focus sits cannot use the site at all.
  */
 :focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
-/* The ring is drawn by :focus-visible above; avoid doubling it. */
 :focus:not(:focus-visible) {
   outline: none;
 }

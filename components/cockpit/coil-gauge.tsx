@@ -107,7 +107,7 @@ export function CoilGauge({ score, confidence, size = 168, className }: CoilGaug
           strokeLinecap="round"
           strokeDasharray={`${swept ? filled : 0} ${circumference}`}
           style={{
-            filter: `drop-shadow(0 0 6px ${color}66)`,
+            filter: 'none',
             opacity: 0.35 + 0.65 * Math.max(0, Math.min(1, confidence)),
             transition: 'stroke-dasharray 900ms cubic-bezier(0.16,1,0.3,1)',
           }}
@@ -117,8 +117,8 @@ export function CoilGauge({ score, confidence, size = 168, className }: CoilGaug
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="hud-label">coil</span>
         <span
-          className="tnum mt-0.5 text-[2.6rem] font-bold leading-none"
-          style={{ color, textShadow: `0 0 10px ${color}33` }}
+          className="tnum mt-0.5 text-[2.6rem] font-medium leading-none"
+          style={{ color }}
         >
           {clamped.toFixed(2)}
         </span>

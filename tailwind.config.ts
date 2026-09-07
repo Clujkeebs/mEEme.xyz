@@ -18,17 +18,33 @@ const config: Config = {
         destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
         card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
         popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
-        // Cockpit signal palette
-        coil: '#ff4a3d',
-        trap: '#4d8bff',
-        apex: '#00f0a0',
-        warn: '#ffb020',
-        hud: '#7cf7d4',
+        /*
+         * Signal palette. Pulled back off neon: these mark a verdict's meaning,
+         * and a set of fluorescent hexes on a dark ground is exactly the
+         * generated-crypto-dashboard look the redesign is getting rid of. Still
+         * unambiguously distinguishable from each other, which is the only job
+         * they have.
+         */
+        coil: '#dc4638',
+        trap: '#5b87d6',
+        apex: '#25c183',
+        warn: '#cf9020',
+        hud: '#8aa9a0',
       },
+      /*
+       * Every corner scale collapses to --radius (0). Overriding xl/2xl as well
+       * is what actually flattens the app: components reach for rounded-xl by
+       * habit, and leaving Tailwind's built-in 0.75rem in place would keep the
+       * soft-card look on the very panels the redesign is meant to square off.
+       * `rounded-full` is deliberately untouched — dots and avatars are circles.
+       */
       borderRadius: {
+        sm: 'var(--radius)',
+        md: 'var(--radius)',
         lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        xl: 'var(--radius)',
+        '2xl': 'var(--radius)',
+        '3xl': 'var(--radius)',
       },
       fontFamily: {
         sans: ['var(--font-sans)'],

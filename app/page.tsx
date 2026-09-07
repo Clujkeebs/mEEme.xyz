@@ -101,12 +101,19 @@ export default async function HomePage() {
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
         <div>
-        <Badge className="enter mb-5">the EE is Exit Engine</Badge>
+        <p className="eyebrow enter mb-6 max-w-[22rem]">the EE is Exit Engine</p>
 
-        <h1 className="enter text-[2.6rem] font-bold leading-[1.03] tracking-[-0.035em] sm:text-[3.5rem]" style={{ '--reveal-delay': '70ms' } as React.CSSProperties}>
+        {/*
+         * No synthetic bold: Instrument Serif ships one weight, and forcing
+         * font-bold on it smears the letterforms. Emphasis comes from the
+         * family's real italic instead of a colour swap — a green second line
+         * shouted at the same size as the first and flattened the hierarchy.
+         */}
+        <h1 className="enter text-[2.9rem] leading-[1.04] tracking-[-0.015em] sm:text-[4rem]" style={{ '--reveal-delay': '70ms' } as React.CSSProperties}>
           Every tool is built for the entry.
           <br />
-          <span className="text-primary text-glow">Entry is a race you cannot win.</span>
+          <em className="not-italic text-muted-foreground">Entry is a race </em>
+          <em className="italic">you cannot win.</em>
         </h1>
 
         <p className="enter mt-7 max-w-2xl text-[17px] leading-relaxed text-muted-foreground" style={{ '--reveal-delay': '150ms' } as React.CSSProperties}>
@@ -122,7 +129,7 @@ export default async function HomePage() {
           bad coin. They rode the 40&times; back to 2&times; and then rode it the rest of the way to zero.
         </p>
 
-        <p className="enter mt-7 max-w-2xl font-display text-[1.4rem] font-semibold leading-snug tracking-tight" style={{ '--reveal-delay': '270ms' } as React.CSSProperties}>
+        <p className="enter mt-7 max-w-2xl font-display text-[1.6rem] leading-snug" style={{ '--reveal-delay': '270ms' } as React.CSSProperties}>
           mEEme.xyz only does the second half of the trade.
         </p>
 

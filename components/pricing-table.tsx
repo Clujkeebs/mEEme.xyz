@@ -79,7 +79,10 @@ export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
               key={id}
               className={cn(
                 'hud-panel lift relative flex flex-col p-6',
-                featured && 'border-primary/45 shadow-[0_20px_44px_-28px_rgba(0,224,138,0.4)]',
+                /* The featured plan is marked by a rule along its top edge, the
+                   same masthead device the hero panel uses — not by a coloured
+                   halo bleeding out of the bottom of the card. */
+                featured && 'border-t-2 border-t-primary',
               )}
             >
               {featured && (
