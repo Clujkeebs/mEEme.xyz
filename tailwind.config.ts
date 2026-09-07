@@ -25,11 +25,11 @@ const config: Config = {
          * unambiguously distinguishable from each other, which is the only job
          * they have.
          */
-        coil: '#dc4638',
-        trap: '#5b87d6',
-        apex: '#25c183',
-        warn: '#cf9020',
-        hud: '#8aa9a0',
+        coil: '#ff4d6d',
+        trap: '#b14fff',
+        apex: '#c6ff3d',
+        warn: '#ffc24d',
+        hud: '#7de8ff',
       },
       /*
        * Every corner scale collapses to --radius (0). Overriding xl/2xl as well

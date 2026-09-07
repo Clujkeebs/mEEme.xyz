@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { HeroReadout } from '@/components/hero-readout';
 import { CoiledGlyph, InsiderGlyph, TrappedGlyph } from '@/components/brand';
 import { Reveal } from '@/components/motion';
+import { UnwindHero } from '@/components/marketing/unwind-hero';
 import { WorkedExample } from '@/components/worked-example';
 import { prisma } from '@/lib/db';
 import { withDeadline } from '@/lib/deadline';
@@ -179,6 +180,14 @@ export default async function HomePage() {
           <HeroReadout signal={example.signal} demo={example.demo} />
         </div>
       </section>
+
+      {/*
+        The sequence. Scroll is time: the distribution assembles, the price
+        climbs through it, the insider cluster ignites and drains, the structure
+        collapses. It runs on the same objects the engine reasons about, so it
+        teaches the interface rather than decorating the page.
+      */}
+      <UnwindHero />
 
       {/* ── Evidence, before any more claims ──────────────────────────────── */}
       <Reveal as="section">

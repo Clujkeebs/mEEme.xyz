@@ -11,10 +11,18 @@
      * a market publication rather than a dashboard, and mono numerals column
      * up so figures can be compared down a page.
      */
-    --font-display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
-    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system,
+    /*
+     * Bricolage Grotesque carries everything that is not a number. It is a
+     * variable family with real optical sizing, so one face covers a 64px
+     * headline and 15px body without either looking like a compromise — and
+     * almost nothing in this market uses it, which is the point. Space Mono
+     * carries the data: distinctive numerals, and wide enough that figures
+     * column up and can be compared down a page.
+     */
+    --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Bricolage Grotesque', ui-sans-serif, system-ui, -apple-system,
       BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
       Consolas, 'Liberation Mono', monospace;
 
     /* Square corners are load-bearing, not a detail. */
@@ -46,32 +54,42 @@
    * blue-black every crypto dashboard ships with. The hue is what stops this
    * reading as a template before a single word is.
    */
+  /*
+   * Deep violet ink, acid lime, magenta and coral.
+   *
+   * Green-on-near-black is the uniform of this entire category, and wearing it
+   * meant the product looked like every generated dashboard before a word was
+   * read. The ground is violet rather than black, the accent is an electric
+   * lime rather than a terminal green, and the signal colours are hot. It is
+   * loud on purpose — the sequence on the landing page is a light show, and a
+   * muted palette underneath it would just look uncertain.
+   */
   .dark, :root {
-    --background: 24 6% 6%;
-    --foreground: 40 8% 92%;
-    --card: 24 5% 8%;
-    --card-foreground: 40 8% 92%;
-    --popover: 24 6% 7%;
-    --popover-foreground: 40 8% 92%;
-    /* Deepened off neon: a signal colour, not a light source. */
-    --primary: 158 68% 46%;
-    --primary-foreground: 24 10% 6%;
-    --secondary: 24 5% 13%;
-    --secondary-foreground: 40 8% 92%;
-    --muted: 24 5% 12%;
+    --background: 265 45% 5%;
+    --foreground: 280 22% 96%;
+    --card: 265 34% 8%;
+    --card-foreground: 280 22% 96%;
+    --popover: 265 38% 7%;
+    --popover-foreground: 280 22% 96%;
+    --primary: 75 100% 62%;
+    /* Lime is bright enough that its text must be the dark ground, not white. */
+    --primary-foreground: 265 45% 7%;
+    --secondary: 265 26% 14%;
+    --secondary-foreground: 280 22% 96%;
+    --muted: 265 24% 13%;
     /*
      * Secondary text here is the engine's reasoning — the thing read before
      * money moves. Kept bright enough to actually be read.
      */
-    --muted-foreground: 30 5% 66%;
-    --accent: 24 5% 15%;
-    --accent-foreground: 40 8% 92%;
-    --destructive: 4 78% 60%;
-    --destructive-foreground: 0 0% 100%;
-    /* Rules carry the structure now, so the border must be visible. */
-    --border: 26 6% 19%;
-    --input: 26 6% 22%;
-    --ring: 158 68% 46%;
+    --muted-foreground: 275 14% 72%;
+    --accent: 276 100% 65%;
+    --accent-foreground: 265 45% 7%;
+    --destructive: 348 100% 66%;
+    --destructive-foreground: 265 45% 7%;
+    /* Rules carry the structure, so the border must stay visible. */
+    --border: 268 24% 19%;
+    --input: 268 24% 23%;
+    --ring: 75 100% 62%;
   }
 
   * { @apply border-border; }
@@ -86,17 +104,23 @@
    * where it has room to show its contrast; a 15px serif heading just looks
    * weak, so small headings stay sans with tight tracking.
    */
+  /*
+   * Bricolage is a variable family, so display sizes get real weight and a
+   * tight optical size rather than the synthetic bold that wrecked the last
+   * pass. Headlines are set heavy and tight; body stays at 400.
+   */
   h1, h2 {
     font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.015em;
-    line-height: 1.06;
+    font-weight: 800;
+    font-variation-settings: 'opsz' 48, 'wdth' 100;
+    letter-spacing: -0.032em;
+    line-height: 0.99;
   }
 
   h3, h4 {
-    @apply font-sans font-semibold;
-    letter-spacing: -0.012em;
-    line-height: 1.25;
+    @apply font-sans font-bold;
+    letter-spacing: -0.018em;
+    line-height: 1.22;
   }
 
   ::selection { background: hsl(var(--primary) / 0.25); }
