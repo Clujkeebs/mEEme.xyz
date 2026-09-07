@@ -127,6 +127,24 @@ export function UnwindHero() {
       typeof matchMedia === 'function' &&
       matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    /*
+     * Low-power devices draw every second bucket and skip particles entirely,
+     * which roughly halves the fills per frame. Measured on a 6x-throttled CPU
+     * — a fair stand-in for a cheap Android — the full-detail sequence ran at
+     * 28fps, which is visibly rough. This is the audience that matters most
+     * here: a memecoin trader is on a phone, not a workstation.
+     *
+     * Viewport width is the primary signal; hardwareConcurrency only catches
+     * genuinely weak machines at <= 2. An earlier <= 4 threshold was wrong —
+     * plenty of real laptops report exactly 4 cores, and it was silently
+     * halving detail on full desktops. Getting this wrong costs a sparser
+     * profile rather than a broken one, so it errs toward full detail.
+     */
+    const lowPower =
+      (typeof navigator !== 'undefined' && (navigator.hardwareConcurrency ?? 8) <= 2) ||
+      window.innerWidth < 760;
+    const step = lowPower ? 2 : 1;
+
     let width = 0;
     let height = 0;
     let raf = 0;
@@ -136,14 +154,78 @@ export function UnwindHero() {
        stage feel like it has mass. */
     let shown = 0;
 
+    /*
+     * Layout and the three bar gradients depend only on canvas size, so they
+     * are rebuilt on resize rather than on every frame. Allocating gradient
+     * objects sixty times a second was measurable: it held the sequence at
+     * ~47fps with every other frame dropped.
+     */
+    type Layout = {
+      padY: number;
+      axisX: number;
+      usableW: number;
+      usableH: number;
+      rowH: number;
+      barH: number;
+      lime: CanvasGradient;
+      violet: CanvasGradient;
+      coral: CanvasGradient;
+    };
+    let L: Layout | null = null;
+
+    const relayout = () => {
+      /*
+       * Wide screens split left/right: copy left, profile right. Narrow screens
+       * have no horizontal room for that, so they split top/bottom instead —
+       * the profile takes the lower half and the copy sits above it on clean
+       * ground. Both are the same idea: separate the two rather than dimming
+       * the profile behind a scrim to keep the type readable, which on mobile
+       * left the copy sitting directly on bright bars.
+       */
+      const wide = width >= 900;
+      const padY = wide ? Math.max(28, height * 0.1) : height * 0.46;
+      const axisX = wide ? width * 0.5 : Math.max(16, width * 0.06);
+      const rightPad = Math.max(20, width * 0.05);
+      const usableW = width - axisX - rightPad;
+      const usableH = wide ? height - padY * 2 : height * 0.48;
+
+      const ramp = (c: readonly number[], punch: number) => {
+        const g = ctx.createLinearGradient(axisX, 0, axisX + usableW, 0);
+        g.addColorStop(0, rgba(c, 0.95 * punch));
+        g.addColorStop(0.55, rgba(c, 0.72 * punch));
+        g.addColorStop(1, rgba(c, 0.3 * punch));
+        return g;
+      };
+
+      L = {
+        padY,
+        axisX,
+        usableW,
+        usableH,
+        rowH: usableH / BUCKETS,
+        /* Scaled by `step` so a half-detail profile stays visually dense
+           rather than combed with gaps where buckets were skipped. */
+        barH: Math.max(2, (usableH / BUCKETS) * step * 0.62),
+        lime: ramp(LIME, 1),
+        violet: ramp(VIOLET, 0.72),
+        coral: ramp(CORAL, 1),
+      };
+    };
+
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      /*
+       * Capped at 1.5 rather than 2. This canvas is a full-viewport field of
+       * soft gradient fills where the difference is not visible, and at DPR 2
+       * a 1440x900 stage is 2.6M pixels to repaint every frame.
+       */
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const rect = canvas.getBoundingClientRect();
       width = rect.width;
       height = rect.height;
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      relayout();
     };
 
     const readProgress = () => {
@@ -154,25 +236,11 @@ export function UnwindHero() {
     };
 
     const draw = (p: number) => {
+      if (!L) relayout();
+      if (!L) return;
+      const { padY, axisX, usableW, usableH, rowH, barH } = L;
+
       ctx.clearRect(0, 0, width, height);
-
-      /* Layout. The profile is drawn as horizontal bars growing right from a
-         price axis, which is how the supply panel in the app reads, so the
-         landing sequence teaches the interface.
-
-         On a wide screen the axis sits just past the midline so the profile
-         occupies the right half and the copy has the left to itself — the two
-         never fight, and no scrim is needed to keep the type legible. Narrow
-         screens have no room to split, so the profile takes the full width and
-         sits behind the copy under a scrim instead. */
-      const wide = width >= 900;
-      const padY = Math.max(28, height * 0.1);
-      const axisX = wide ? width * 0.5 : Math.max(20, width * 0.07);
-      const rightPad = Math.max(28, width * 0.05);
-      const usableW = width - axisX - rightPad;
-      const usableH = height - padY * 2;
-      const rowH = usableH / BUCKETS;
-      const barH = Math.max(2, rowH * 0.62);
 
       /* Assembly: bars fly in staggered, bottom-up. */
       const assemble = seg(p, 0, 0.26);
@@ -187,7 +255,45 @@ export function UnwindHero() {
       const ignite = seg(p, 0.5, 0.62);
       const drain = seg(p, 0.58, 0.84);
 
-      for (let i = 0; i < BUCKETS; i++) {
+      /*
+       * The bar gradients are the cached ones from relayout(). They span the
+       * full plot width, so a short bar shows only the bright head of the ramp
+       * — which reads correctly, since a short bar is a small amount of supply.
+       *
+       * The first version of this loop allocated 46 gradients and set
+       * shadowBlur 46 times per frame. Canvas shadow blur forces a separate
+       * blur rasterisation per fill; at 60fps that is roughly 2,700 blur passes
+       * a second, and it measured 24fps on a 4x-throttled CPU. There is no blur
+       * in this loop now — the bloom below does that job once.
+       */
+      const limeRamp = L.lime;
+      const violetRamp = L.violet;
+      const coralRamp = L.coral;
+
+      /*
+       * The cluster's heat: one additive bloom behind the insider band instead
+       * of a per-bar shadow. Costs a single fill.
+       */
+      if (ignite > 0) {
+        const bandTop = padY + usableH - INSIDER_TO * rowH - rowH;
+        const bandH = (INSIDER_TO - INSIDER_FROM + 2) * rowH;
+        const bloom = ctx.createRadialGradient(
+          axisX + usableW * 0.18,
+          bandTop + bandH / 2,
+          0,
+          axisX + usableW * 0.18,
+          bandTop + bandH / 2,
+          Math.max(bandH, usableW * 0.42),
+        );
+        bloom.addColorStop(0, rgba(CORAL, 0.42 * ignite));
+        bloom.addColorStop(1, rgba(CORAL, 0));
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = bloom;
+        ctx.fillRect(axisX, bandTop - bandH, usableW, bandH * 3);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      for (let i = 0; i < BUCKETS; i += step) {
         const stagger = clamp01((assemble - (i / BUCKETS) * 0.55) / 0.45);
         if (stagger <= 0) continue;
 
@@ -202,31 +308,20 @@ export function UnwindHero() {
 
         /* Coiled (in profit, free to sell) reads lime; trapped (underwater,
            the ceiling every recovery runs into) reads violet. */
-        const base = belowSpot ? LIME : VIOLET;
-        const colour = isInsider && ignite > 0 ? CORAL : base;
-        const heat = isInsider ? ignite : 0;
+        const hot = isInsider && ignite > 0;
+        const colour = hot ? CORAL : belowSpot ? LIME : VIOLET;
 
-        /* Coiled supply is the threat the sequence is about, so it is lit
-           hardest; trapped supply is inert weight and sits back. */
-        const punch = belowSpot ? 1 : 0.72;
-
-        const grad = ctx.createLinearGradient(axisX, 0, axisX + w, 0);
-        grad.addColorStop(0, rgba(colour, 0.95 * stagger * punch));
-        grad.addColorStop(0.65, rgba(colour, 0.7 * stagger * punch));
-        grad.addColorStop(1, rgba(colour, 0.28 * stagger * punch));
-
-        ctx.shadowColor = rgba(heat > 0 ? CORAL : colour, (heat > 0 ? 0.6 : 0.32) * punch);
-        ctx.shadowBlur = heat > 0 ? 30 * heat : 14;
-        ctx.fillStyle = grad;
+        ctx.globalAlpha = stagger;
+        ctx.fillStyle = hot ? coralRamp : belowSpot ? limeRamp : violetRamp;
         ctx.fillRect(axisX, y - barH / 2, w, barH);
-        ctx.shadowBlur = 0;
 
         /* Bright cap at the tip: gives each bar an edge to read against. */
-        ctx.fillStyle = rgba(colour, stagger);
+        ctx.fillStyle = rgba(colour, 1);
         ctx.fillRect(axisX + w - 2, y - barH / 2, 2, barH);
+        ctx.globalAlpha = 1;
 
         /* The cluster sheds particles as it distributes. */
-        if (heat > 0.4 && drain > 0 && drain < 1 && !reduced && Math.random() < 0.14) {
+        if (hot && ignite > 0.4 && drain > 0 && drain < 1 && !reduced && !lowPower && Math.random() < 0.12) {
           particlesRef.current.push({
             x: axisX + w,
             y,
@@ -293,12 +388,27 @@ export function UnwindHero() {
      */
     let onScreen = true;
 
+    let lastDrawn = -1;
+
     const frame = () => {
       if (!running) return;
       const target = progressRef.current;
       shown += (target - shown) * 0.12;
       if (Math.abs(target - shown) < 0.0004) shown = target;
-      if (onScreen) draw(shown);
+
+      /*
+       * Repaint only when something actually changed. Once the spring has
+       * settled and the last particle has died, a stationary reader was
+       * previously costing a full-viewport clear and ~90 fills every frame for
+       * as long as the section stayed on screen — the most expensive way
+       * possible to draw nothing new.
+       */
+      const moved = shown !== lastDrawn;
+      const busy = particlesRef.current.length > 0;
+      if (onScreen && (moved || busy)) {
+        draw(shown);
+        lastDrawn = shown;
+      }
       raf = requestAnimationFrame(frame);
     };
 
@@ -358,7 +468,8 @@ export function UnwindHero() {
       className="relative -mx-4 h-[340vh] sm:-mx-6 lg:-mx-8"
       aria-label="How the Exit Engine reads a token"
     >
-      <div className="sticky top-0 flex h-screen items-center overflow-hidden">
+      {/* Copy sits above the profile on narrow screens, centred beside it on wide. */}
+      <div className="sticky top-0 flex h-screen items-start overflow-hidden pt-24 lg:items-center lg:pt-0">
         <canvas
           ref={canvasRef}
           aria-hidden
@@ -366,13 +477,14 @@ export function UnwindHero() {
         />
 
         {/*
-          Only narrow screens need a scrim. Above 900px the canvas puts the
-          profile entirely in the right half, so the copy sits on clean ground
-          and the profile is never dimmed to protect it.
+          A soft fade where the profile meets the copy on narrow screens, so the
+          top of the plot dissolves rather than cutting off at a hard line. The
+          canvas keeps the two apart by layout, so this only has to soften a
+          seam — it is not carrying legibility.
         */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent lg:hidden"
+          className="pointer-events-none absolute inset-x-0 top-[38%] h-24 bg-gradient-to-b from-background to-transparent lg:hidden"
         />
 
         <div className="relative mx-auto w-full max-w-6xl px-6 sm:px-10">
