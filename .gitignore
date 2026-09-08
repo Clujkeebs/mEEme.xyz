@@ -12,3 +12,12 @@ prisma/dev.db*
 next-env.d.ts
 *.tsbuildinfo
 coverage/
+
+# Throwaway QA and profiling scripts. These have to sit in the project root to
+# run at all — require('playwright') resolves against the script's own location,
+# not the working directory — so they cannot live in a scratch directory while
+# in use, and `git add -A` picked two of them up before this existed.
+/qa*.js
+/probe*.js
+/shot*.js
+/perf*.js
