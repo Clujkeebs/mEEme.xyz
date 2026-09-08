@@ -15,7 +15,7 @@ import { buildDemoSnapshot } from '@/lib/providers/demo';
  * trust argument and it was growing at about one call an hour because of it.
  */
 
-const recordSignal = vi.fn(async () => ({ slug: 's' }));
+const recordSignal = vi.fn(async (): Promise<{ slug: string } | null> => ({ slug: 's' }));
 const signalFindMany = vi.fn(async () => [] as { tokenAddress: string }[]);
 let discovered: Candidate[] = [];
 let snapshots = new Map<string, TokenSnapshot>();
@@ -146,7 +146,44 @@ describe('runScan batching', () => {
     expect(res).toEqual({
       considered: 0,
       called: 0,
-      skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0 },
+      skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
     });
+  });
+});
+
+describe('runScan counts outcomes, not attempts', () => {
+  it('does not count a signal the store declined to publish', async () => {
+    /*
+     * recordSignal returns null for a NO_SIGNAL from the scanner, because a
+     * refusal to call cannot be graded and would only pad the ledger. This used
+     * to increment `called` anyway, so once the entry calls were retired — and
+     * most scanned tokens correctly became NO_SIGNAL — the job logged five
+     * calls a pass while a single row reached the database. The number was
+     * trusted, and it sent a whole investigation to the wrong place.
+     */
+    recordSignal.mockResolvedValue(null);
+    const res = await runScan();
+
+    expect(recordSignal.mock.calls.length).toBeGreaterThan(0);
+    expect(res.called).toBe(0);
+    expect(res.skipped.noVerdict).toBe(recordSignal.mock.calls.length);
+  });
+
+  it('counts a mix correctly', async () => {
+    let n = 0;
+    recordSignal.mockImplementation(async () => (n++ % 2 === 0 ? { slug: 's' } : null));
+    const res = await runScan();
+
+    const attempts = recordSignal.mock.calls.length;
+    expect(attempts).toBeGreaterThan(1);
+    expect(res.called + res.skipped.noVerdict).toBe(attempts);
+    expect(res.called).toBeGreaterThan(0);
+    expect(res.skipped.noVerdict).toBeGreaterThan(0);
+  });
+
+  it('never reports more calls than rows the store accepted', async () => {
+    const res = await runScan();
+    const accepted = (await Promise.all(recordSignal.mock.results.map((r) => r.value))).filter(Boolean).length;
+    expect(res.called).toBe(accepted);
   });
 });

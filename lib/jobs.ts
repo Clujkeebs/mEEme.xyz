@@ -353,7 +353,20 @@ const SCAN_BATCH = 12;
 export interface ScanResult {
   considered: number;
   called: number;
-  skipped: { recentlyCalled: number; noLiveData: number; tooThin: number; lowConfidence: number };
+  skipped: {
+    recentlyCalled: number;
+    noLiveData: number;
+    tooThin: number;
+    lowConfidence: number;
+    /**
+     * Read fine, but the engine declined to call it — almost always NO_SIGNAL,
+     * which the scanner does not publish. Distinct from every other entry here:
+     * those are reasons a token could not be read, this is the engine having
+     * read it and had nothing to say, which is a working outcome rather than a
+     * loss.
+     */
+    noVerdict: number;
+  };
 }
 
 /**
@@ -365,7 +378,7 @@ export async function runScan(): Promise<ScanResult> {
   const empty: ScanResult = {
     considered: 0,
     called: 0,
-    skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0 },
+    skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
   };
 
   /*
@@ -396,6 +409,7 @@ export async function runScan(): Promise<ScanResult> {
   const recentlyCalled = new Set(recent.map((r) => r.tokenAddress));
 
   let called = 0;
+  let declined = 0;
   let noLiveData = 0;
   let tooThin = 0;
   let lowConfidence = 0;
@@ -441,8 +455,24 @@ export async function runScan(): Promise<ScanResult> {
       continue;
     }
 
-    await recordSignal(signal, null);
-    called++;
+    /*
+     * Count what was persisted, not what was attempted.
+     *
+     * recordSignal declines a NO_SIGNAL from the scanner on purpose — a refusal
+     * to call cannot be graded, so publishing it would bury the ledger in rows
+     * the accuracy number has to ignore anyway. It returns null and says
+     * nothing, and this used to increment regardless.
+     *
+     * That made the metric lie in the most expensive direction. Once the entry
+     * calls were retired, most scanned tokens correctly return NO_SIGNAL, so
+     * the job reported "called: 5" every pass while one row reached the
+     * database — and a whole investigation went into the scan batching before
+     * anyone compared the log line to a row count. A counter that reports work
+     * rather than outcome is worse than no counter, because it is trusted.
+     */
+    const stored = await recordSignal(signal, null);
+    if (stored) called++;
+    else declined++;
   }
 
   return {
@@ -450,6 +480,7 @@ export async function runScan(): Promise<ScanResult> {
     called,
     skipped: {
       recentlyCalled: candidates.filter((c) => recentlyCalled.has(c.address)).length,
+      noVerdict: declined,
       noLiveData,
       tooThin,
       lowConfidence,
