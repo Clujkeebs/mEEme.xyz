@@ -12,6 +12,7 @@ import { CoilGauge } from './coil-gauge';
 import { LadderCard } from './ladder-card';
 import { SupplyProfile } from './supply-profile';
 import { NotAdvice } from '@/components/not-advice';
+import { ShareOnX } from '@/components/share-on-x';
 import { VerdictBanner } from './verdict-banner';
 import type { CoilReport, Candle, ExitLadder, HolderTag, Verdict } from '@/lib/engine/types';
 import {
@@ -411,6 +412,18 @@ function LockResult({
   const { signal, token, mode } = result;
   const coil = signal.coil;
 
+  /*
+   * The share link has to be absolute, and the origin cannot come from
+   * lib/seo's canonical() here: that reads NEXTAUTH_URL, which is server-only,
+   * so in the browser it would silently fall through to localhost:3000 and
+   * every shared read would point at the sharer's own machine.
+   *
+   * Read after mount rather than during render, so the server and the first
+   * client render agree and hydration stays clean.
+   */
+  const [origin, setOrigin] = React.useState('');
+  React.useEffect(() => setOrigin(window.location.origin), []);
+
   return (
     <div className="space-y-6">
       {mode === 'demo' && (
@@ -519,17 +532,33 @@ function LockResult({
               </Button>
             )}
             {result.shareSlug && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const url = `${window.location.origin}/signal/${result.shareSlug}`;
-                  void navigator.clipboard.writeText(url);
-                  toast.success('Exit Card link copied.');
-                }}
-              >
-                <Share2 className="h-3.5 w-3.5" /> Copy Exit Card link
-              </Button>
+              <>
+                {/*
+                  Copying a link is a step someone has to have already decided
+                  to take. This is the one that starts the decision, and the
+                  text it carries is the verdict itself rather than a plug —
+                  a read of a specific token is a thing worth posting; "check
+                  out this tool" is not.
+                */}
+                {origin && (
+                  <ShareOnX
+                    text={`$${token.symbol}: ${signal.headline}`}
+                    url={`${origin}/signal/${result.shareSlug}`}
+                    label="Share this read"
+                  />
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const url = `${window.location.origin}/signal/${result.shareSlug}`;
+                    void navigator.clipboard.writeText(url);
+                    toast.success('Exit Card link copied.');
+                  }}
+                >
+                  <Share2 className="h-3.5 w-3.5" /> Copy Exit Card link
+                </Button>
+              </>
             )}
           </div>
         </aside>
