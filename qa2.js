@@ -90,7 +90,9 @@ const log = (m) => { problems.push(m); console.log(' - ' + m); };
   // contain it. Fetched raw rather than read off the live page, because the
   // page has by then cleared its own address bar and would pass either way.
   const raw = await (await fetch('http://localhost:3000/signin/reset?token=SECRETTOKENVALUE123456789')).text();
-  if (raw.includes('SECRETTOKENVALUE123456789')) log('functional: a token in the QUERY STRING still reaches the served HTML (expected — this is why it moved to the fragment)');
+  console.log(raw.includes('SECRETTOKENVALUE123456789')
+    ? '   note: a token in the QUERY STRING would still reach the served HTML — which is why it travels in the fragment'
+    : '   note: query-string tokens no longer reach the served HTML');
   if (page.url().includes('SECRETTOKENVALUE123456789')) log('functional: reset token still in the address bar after load');
 
   await go('/signin/forgot');

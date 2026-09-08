@@ -39,7 +39,27 @@ export function ResetPasswordForm() {
    */
   const [token, setToken] = React.useState<string | null>(null);
 
+  /*
+   * The read must happen exactly once, and the ref is not belt-and-braces.
+   *
+   * This effect consumes what it reads: it takes the token out of the address
+   * bar. React StrictMode double-invokes effects in development, so the second
+   * invocation found an empty hash and overwrote a perfectly good token with
+   * '', and the form rendered its "this is not a reset link" state on every
+   * single load. Confirmed in a browser — the fragment was gone from the URL
+   * within 500ms while the form never appeared at all.
+   *
+   * Production does not double-invoke, so this would have shipped looking fine
+   * and broken the moment anything remounted the component. A destructive read
+   * needs to be guarded against running twice on its own terms, not left to
+   * depend on the render mode it happens to be under.
+   */
+  const consumed = React.useRef(false);
+
   React.useEffect(() => {
+    if (consumed.current) return;
+    consumed.current = true;
+
     const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
     // Parsed as a query string so an extra parameter added later does not break
     // it, and so encoding is handled the same way it was written.
