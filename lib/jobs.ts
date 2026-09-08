@@ -367,6 +367,11 @@ export interface ScanResult {
      */
     noVerdict: number;
   };
+  /**
+   * Coil scores of the declined reads, for telling "genuinely quiet" apart from
+   * "stacked just under the threshold". Null when nothing was declined.
+   */
+  declinedCoil: { min: number; median: number; max: number } | null;
 }
 
 /**
@@ -379,6 +384,7 @@ export async function runScan(): Promise<ScanResult> {
     considered: 0,
     called: 0,
     skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
+    declinedCoil: null,
   };
 
   /*
@@ -410,6 +416,20 @@ export async function runScan(): Promise<ScanResult> {
 
   let called = 0;
   let declined = 0;
+  /*
+   * The coil scores of the reads the engine declined to publish.
+   *
+   * Three consecutive passes have come back with nothing to call, and there are
+   * two completely different explanations: the tokens being scanned are genuinely
+   * quiet, or they are piling up just under the HOLD_THROUGH_NOISE line at 0.28
+   * and the threshold is the thing deciding. Those want opposite responses, and
+   * nothing in the logs could tell them apart.
+   *
+   * This does not change a single threshold — moving one to make the ledger grow
+   * would be manufacturing calls, which is the one thing this product cannot do.
+   * It reports the distribution so the question can be answered with evidence.
+   */
+  const declinedCoil: number[] = [];
   let noLiveData = 0;
   let tooThin = 0;
   let lowConfidence = 0;
@@ -471,8 +491,12 @@ export async function runScan(): Promise<ScanResult> {
      * rather than outcome is worse than no counter, because it is trusted.
      */
     const stored = await recordSignal(signal, null);
-    if (stored) called++;
-    else declined++;
+    if (stored) {
+      called++;
+    } else {
+      declined++;
+      declinedCoil.push(signal.coil.coilScore);
+    }
   }
 
   return {
@@ -485,5 +509,23 @@ export async function runScan(): Promise<ScanResult> {
       tooThin,
       lowConfidence,
     },
+    declinedCoil: summarizeCoil(declinedCoil),
   };
+}
+
+/**
+ * Min, median and max of a set of coil scores, rounded to three places.
+ *
+ * The median is the number that answers the question: a set of declines
+ * clustered at 0.26 says the threshold is deciding, and a set at 0.04 says the
+ * market is quiet and the engine is right to say nothing.
+ */
+export function summarizeCoil(scores: number[]): { min: number; median: number; max: number } | null {
+  if (scores.length === 0) return null;
+  const sorted = [...scores].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 0 ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2 : (sorted[mid] ?? 0);
+  const round = (v: number) => Math.round(v * 1000) / 1000;
+  return { min: round(sorted[0] ?? 0), median: round(median), max: round(sorted[sorted.length - 1] ?? 0) };
 }

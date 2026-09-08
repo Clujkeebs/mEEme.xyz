@@ -50,7 +50,7 @@ vi.mock('@/lib/providers', () => ({
   }),
 }));
 
-const { runScan } = await import('@/lib/jobs');
+const { runScan, summarizeCoil } = await import('@/lib/jobs');
 
 /** A candidate the engine will happily call: deep enough, confident enough. */
 function candidate(i: number): Candidate {
@@ -147,6 +147,7 @@ describe('runScan batching', () => {
       considered: 0,
       called: 0,
       skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
+      declinedCoil: null,
     });
   });
 });
@@ -185,5 +186,36 @@ describe('runScan counts outcomes, not attempts', () => {
     const res = await runScan();
     const accepted = (await Promise.all(recordSignal.mock.results.map((r) => r.value))).filter(Boolean).length;
     expect(res.called).toBe(accepted);
+  });
+});
+
+describe('summarizeCoil', () => {
+  it('reports nothing when nothing was declined', () => {
+    expect(summarizeCoil([])).toBeNull();
+  });
+
+  it('distinguishes a quiet market from a threshold that is deciding', () => {
+    // The whole point of the field. These two sets have the same count and
+    // want opposite responses.
+    const quiet = summarizeCoil([0.01, 0.03, 0.04, 0.05, 0.07])!;
+    const stacked = summarizeCoil([0.24, 0.26, 0.27, 0.275, 0.279])!;
+    expect(quiet.median).toBeLessThan(0.1);
+    expect(stacked.median).toBeGreaterThan(0.25);
+    expect(stacked.max).toBeLessThan(0.28);
+  });
+
+  it('takes the middle of an even-length set rather than one side of it', () => {
+    expect(summarizeCoil([0.1, 0.2, 0.3, 0.4])!.median).toBeCloseTo(0.25, 6);
+  });
+
+  it('does not care what order the scores arrived in', () => {
+    const a = summarizeCoil([0.3, 0.1, 0.2]);
+    const b = summarizeCoil([0.1, 0.2, 0.3]);
+    expect(a).toEqual(b);
+    expect(a).toEqual({ min: 0.1, median: 0.2, max: 0.3 });
+  });
+
+  it('handles a single decline', () => {
+    expect(summarizeCoil([0.123456])).toEqual({ min: 0.123, median: 0.123, max: 0.123 });
   });
 });
