@@ -341,6 +341,14 @@ export async function runScore(): Promise<ScoreResult> {
 
 /** Do not re-call the same token more often than this. */
 const RESCAN_COOLDOWN_MS = 6 * 60 * 60_000;
+/**
+ * How many candidates to rank before choosing a batch. Deliberately much larger
+ * than SCAN_BATCH: the surplus is what the scanner falls through to while its
+ * best names are inside the rescan cooldown.
+ */
+const SCAN_POOL = 60;
+/** How many to actually call in one pass. This is the cost of a pass. */
+const SCAN_BATCH = 12;
 
 export interface ScanResult {
   considered: number;
@@ -360,7 +368,23 @@ export async function runScan(): Promise<ScanResult> {
     skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0 },
   };
 
-  const candidates = await discoverCandidates(12);
+  /*
+   * Ask for a deep pool and take the batch *after* the cooldown filter, not
+   * before it.
+   *
+   * The scanner used to request exactly the twelve it intended to call, then
+   * drop whichever were inside the six-hour rescan cooldown. Since discovery
+   * ranks by churn and the ranking is stable between passes, that meant the
+   * first pass called the top twelve and the next twelve passes — six hours of
+   * them, every thirty minutes — found the same twelve on cooldown and did
+   * nothing at all, while candidates ranked thirteenth and below sat there
+   * unused. The public ledger is the whole trust argument and it was
+   * accumulating at roughly one call an hour for that reason.
+   *
+   * The batch size below is unchanged, so a pass costs exactly what it did
+   * before. What changes is that a pass now has something to spend it on.
+   */
+  const candidates = await discoverCandidates(SCAN_POOL);
   if (candidates.length === 0) return empty;
 
   const since = new Date(Date.now() - RESCAN_COOLDOWN_MS);
@@ -376,11 +400,12 @@ export async function runScan(): Promise<ScanResult> {
   let tooThin = 0;
   let lowConfidence = 0;
 
-  // Skip the already-called ones before spending a fetch on them, then fetch
-  // the rest concurrently — 12 candidates sequentially is only a few seconds,
-  // but there is no reason for this job to behave differently from sweep and
-  // score, and consistency here is one less shape to remember.
-  const toFetch = candidates.filter((c) => !recentlyCalled.has(c.address));
+  // Skip the already-called ones before spending a fetch on them, take a batch
+  // of what is left, then fetch those concurrently — a batch sequentially is
+  // only a few seconds, but there is no reason for this job to behave
+  // differently from sweep and score, and consistency here is one less shape to
+  // remember.
+  const toFetch = candidates.filter((c) => !recentlyCalled.has(c.address)).slice(0, SCAN_BATCH);
   const fetchResults = await mapWithConcurrency(
     toFetch,
     SNAPSHOT_FETCH_CONCURRENCY,

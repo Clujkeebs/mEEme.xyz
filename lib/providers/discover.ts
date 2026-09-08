@@ -135,15 +135,29 @@ async function fromSearch(query: string): Promise<Candidate[]> {
  * supply structure actually decides the outcome, and where the engine has
  * something to say that a chart does not.
  */
+/*
+ * More than one query, because one query is one page.
+ *
+ * DexScreener's search returns a bounded page, so a single term gave a small
+ * pool whose churn ranking barely moved between passes — the scanner saw
+ * substantially the same names every thirty minutes and, with a six-hour
+ * rescan cooldown, had nothing new to call for most of the day.
+ *
+ * These surface genuinely different populations rather than reshuffling one:
+ * a Solana memecoin is quoted against SOL or against USDC, rarely both with the
+ * same depth, so the two searches overlap far less than they look like they
+ * should.
+ */
+const SEARCH_TERMS = ['SOL', 'USDC'] as const;
+
 export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
-  const [boosted, searched] = await Promise.all([
+  const [boosted, ...searches] = await Promise.all([
     fromBoosts(),
-    // "SOL" matches the quote side of essentially every Solana memecoin pair.
-    fromSearch('SOL'),
+    ...SEARCH_TERMS.map((term) => fromSearch(term)),
   ]);
 
   const byAddress = new Map<string, Candidate>();
-  for (const c of searched) {
+  for (const c of searches.flat()) {
     const existing = byAddress.get(c.address);
     if (!existing || c.liquidityUsd > existing.liquidityUsd) byAddress.set(c.address, c);
   }
