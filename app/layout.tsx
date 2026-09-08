@@ -222,7 +222,7 @@ function SiteFooter() {
             href={X_PROFILE_URL}
             rel="me noopener noreferrer"
             target="_blank"
-            className="inline-flex items-center gap-2 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+            className="-my-1.5 inline-flex items-center gap-2 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 fill-current">
               <path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.65l-5.21-6.82-5.97 6.82H1.68l7.73-8.84L1.25 2.25h6.82l4.71 6.23 5.46-6.23Zm-1.16 17.52h1.83L7.01 4.13H5.05l12.03 15.64Z" />

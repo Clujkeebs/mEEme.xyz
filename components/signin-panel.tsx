@@ -138,31 +138,52 @@ export function SignInPanel({
         </p>
 
         <form onSubmit={submit} className="mt-8 space-y-3 text-left">
-          <Input
-            type="email"
-            placeholder="you@example.com"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={busy}
-          />
-          <Input
-            type="password"
-            placeholder={mode === 'signup' ? 'Password (min. 8 characters)' : 'Password'}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-          />
-          {mode === 'signup' && (
+          {/* Real labels, matching the rest of the app. A placeholder is not a
+              label — it disappears the moment someone types, leaving no way to
+              tell the fields apart, and assistive technology treats it as a
+              hint rather than a name. This is the form the whole funnel passes
+              through, so it is the last place to be clever about it. */}
+          <div>
+            <label className="hud-label mb-1 block" htmlFor="signin-email">
+              email
+            </label>
             <Input
-              placeholder="Promo code (optional)"
-              autoComplete="off"
-              className="font-mono text-xs uppercase"
-              value={promoCode}
-              onChange={(e) => handlePromoChange(e.target.value)}
+              id="signin-email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
             />
+          </div>
+          <div>
+            <label className="hud-label mb-1 block" htmlFor="signin-password">
+              password{mode === 'signup' ? ' (min. 8 characters)' : ''}
+            </label>
+            <Input
+              id="signin-password"
+              type="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={busy}
+            />
+          </div>
+          {mode === 'signup' && (
+            <div>
+              <label className="hud-label mb-1 block" htmlFor="signin-promo">
+                promo code (optional)
+              </label>
+              <Input
+                id="signin-promo"
+                autoComplete="off"
+                className="font-mono text-xs uppercase"
+                value={promoCode}
+                onChange={(e) => handlePromoChange(e.target.value)}
+                disabled={busy}
+              />
+            </div>
           )}
           <Button type="submit" className="w-full" size="lg" disabled={busy}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

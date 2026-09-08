@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 import { toast } from 'sonner';
@@ -8,11 +9,38 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { passwordProblem } from '@/lib/password-rules';
 
-export function ResetPasswordForm({ token }: { token: string }) {
+export function ResetPasswordForm() {
   const router = useRouter();
   const [password, setPassword] = React.useState('');
   const [confirm, setConfirm] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+
+  /*
+   * The token is read from the address bar rather than handed down as a prop.
+   *
+   * A prop crossing into a client component is serialized into the RSC payload,
+   * which put the token in the page source in plain text — the first version of
+   * this did exactly that while carrying a comment claiming it did not.
+   *
+   * Reading it here and then replacing the history entry gets it out of the
+   * address bar too, which is worth more than it sounds: it keeps the token off
+   * screenshots and out of a shoulder-surfer's view, and stops it travelling in
+   * a Referer header. replaceState rather than pushState, so Back does not
+   * return to a URL that no longer works.
+   *
+   * `null` means not read yet and `''` means read and absent, which is the
+   * difference between "still deciding what to show" and "this link is not a
+   * reset link" — collapsing them flashes the error state on every load.
+   */
+  const [token, setToken] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const found = new URLSearchParams(window.location.search).get('token') ?? '';
+    setToken(found);
+    if (found) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   // Checked here for a fast answer and again on the server, which is the one
   // that counts — this only saves a round trip.
@@ -20,9 +48,29 @@ export function ResetPasswordForm({ token }: { token: string }) {
   const mismatch = confirm.length > 0 && confirm !== password;
   const ready = password.length > 0 && !problem && !mismatch && confirm.length > 0;
 
+  // Nothing to render until the address bar has been read.
+  if (token === null) return <div className="mt-6 h-40" aria-hidden="true" />;
+
+  if (token === '') {
+    return (
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        This page needs the link from your reset email.{' '}
+        <Link href="/signin/forgot" className="text-primary underline-offset-4 hover:underline">
+          Request a new one
+        </Link>
+        .
+      </p>
+    );
+  }
+
   return (
+    <>
+    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+      Choose something at least 8 characters. Setting it signs out every other session on this
+      account.
+    </p>
     <form
-      className="space-y-3"
+      className="mt-6 space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
         if (!ready) return;
@@ -94,5 +142,6 @@ export function ResetPasswordForm({ token }: { token: string }) {
         Set password
       </Button>
     </form>
+    </>
   );
 }

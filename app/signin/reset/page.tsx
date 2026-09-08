@@ -11,41 +11,31 @@ export const metadata: Metadata = {
 };
 
 /*
- * The token arrives in the query string, which is how a link in an email can
- * carry it at all. It is read here and posted from the client — it is never
- * rendered into the page, so it does not end up in a screenshot, and the page
- * is noindex so it cannot end up in a search result either.
+ * The token is deliberately NOT read here.
+ *
+ * The first version of this page took it from searchParams and passed it to the
+ * form as a prop, with a comment claiming it was never rendered into the page.
+ * That was simply false, and a QA check caught it: a prop crossing into a client
+ * component is serialized into the RSC payload, so the token was sitting in the
+ * page source in plain text.
+ *
+ * It is read from the address bar on the client instead, and scrubbed from the
+ * bar immediately after — see ResetPasswordForm. The URL is the one place the
+ * token has to travel, because that is the only thing an email link can carry;
+ * everywhere after that is a place it does not need to be.
+ *
+ * The page is also noindex, so it cannot end up in a search result.
  */
-export default function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: { token?: string };
-}) {
-  const token = typeof searchParams.token === 'string' ? searchParams.token : '';
-
+export default function ResetPasswordPage() {
   return (
     <div className="mx-auto max-w-md py-12">
       <h1 className="text-2xl font-bold tracking-tight">Set a new password</h1>
-
-      {token ? (
-        <>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Choose something at least 8 characters. Setting it signs out every other session on this
-            account.
-          </p>
-          <div className="mt-6">
-            <ResetPasswordForm token={token} />
-          </div>
-        </>
-      ) : (
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          This page needs the link from your reset email.{' '}
-          <Link href="/signin/forgot" className="text-primary underline-offset-4 hover:underline">
-            Request a new one
-          </Link>
-          .
-        </p>
-      )}
+      <ResetPasswordForm />
+      <p className="mt-6 text-sm text-muted-foreground">
+        <Link href="/signin" className="text-primary underline-offset-4 hover:underline">
+          Back to sign in
+        </Link>
+      </p>
     </div>
   );
 }

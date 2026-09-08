@@ -280,6 +280,16 @@ export default async function HomePage() {
           neutral and dropped from the average instead of being quietly counted as a win, and demo reads
           never make it onto the ledger at all.
         </p>
+        <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-muted-foreground">
+          {/* The strongest thing on this page, and it was only on the track
+              record. A tool that published evidence against itself and then
+              acted on it is a different claim from one that publishes a number. */}
+          That ledger is also why the engine stopped making entry calls. Split by what a call told
+          you to do, the exit side graded 72% and the entry side graded 21% across 225 of them — so
+          the entry side was retired rather than tuned, and every one of those losses is still
+          published and still counted in the headline. The engine reads who still has to sell. It
+          turned out to have nothing to say about who wants to buy, so it stopped saying it.
+        </p>
         <Button asChild variant="outline" className="mt-6">
           <Link href="/track-record">
             Read the ledger <ArrowRight className="h-4 w-4" />
