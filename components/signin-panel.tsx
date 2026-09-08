@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { Loader2 } from 'lucide-react';
@@ -169,14 +170,26 @@ export function SignInPanel({
           </Button>
         </form>
 
-        <button
-          type="button"
-          className="-mx-1 mt-2 px-1 py-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
-          onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
-          disabled={busy}
-        >
-          {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
-        </button>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4">
+          <button
+            type="button"
+            className="-mx-1 px-1 py-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
+            onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
+            disabled={busy}
+          >
+            {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
+          </button>
+          {/* Only on the sign-in side: offering "forgot your password" to
+              someone creating an account is noise. */}
+          {mode !== 'signup' && (
+            <Link
+              href="/signin/forgot"
+              className="-mx-1 px-1 py-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Forgot your password?
+            </Link>
+          )}
+        </div>
 
         {googleEnabled && (
           <>

@@ -2,13 +2,16 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { hashIp, jsonError, jsonOk } from '@/lib/api';
 import { databaseConfigured, prisma } from '@/lib/db';
+import { passwordProblem } from '@/lib/password-rules';
 import { rateLimit } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
 
 const schema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(8).max(200),
+  // Bounded loosely here and judged by passwordProblem below, so the caller
+  // gets the specific reason rather than one message covering every rejection.
+  password: z.string().min(1).max(500),
   name: z.string().trim().max(100).optional(),
 });
 
@@ -26,9 +29,13 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return jsonError('Enter a valid email and a password of at least 8 characters.', 400);
+    return jsonError('Enter a valid email address and a password.', 400);
   }
   const { email, password, name } = parsed.data;
+
+  // lib/password-rules is the single definition, shared with the reset flow.
+  const problem = passwordProblem(password);
+  if (problem) return jsonError(problem, 400);
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {

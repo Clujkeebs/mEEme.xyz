@@ -58,7 +58,7 @@ export const TIERS: Record<Tier, TierSpec> = {
       '15 positions tracked — the engine watches their ladders for you',
       '15 tokens under live surveillance',
       'Exit alerts: rung filled, stop hit, insiders distributing',
-      'Coil-crossing alerts while you are asleep',
+      'Coil-crossing alerts on every token you watch',
     ],
   },
   APEX: {

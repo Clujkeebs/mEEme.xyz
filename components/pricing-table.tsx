@@ -21,7 +21,14 @@ import { cn } from '@/lib/utils';
  * static and the one personalised bit resolves on the client, where the
  * session provider is already mounted for the header.
  */
-export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
+export function PricingTable({
+  paymentsLive,
+  pushLive,
+}: {
+  paymentsLive: boolean;
+  /** Whether this deployment can push an alert at a phone or an inbox at all. */
+  pushLive: boolean;
+}) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const signedIn = status === 'authenticated';
@@ -65,6 +72,24 @@ export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
           Payments are not configured on this deployment, so upgrade buttons are inert. Set{' '}
           <code className="rounded bg-black/30 px-1">STRIPE_SECRET_KEY</code> and the price IDs to turn
           them on.
+        </p>
+      )}
+
+      {/*
+        The paid tiers sell the engine watching a position while you are not.
+        On a deployment with no Telegram or email keys that still happens and
+        the alert is still written — but it waits in the Watchtower instead of
+        reaching a phone, and someone about to pay $9.99 for "we wake you"
+        deserves to know which of those they are buying before they pay, not
+        after the first stop breaks at 3am.
+      */}
+      {!pushLive && (
+        <p className="mx-auto mt-8 max-w-2xl border-l-2 border-l-warn bg-warn/[0.06] px-4 py-3 text-sm leading-relaxed text-warn">
+          <span className="font-semibold">Alerts land in your Watchtower right now, not on your phone.</span>{' '}
+          The engine still watches your positions and still writes every alert — a rung filling, a stop
+          breaking, insiders starting to sell — and it is waiting when you open the app. Telegram and
+          email push are built and switch on the moment this deployment has channel keys. Until then,
+          buy this for the tracking, not for the buzz in your pocket.
         </p>
       )}
 

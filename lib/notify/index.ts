@@ -95,6 +95,17 @@ export interface DeliveryOutcome {
   held?: boolean;
 }
 
+/**
+ * True when this deployment has any way of pushing an alert at a user at all.
+ *
+ * Distinct from "the user has one connected": if the deployment has no keys,
+ * no amount of retrying will ever deliver, and treating that as a transient
+ * failure burns the retry budget on every alert until each one is abandoned.
+ */
+export function pushConfigured(): boolean {
+  return telegramConfigured() || emailConfigured();
+}
+
 /** Send one alert through every channel the user has enabled. */
 export async function deliverAlert(alert: DeliverableAlert): Promise<DeliveryOutcome> {
   const user = await prisma.user.findUnique({
@@ -133,13 +144,38 @@ export async function deliverAlert(alert: DeliverableAlert): Promise<DeliveryOut
     else errors.push(`email: ${res.error}`);
   }
 
+  return resolveOutcome(channels, errors);
+}
+
+/**
+ * Turn the results of the push attempts into a delivery outcome.
+ *
+ * Pure, and separated from deliverAlert so the retry decision — the part that
+ * was wrong — can be tested without a database.
+ */
+export function resolveOutcome(channels: string[], errors: string[]): DeliveryOutcome {
   if (channels.length > 0) return { delivered: true, channels };
 
-  return {
-    delivered: false,
-    channels: [],
-    error: errors.length > 0 ? errors.join('; ') : 'no delivery channel is configured or connected',
-  };
+  // A push channel the user turned on and that then failed is a real failure:
+  // the network blipped, the token was revoked, they blocked the bot. Retry it.
+  if (errors.length > 0) return { delivered: false, channels: [], error: errors.join('; ') };
+
+  /*
+   * Nothing failed — there was simply nowhere to push to, because the
+   * deployment has no channel keys or this user has connected none.
+   *
+   * The alert is not lost: it is a row the Watchtower reads back, and that is
+   * a real destination, so it is recorded as delivered there. Marking it failed
+   * instead was the bug — every alert burned four retries against a channel
+   * that could not exist, then sat permanently abandoned at the attempt cap, so
+   * a deployment that later added a key would still never send its backlog.
+   *
+   * This does not make the in-app inbox equal to a push, and the product must
+   * not claim it is: a stop breaking at 3am is worth knowing in seconds, not on
+   * your next visit. What it does is stop the app treating an alert that had
+   * nowhere to go as one that broke on the way.
+   */
+  return { delivered: true, channels: ['inapp'] };
 }
 
 /**

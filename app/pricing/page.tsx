@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { PricingTable } from '@/components/pricing-table';
 import { PromoRedeemForm } from '@/components/promo-redeem-form';
+import { pushConfigured } from '@/lib/notify';
 import { stripeConfigured } from '@/lib/stripe';
 import { breadcrumbSchema, canonicalMetadata, jsonLdGraph, softwareApplicationSchema } from '@/lib/seo';
 import { TIERS } from '@/lib/tiers';
@@ -48,7 +49,7 @@ export default function PricingPage() {
         </p>
       </header>
 
-      <PricingTable paymentsLive={stripeConfigured()} />
+      <PricingTable paymentsLive={stripeConfigured()} pushLive={pushConfigured()} />
 
       <div className="mt-8 flex justify-center">
         <PromoRedeemForm signedInOnly />

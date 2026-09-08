@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isQuietNow } from '../index';
+import { isQuietNow, resolveOutcome } from '../index';
 import { escapeHtml } from '../telegram';
 
 const at = (hourUtc: number): Date => new Date(Date.UTC(2026, 0, 1, hourUtc, 30));
@@ -52,5 +52,46 @@ describe('escapeHtml', () => {
 
   it('leaves ordinary text alone', () => {
     expect(escapeHtml('WIF coil crossed 0.68')).toBe('WIF coil crossed 0.68');
+  });
+});
+
+describe('resolveOutcome', () => {
+  it('reports the channels that accepted the alert', () => {
+    expect(resolveOutcome(['telegram', 'email'], [])).toEqual({
+      delivered: true,
+      channels: ['telegram', 'email'],
+    });
+  });
+
+  it('keeps a partial success rather than retrying the whole alert', () => {
+    // Retrying would re-send to the channel that already worked.
+    const out = resolveOutcome(['telegram'], ['email: 500 from provider']);
+    expect(out.delivered).toBe(true);
+    expect(out.channels).toEqual(['telegram']);
+  });
+
+  it('retries a push channel that was enabled and then failed', () => {
+    const out = resolveOutcome([], ['telegram: bot was blocked by the user']);
+    expect(out.delivered).toBe(false);
+    expect(out.error).toContain('blocked');
+  });
+
+  it('records an alert with nowhere to push as delivered in-app', () => {
+    // The bug this replaces: with no channel keys set, every alert burned four
+    // retries against a channel that could not exist and was then abandoned at
+    // the attempt cap — so adding a key later would not send the backlog.
+    expect(resolveOutcome([], [])).toEqual({ delivered: true, channels: ['inapp'] });
+  });
+
+  it('never reports delivered with no channel at all', () => {
+    for (const [channels, errors] of [
+      [[], []],
+      [[], ['x: failed']],
+      [['email'], []],
+    ] as [string[], string[]][]) {
+      const out = resolveOutcome(channels, errors);
+      if (out.delivered) expect(out.channels.length).toBeGreaterThan(0);
+      else expect(out.channels).toEqual([]);
+    }
   });
 });

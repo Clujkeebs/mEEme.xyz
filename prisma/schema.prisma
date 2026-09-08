@@ -78,6 +78,7 @@ model User {
   usage     UsageDay[]
   alerts    Alert[]
   apiKeys   ApiKey[]
+  passwordResets PasswordResetToken[]
 
   affiliateReferral AffiliateReferral?
 
@@ -120,6 +121,28 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+/// A single-use password reset grant.
+///
+/// Accounts here are email + password, with no email-link sign-in, so before
+/// this existed a forgotten password was a permanently lost account and the
+/// only recovery was to ask the operator to edit the database.
+///
+/// The row stores the SHA-256 of the token, never the token. A database read
+/// should not hand the reader a working reset link for every pending request.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  /// Set the moment it is redeemed. A reset link works exactly once.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 // ——— trading ———

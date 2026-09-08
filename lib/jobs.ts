@@ -131,6 +131,29 @@ export async function runSweep(): Promise<SweepResult> {
       });
       const ladder = signal.ladder;
 
+      /*
+       * The levels this position was last measured against, captured before
+       * the mark below overwrites them.
+       *
+       * These are the whole basis for alerting, and reading them was the bug.
+       * The sweep used to compare the new price against a ladder it had just
+       * rebuilt from that same new price — and every level in a ladder is
+       * derived from spot. resolveHardStop returns spot * (1 - band) with band
+       * at least 0.15, so `price <= hardStop` reduced to `1 <= 0.85` and the
+       * STOP_HIT alert, the single most important thing the paid tiers sell,
+       * could not fire at all. The rung check had the mirror of the same
+       * problem: on an urgent verdict rung one sits exactly at spot, so it
+       * matched on every pass forever, and on every other verdict all rungs sit
+       * above spot, so it never matched.
+       *
+       * A crossing is a comparison between two moments. The previous mark is
+       * the other moment — it is the plan the trader was actually shown, and
+       * these columns were already being written for the dashboard.
+       */
+      const priorStopUsd = position.markStopUsd;
+      const priorRungUsd = position.markNextRungUsd;
+      const priorRungFraction = position.markNextRungFraction;
+
       // Persist what this pass already worked out, whether or not it alerts.
       // Without this the dashboard can only show what the bag cost; with it,
       // and at no extra upstream cost, it can show what the bag is worth and
@@ -151,20 +174,23 @@ export async function runSweep(): Promise<SweepResult> {
 
       if (!ladder) continue;
 
-      if (snapshot.priceUsd <= ladder.hardStopUsd) {
+      // No prior mark means this is the position's first sweep. Nothing has
+      // crossed anything yet — there was no level to cross.
+      if (priorStopUsd !== null && snapshot.priceUsd <= priorStopUsd) {
         if (
           await createAlertOnce(position.userId, position.id, address, snapshot.symbol, 'STOP_HIT',
-            `Hard stop hit at $${snapshot.priceUsd.toPrecision(3)}. ${ladder.stopNote}`, snapshot.priceUsd)
+            `Hard stop hit. Price is $${snapshot.priceUsd.toPrecision(3)}, through the $${priorStopUsd.toPrecision(3)} stop. ${ladder.stopNote}`,
+            snapshot.priceUsd)
         ) alertsFired++;
         // A broken stop supersedes everything else this token could say.
         continue;
       }
 
-      const filledRung = ladder.rungs.find((r) => snapshot.priceUsd >= r.priceUsd);
-      if (filledRung) {
+      if (priorRungUsd !== null && snapshot.priceUsd >= priorRungUsd) {
+        const share = priorRungFraction !== null ? `${(priorRungFraction * 100).toFixed(0)}% rung` : 'A rung';
         if (
           await createAlertOnce(position.userId, position.id, address, snapshot.symbol, 'RUNG_HIT',
-            `${(filledRung.fraction * 100).toFixed(0)}% rung filled at $${filledRung.priceUsd.toPrecision(3)}. ${filledRung.rationale}`,
+            `${share} filled at $${priorRungUsd.toPrecision(3)}. Price is $${snapshot.priceUsd.toPrecision(3)}.`,
             snapshot.priceUsd)
         ) alertsFired++;
       }
