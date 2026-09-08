@@ -139,13 +139,13 @@ const fmtUsd = (v: number): string =>
 function RungCost({ exec }: { exec: RungExecutionSummary }) {
   const heavy = exec.costPct >= 0.05;
   return (
-    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted-foreground/80">
+    <p className="mt-2 flex flex-col gap-y-0.5 font-mono text-[11px] text-muted-foreground/80 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
       <span className="tnum">{fmtUsd(exec.grossUsd)} gross</span>
-      <span aria-hidden="true">·</span>
+      <span aria-hidden="true" className="hidden sm:inline">·</span>
       <span className={cn('tnum', heavy && 'text-warn')}>
         −{fmtUsd(exec.costUsd)} to fees and impact ({(exec.costPct * 100).toFixed(1)}%)
       </span>
-      <span aria-hidden="true">·</span>
+      <span aria-hidden="true" className="hidden sm:inline">·</span>
       <span className="tnum text-foreground/70">{fmtUsd(exec.netUsd)} lands</span>
       {exec.clips > 1 && (
         <span className="inline-flex items-center gap-1 text-hud">
@@ -180,8 +180,12 @@ function ExecutionPanel({ execution }: { execution: LadderExecutionSummary }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
             <span className="hud-label">what it costs to get out</span>
+            {/* Marked to spot, not to what they paid. Someone 10x up has a
+                position ten times the size of their entry, and every cost
+                below is a function of what it is worth now — labelling this
+                "position" alone read as "what you put in". */}
             <span className="tnum text-[13px] text-muted-foreground">
-              position <span className="text-foreground">{fmtUsd(execution.positionUsd)}</span>
+              worth now <span className="text-foreground">{fmtUsd(execution.positionUsd)}</span>
             </span>
             <span className="tnum text-[13px] text-muted-foreground">
               exit costs <span className={cn('font-semibold', tone)}>{(execution.exitCostPct * 100).toFixed(1)}%</span>
