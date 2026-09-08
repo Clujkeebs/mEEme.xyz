@@ -41,6 +41,15 @@ export async function GET(request: Request) {
   let mode: 'live' | 'demo' = 'live';
   if (!snapshot) {
     const result = await buildSnapshot(address);
+
+    // A bot pointed at an address nobody trades must get a 404 it can branch
+    // on, not a fabricated verdict it will act on. This is the same fix as the
+    // browser route, and it matters more here: there is no human reading a
+    // caption to notice the numbers are invented.
+    if (result.mode === 'unknown' || !result.snapshot) {
+      return jsonError('No market data for that address.', 404);
+    }
+
     snapshot = result.snapshot;
     mode = result.mode;
     if (mode === 'live') await writeCachedSnapshot(snapshot);

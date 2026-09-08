@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { getViewer } from '@/lib/auth';
-import { ANON_DAILY_LOCKS, consumeAnonLock, hashIp, jsonError, jsonOk } from '@/lib/api';
+import { ANON_DAILY_LOCKS, consumeAnonLock, hashIp, jsonError, jsonOk, refundAnonLock } from '@/lib/api';
 import { readCachedSnapshot, writeCachedSnapshot } from '@/lib/cache';
 import { runAlphaEngine } from '@/lib/engine';
 import type { UserPosition } from '@/lib/engine/types';
 import { buildSnapshot, isPlausibleSolanaAddress } from '@/lib/providers';
-import { consumeLock } from '@/lib/quota';
+import { consumeLock, refundLock } from '@/lib/quota';
 import { recordSignal } from '@/lib/signal-store';
 import { TIERS } from '@/lib/tiers';
 
@@ -59,6 +59,9 @@ export async function POST(request: Request) {
 
   // ── Quota ────────────────────────────────────────────────────────────────
   let quotaPayload: Record<string, unknown>;
+  // Held so a read that turns out to be unproducible can be refunded to
+  // whichever meter was charged for it.
+  let refund: (() => Promise<void>) | null = null;
 
   if (viewer) {
     const { allowed, quota } = await consumeLock(viewer.id, viewer.tier);
@@ -69,6 +72,7 @@ export async function POST(request: Request) {
         { quota: { ...quota, remaining: 0 }, upgrade: true },
       );
     }
+    refund = () => refundLock(viewer.id);
     quotaPayload = {
       used: quota.used,
       limit: quota.unlimited ? null : quota.limit,
@@ -84,6 +88,8 @@ export async function POST(request: Request) {
         { quota: anon, signIn: true },
       );
     }
+    const ipHash = hashIp(request);
+    refund = () => refundAnonLock(ipHash);
     quotaPayload = { used: anon.used, limit: anon.limit, remaining: anon.remaining, anonymous: true };
   }
 
@@ -98,6 +104,28 @@ export async function POST(request: Request) {
 
   if (!snapshot) {
     const result = await buildSnapshot(address);
+
+    /*
+     * No provider could price this address. Almost always a mistyped or
+     * wrong-chain contract — by far the most likely mistake a first-time
+     * visitor makes — and the honest answer is to say so.
+     *
+     * This used to come back as a synthetic snapshot: a complete, confident,
+     * entirely invented read of a token that does not exist, captioned with a
+     * toast claiming the deployment had no market feed. The read is refused
+     * now, and the lock it cost is given back, because a visitor's first
+     * interaction should not be a typo silently costing them a third of their
+     * free allowance.
+     */
+    if (result.mode === 'unknown' || !result.snapshot) {
+      if (refund) await refund();
+      return jsonError(
+        'No market data for that address. Check the contract — it may be mistyped, on another chain, or not trading yet.',
+        404,
+        { missing: result.missing },
+      );
+    }
+
     snapshot = result.snapshot;
     mode = result.mode;
     sources = result.sources;

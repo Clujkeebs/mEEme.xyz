@@ -90,3 +90,22 @@ export function cronAuthorized(request: Request): boolean {
   const header = request.headers.get('authorization') ?? '';
   return header === `Bearer ${secret}`;
 }
+
+/** The anonymous counterpart of refundLock. Same reasoning, same failure mode. */
+export async function refundAnonLock(ipHash: string, now: Date = new Date()): Promise<void> {
+  if (!databaseConfigured()) return;
+  const day = utcDay(now);
+  try {
+    const row = await prisma.anonUsage.findUnique({
+      where: { ipHash_day: { ipHash, day } },
+      select: { locks: true },
+    });
+    if (!row || row.locks <= 0) return;
+    await prisma.anonUsage.update({
+      where: { ipHash_day: { ipHash, day } },
+      data: { locks: { decrement: 1 } },
+    });
+  } catch (err) {
+    console.warn('[quota] anonymous refund failed:', err instanceof Error ? err.message : err);
+  }
+}

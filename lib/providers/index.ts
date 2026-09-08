@@ -18,10 +18,18 @@ export { buildDemoSnapshot, demoScenarioFor } from './demo';
  * degrades its own confidence from that — the UI never has to guess.
  */
 
-export type DataMode = 'live' | 'demo';
+/**
+ * 'demo' means this deployment has no market feed and is showing the product
+ * against invented data on purpose. It does not mean "we could not find this
+ * particular token" — that is 'unknown', and conflating the two is how a typo
+ * in a contract address used to come back as a confident analysis of a coin
+ * that does not exist.
+ */
+export type DataMode = 'live' | 'demo' | 'unknown';
 
 export interface SnapshotResult {
-  snapshot: TokenSnapshot;
+  /** Null exactly when mode is 'unknown' — no provider could price this token. */
+  snapshot: TokenSnapshot | null;
   mode: DataMode;
   /** Providers that answered. */
   sources: string[];
@@ -75,15 +83,21 @@ export async function buildSnapshot(
   if (rugcheck) sources.push('rugcheck');
   else missing.push('rugcheck');
 
-  // Without a price there is no snapshot worth building. Fall back to demo so
-  // the product still demonstrates itself rather than showing an error page.
+  /*
+   * No market data for this address. This used to return a demo snapshot, and
+   * that was the most dangerous line in the app: the most likely mistake a new
+   * visitor makes is mistyping or pasting the wrong contract address, and the
+   * answer they got back was a complete, confident, fabricated read — verdict,
+   * coil score, exit ladder and all — for a token that does not exist. The only
+   * hint was a toast reading "this deployment has no live market feed", which
+   * is not even true here; the feed is fine, the token is not.
+   *
+   * A synthetic snapshot is a legitimate thing to show when a deployment has no
+   * keys at all, which is the demoModeForced branch above. It is not a
+   * legitimate answer to "what does this token look like".
+   */
   if (!market) {
-    return {
-      snapshot: buildDemoSnapshot(tokenAddress, nowMs),
-      mode: 'demo',
-      sources: ['demo'],
-      missing,
-    };
+    return { snapshot: null, mode: 'unknown', sources, missing };
   }
 
   const decimals = rugcheck?.decimals ?? 6;

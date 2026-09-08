@@ -86,9 +86,9 @@ export async function runSweep(): Promise<SweepResult> {
   for (let i = 0; i < addressList.length; i++) {
     const address = addressList[i] as string;
     const result = results[i];
-    // A failed fetch or synthetic fallback must never fire a real alert into
-    // someone's dashboard.
-    if (!result || result.mode === 'demo') continue;
+    // A failed fetch, a synthetic fallback, or a token no provider could price
+    // must never fire a real alert into someone's dashboard.
+    if (!result || result.mode !== 'live' || !result.snapshot) continue;
 
     const snapshot = result.snapshot;
     await writeCachedSnapshot(snapshot);
@@ -285,10 +285,10 @@ export async function runScore(): Promise<ScoreResult> {
 
   for (let i = 0; i < uniqueAddresses.length; i++) {
     const result = fetchResults[i];
-    // No live price, or the fetch failed outright — we cannot grade this
-    // honestly either way, so the token is simply absent from the map and
-    // every signal for it falls through to "still pending" below.
-    if (!result || result.mode === 'demo') continue;
+    // No live price, an unpriceable token, or the fetch failed outright — we
+    // cannot grade this honestly either way, so the token is simply absent from
+    // the map and every signal for it falls through to "still pending" below.
+    if (!result || result.mode !== 'live' || !result.snapshot) continue;
     snapshotByToken.set(uniqueAddresses[i] as string, result.snapshot);
   }
 
@@ -394,7 +394,7 @@ export async function runScan(): Promise<ScanResult> {
 
   for (let i = 0; i < toFetch.length; i++) {
     const result = fetchResults[i];
-    if (!result || result.mode === 'demo') {
+    if (!result || result.mode !== 'live' || !result.snapshot) {
       noLiveData++;
       continue;
     }

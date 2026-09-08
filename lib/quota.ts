@@ -110,3 +110,34 @@ export async function consumeLock(userId: string, tier: Tier, now: Date = new Da
     },
   };
 }
+
+/**
+ * Give a lock back.
+ *
+ * A read that could not be produced is not a read the user spent anything on.
+ * Without this, a mistyped contract address costs a free-tier visitor one of
+ * their three daily locks and returns nothing — which is the worst possible
+ * trade to offer someone in their first minute with the product.
+ *
+ * Floors at zero rather than trusting the caller to refund exactly once: an
+ * over-refund would hand out free quota, which is a worse failure than
+ * occasionally under-counting a day that had none to give back.
+ */
+export async function refundLock(userId: string, now: Date = new Date()): Promise<void> {
+  const day = utcDay(now);
+  try {
+    const row = await prisma.usageDay.findUnique({
+      where: { userId_day: { userId, day } },
+      select: { locks: true },
+    });
+    if (!row || row.locks <= 0) return;
+    await prisma.usageDay.update({
+      where: { userId_day: { userId, day } },
+      data: { locks: { decrement: 1 } },
+    });
+  } catch (err) {
+    // A refund that fails costs the user one lock. Taking the whole request
+    // down over it would cost them the answer as well.
+    console.warn('[quota] refund failed:', err instanceof Error ? err.message : err);
+  }
+}

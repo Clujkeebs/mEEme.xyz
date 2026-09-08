@@ -83,7 +83,7 @@ async function exampleSignal(): Promise<{ signal: Awaited<ReturnType<typeof runA
       });
       if (recent) {
         const result = await withDeadline(buildSnapshot(recent.tokenAddress), EXAMPLE_DEADLINE_MS);
-        if (result && result.mode === 'live') {
+        if (result && result.mode === 'live' && result.snapshot) {
           return { signal: runAlphaEngine(result.snapshot), demo: false };
         }
       }
