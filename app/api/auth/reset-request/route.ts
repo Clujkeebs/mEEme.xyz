@@ -90,7 +90,21 @@ export async function POST(request: Request) {
       },
     });
 
-    const link = `${appUrl()}/signin/reset?token=${encodeURIComponent(token)}`;
+    /*
+     * The token goes in the fragment, not the query string.
+     *
+     * A fragment is never transmitted to a server: not in the request line, so
+     * it cannot reach an access log, a proxy, an APM trace, or a Referer header
+     * — and, the reason this changed, it cannot be serialized into the page.
+     * Next's App Router writes the current URL into the flight payload embedded
+     * in every server-rendered document ("urlParts"), so a token in the query
+     * string was sitting in the HTML in plain text no matter what this app did
+     * with searchParams. Moving it out of the server's view is the only fix
+     * that actually holds.
+     *
+     * ResetPasswordForm reads it from location.hash and clears it immediately.
+     */
+    const link = `${appUrl()}/signin/reset#token=${encodeURIComponent(token)}`;
     const { subject, html } = renderResetEmail(link);
     // A provider failure must not change the response shape either — that would
     // reintroduce the oracle through a side door.

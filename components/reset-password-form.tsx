@@ -16,26 +16,34 @@ export function ResetPasswordForm() {
   const [busy, setBusy] = React.useState(false);
 
   /*
-   * The token is read from the address bar rather than handed down as a prop.
+   * The token lives in the URL fragment and is read here, on the client.
    *
-   * A prop crossing into a client component is serialized into the RSC payload,
-   * which put the token in the page source in plain text — the first version of
-   * this did exactly that while carrying a comment claiming it did not.
+   * Two earlier versions of this were wrong, in the same direction. The first
+   * took it from searchParams and passed it in as a prop, which serializes into
+   * the RSC payload. The second read it from location.search on the client,
+   * which looked right and was not: Next writes the current URL into the flight
+   * payload embedded in every server-rendered document, so the token was still
+   * in the HTML even though this component never touched searchParams.
    *
-   * Reading it here and then replacing the history entry gets it out of the
-   * address bar too, which is worth more than it sounds: it keeps the token off
-   * screenshots and out of a shoulder-surfer's view, and stops it travelling in
-   * a Referer header. replaceState rather than pushState, so Back does not
-   * return to a URL that no longer works.
+   * A fragment is the fix that holds, because it is never sent to the server at
+   * all — not in the request line, so not in an access log, a proxy, an APM
+   * trace, or a Referer header, and not in anything the server renders.
    *
-   * `null` means not read yet and `''` means read and absent, which is the
-   * difference between "still deciding what to show" and "this link is not a
-   * reset link" — collapsing them flashes the error state on every load.
+   * It is then cleared from the address bar, which keeps it off screenshots and
+   * out of a shoulder-surfer's view. replaceState rather than pushState, so
+   * Back does not return to a URL that no longer carries a token.
+   *
+   * `null` means not read yet and `''` means read and absent — the difference
+   * between "still deciding what to show" and "this is not a reset link".
+   * Collapsing them flashes the error state on every load.
    */
   const [token, setToken] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const found = new URLSearchParams(window.location.search).get('token') ?? '';
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+    // Parsed as a query string so an extra parameter added later does not break
+    // it, and so encoding is handled the same way it was written.
+    const found = new URLSearchParams(hash).get('token') ?? '';
     setToken(found);
     if (found) {
       window.history.replaceState(null, '', window.location.pathname);

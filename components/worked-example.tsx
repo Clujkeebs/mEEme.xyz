@@ -85,7 +85,7 @@ export function WorkedExample({ signal, demo }: { signal: AlphaSignal; demo: boo
       <div className="border-t border-border/70 px-5 py-3">
         <Link
           href={`/lock?address=${signal.snapshot.address}`}
-          className="inline-flex items-center gap-1.5 text-sm text-primary underline-offset-4 hover:underline"
+          className="-my-1 inline-flex items-center gap-1.5 py-1 text-sm text-primary underline-offset-4 hover:underline"
         >
           Open this in the cockpit <ArrowRight className="h-3.5 w-3.5" />
         </Link>
