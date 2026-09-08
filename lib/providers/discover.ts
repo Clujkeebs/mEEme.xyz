@@ -156,11 +156,29 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
     ...SEARCH_TERMS.map((term) => fromSearch(term)),
   ]);
 
+  /*
+   * Where the pool comes from, and where it goes.
+   *
+   * The scanner asks for sixty candidates and production returns eleven to
+   * seventeen, which makes discovery — not the scan batching, and not the
+   * engine's thresholds — the thing actually capping how fast the public ledger
+   * can grow. Adding the USDC term was supposed to widen this and there is no
+   * evidence either way, because nothing recorded what each term contributed.
+   *
+   * One line every thirty minutes, so the next look at this is arithmetic
+   * rather than another guess.
+   */
+  const perTerm = SEARCH_TERMS.map((term, i) => {
+    const found = searches[i] ?? [];
+    return `${term}=${new Set(found.map((c) => c.address)).size}`;
+  }).join(' ');
+
   const byAddress = new Map<string, Candidate>();
   for (const c of searches.flat()) {
     const existing = byAddress.get(c.address);
     if (!existing || c.liquidityUsd > existing.liquidityUsd) byAddress.set(c.address, c);
   }
+  const fromSearchCount = byAddress.size;
   // Boosted tokens we know nothing else about still deserve a look.
   for (const address of boosted) {
     if (!byAddress.has(address)) {
@@ -179,6 +197,17 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
       c.volumeH24Usd >= SCAN_MIN_VOLUME_H24_USD
     );
   });
+
+  // Unpriced boost entries sort last (churn 0), so they only reach the batch
+  // when there are not enough priced candidates to fill it — which, at a pool
+  // this size, is most passes. Counted separately because they are the ones
+  // most likely to come back too thin once buildSnapshot prices them.
+  const unpriced = qualified.filter((c) => c.liquidityUsd === 0).length;
+
+  console.log(
+    `[discover] ${perTerm} searchUnique=${fromSearchCount} boosted=${boosted.length} ` +
+      `pool=${byAddress.size} qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)}`,
+  );
 
   return qualified
     .sort((a, b) => {
