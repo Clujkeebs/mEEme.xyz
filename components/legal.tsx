@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
  */
 
 /** Bump when the substance of any policy changes, not for typo fixes. */
-export const LEGAL_LAST_UPDATED = '25 August 2026';
+export const LEGAL_LAST_UPDATED = '8 September 2026';
 
 export function LegalShell({
   title,

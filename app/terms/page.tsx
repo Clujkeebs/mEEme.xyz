@@ -213,7 +213,46 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section id="contact" heading="12. Contact">
+      {/*
+        Written for an operator based in Los Angeles, California. Two things
+        this clause deliberately does not do:
+        it does not try to waive rights a consumer's own state or country makes
+        non-waivable — a clause that overreaches there tends to be struck rather
+        than narrowed, taking the rest of the section with it — and it contains
+        no arbitration or class-action waiver, which is a decision that belongs
+        with a lawyer rather than a drafting exercise.
+      */}
+      <Section id="law" heading="12. Governing law and disputes">
+        <p>
+          These terms, and any dispute arising out of them or out of your use of mEEme, are governed
+          by the laws of the State of California, without regard to its conflict-of-laws rules. You
+          and we agree that the state and federal courts located in Los Angeles County, California
+          have exclusive jurisdiction, and each of us submits to the personal jurisdiction of those
+          courts.
+        </p>
+        <p>
+          <strong className="font-semibold text-foreground/90">Talk to us first.</strong> Before
+          filing anything, email{' '}
+          <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary underline underline-offset-4">
+            {CONTACT_EMAIL}
+          </a>{' '}
+          describing the problem and what you want done about it. Most things are a refund or a bug,
+          and both are faster to fix than to litigate. This is a request, not a condition — it does
+          not stop you filing, and it does not pause any deadline that applies to your claim.
+        </p>
+        <p>
+          If you are a consumer, this section does not take away rights your own state or country
+          gives you that cannot be signed away — including the right to bring a claim where you
+          live, where the law says you may. Where those rights conflict with anything above, they
+          win, and the rest of these terms still stand.
+        </p>
+        <p>
+          If a court decides any part of these terms cannot be enforced, that part is severed and
+          everything else continues to apply.
+        </p>
+      </Section>
+
+      <Section id="contact" heading="13. Contact">
         <p>
           Questions about these terms:{' '}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary underline underline-offset-4">

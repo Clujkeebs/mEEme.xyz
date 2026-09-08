@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { CoilGauge } from './coil-gauge';
 import { LadderCard } from './ladder-card';
 import { SupplyProfile } from './supply-profile';
+import { NotAdvice } from '@/components/not-advice';
 import { VerdictBanner } from './verdict-banner';
 import type { CoilReport, Candle, ExitLadder, HolderTag, Verdict } from '@/lib/engine/types';
 import {
@@ -147,6 +148,13 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
   const [showPosition, setShowPosition] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<LockResponse | null>(null);
+  /*
+   * The moment someone runs out of free reads is the moment they are most
+   * interested — they have just used the thing three times and wanted a fourth.
+   * That was being spent on a toast, which is a message designed to disappear.
+   * This holds the gate on the page until they act on it or read something else.
+   */
+  const [gate, setGate] = React.useState<{ kind: 'signIn' | 'upgrade'; message: string } | null>(null);
 
   const run = React.useCallback(
     async (target: string) => {
@@ -174,15 +182,17 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
         const json = (await res.json()) as LockResponse | ErrorResponse;
 
         if (!json.ok) {
-          toast.error(json.error, {
-            action: json.upgrade
-              ? { label: 'Upgrade', onClick: () => { window.location.href = '/pricing'; } }
-              : json.signIn
-                ? { label: 'Sign in', onClick: () => { window.location.href = '/signin?next=%2Flock'; } }
-                : undefined,
-          });
+          // A quota wall is not an error the user made — it is the product
+          // working as designed, and it deserves a panel rather than a red
+          // toast that reads like something broke.
+          if (json.upgrade || json.signIn) {
+            setGate({ kind: json.upgrade ? 'upgrade' : 'signIn', message: json.error });
+            return;
+          }
+          toast.error(json.error);
           return;
         }
+        setGate(null);
 
         setResult(json);
         if (json.mode === 'demo') {
@@ -333,9 +343,56 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
         </div>
       </form>
 
+      {gate && <QuotaGate kind={gate.kind} message={gate.message} />}
+
       {loading && !result && <LoadingSkeleton />}
 
       {result && <LockResult result={result} entryUsd={hasEntry ? entryNumber : null} signedIn={signedIn} />}
+    </div>
+  );
+}
+
+/**
+ * The wall, held on the page.
+ *
+ * Deliberately states what an account is actually for rather than just asking
+ * for one: somebody who has read three tokens has demonstrated exactly the
+ * problem the Watchtower solves, and "sign in to continue" does not connect
+ * those two facts for them.
+ */
+function QuotaGate({ kind, message }: { kind: 'signIn' | 'upgrade'; message: string }) {
+  const signIn = kind === 'signIn';
+  return (
+    <div className="hud-panel border-l-2 border-l-primary p-6">
+      <h3 className="section-title !text-primary">
+        {signIn ? "That's your free reads for today" : 'Daily limit reached'}
+      </h3>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{message}</p>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        {signIn ? (
+          <>
+            An account is free and takes an email and a password. It raises the limit, and it turns
+            a read into something that keeps working: tell it what you hold and the engine re-reads
+            the ladder and the stop every few minutes, so the next time a level goes, you find out
+            without having to come back and check.
+          </>
+        ) : (
+          <>
+            Paid tiers read as many tokens as you want and track more positions at once. Cancel any
+            time from your Watchtower — there is no retention flow.
+          </>
+        )}
+      </p>
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <Button asChild size="lg">
+          <Link href={signIn ? '/signin?next=%2Flock' : '/pricing'}>
+            {signIn ? 'Create a free account' : 'See the tiers'}
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="lg">
+          <Link href="/track-record">See what it has called first</Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -375,6 +432,9 @@ function LockResult({
         coilScore={coil.coilScore}
         confidence={coil.confidence}
       />
+
+      {/* Directly under the call, not in the footer. See components/not-advice. */}
+      <NotAdvice />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CoilGauge } from '@/components/cockpit/coil-gauge';
+import { NotAdvice } from '@/components/not-advice';
 import { VerdictBanner } from '@/components/cockpit/verdict-banner';
 import { prisma } from '@/lib/db';
 import type { ExitLadder, Verdict } from '@/lib/engine/types';
@@ -80,6 +81,10 @@ export default async function SignalPage({ params }: { params: { slug: string } 
         headline={signal.headline}
         halfLifeMinutes={signal.halfLifeMin}
       />
+
+      {/* A shared signal page is the surface a stranger most often lands on
+          from someone else's post, with no context and no idea what this is. */}
+      <NotAdvice />
 
       {outcome && outcome.grade !== 'pending' && (
         <div className="hud-panel flex flex-wrap items-center gap-4 p-5">
