@@ -6,6 +6,7 @@ import { runAlphaEngine } from '@/lib/engine';
 import type { UserPosition } from '@/lib/engine/types';
 import { buildSnapshot, isPlausibleSolanaAddress } from '@/lib/providers';
 import { consumeLock, refundLock } from '@/lib/quota';
+import { rateLimit } from '@/lib/ratelimit';
 import { recordSignal } from '@/lib/signal-store';
 import { TIERS } from '@/lib/tiers';
 
@@ -56,6 +57,25 @@ export async function POST(request: Request) {
 
   const viewer = await getViewer();
   const spec = viewer ? TIERS[viewer.tier] : null;
+
+  /*
+   * A hard per-caller ceiling, outside the quota entirely.
+   *
+   * The daily quota used to be the only limit, and that was sound while every
+   * request cost the caller one of their locks. It stopped being sound the
+   * moment this route learned to refund a lock for a token no provider could
+   * price: a caller can POST a plausible-but-nonexistent mint, burn two
+   * upstream fetches (DexScreener and Rugcheck), get a 404, get the lock back,
+   * and repeat forever. Their quota never moves, so nothing ever stops them —
+   * an unmetered pipe through this server into someone else's rate limit, and
+   * the fastest way to get the app's provider access revoked.
+   *
+   * Sixty an hour is far more than a person clicking, leaves room for a shared
+   * NAT, and turns "unbounded" into a number.
+   */
+  if (!rateLimit(`lock:${hashIp(request)}`, 60, 60 * 60 * 1000)) {
+    return jsonError('Too many reads from this connection. Give it a minute.', 429);
+  }
 
   // ── Quota ────────────────────────────────────────────────────────────────
   let quotaPayload: Record<string, unknown>;

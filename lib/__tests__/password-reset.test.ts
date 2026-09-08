@@ -3,7 +3,6 @@ import {
   generateResetToken,
   hashResetToken,
   RESET_STATE_MESSAGE,
-  resetTokenMatches,
   resetTokenState,
   RESET_TTL_MS,
 } from '../password-reset';
@@ -49,21 +48,6 @@ describe('hashResetToken', () => {
     const a = 'a'.repeat(43);
     const b = 'a'.repeat(42) + 'b';
     expect(hashResetToken(a)).not.toBe(hashResetToken(b));
-  });
-});
-
-describe('resetTokenMatches', () => {
-  it('matches a digest against itself and nothing else', () => {
-    const h = hashResetToken(generateResetToken());
-    expect(resetTokenMatches(h, h)).toBe(true);
-    expect(resetTokenMatches(h, hashResetToken(generateResetToken()))).toBe(false);
-  });
-
-  it('returns false rather than throwing on a length mismatch', () => {
-    // node's timingSafeEqual throws on unequal lengths, and an exception here
-    // would be both a 500 and a timing signal.
-    expect(resetTokenMatches('short', hashResetToken('x'))).toBe(false);
-    expect(resetTokenMatches('', '')).toBe(true);
   });
 });
 

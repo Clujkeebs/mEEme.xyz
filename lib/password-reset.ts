@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 /**
  * Password reset.
@@ -39,14 +39,14 @@ export function hashResetToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-/** Constant-time compare of two token hashes. */
-export function resetTokenMatches(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, 'utf8');
-  const bufB = Buffer.from(b, 'utf8');
-  // timingSafeEqual throws on a length mismatch, which would itself leak.
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
+/*
+ * There is deliberately no compare function here. Redemption looks the row up
+ * by tokenHash through a unique index rather than fetching candidates and
+ * comparing them, so nothing in this flow ever compares two secrets. An unused
+ * constant-time helper sat here for a while and was removed for exactly that
+ * reason: the next person to read this would have assumed it was the
+ * comparison path and reasoned about a code path that does not exist.
+ */
 
 export interface ResetTokenRow {
   expiresAt: Date;
