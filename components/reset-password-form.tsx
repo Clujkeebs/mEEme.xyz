@@ -57,17 +57,44 @@ export function ResetPasswordForm() {
   const consumed = React.useRef(false);
 
   React.useEffect(() => {
-    if (consumed.current) return;
-    consumed.current = true;
-
-    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
     // Parsed as a query string so an extra parameter added later does not break
     // it, and so encoding is handled the same way it was written.
-    const found = new URLSearchParams(hash).get('token') ?? '';
-    setToken(found);
-    if (found) {
-      window.history.replaceState(null, '', window.location.pathname);
+    const readFromHash = (): string => {
+      const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+      return new URLSearchParams(hash).get('token') ?? '';
+    };
+
+    const adopt = (found: string) => {
+      setToken(found);
+      // replaceState does not fire hashchange, so scrubbing cannot retrigger
+      // the listener below.
+      if (found) window.history.replaceState(null, '', window.location.pathname);
+    };
+
+    if (!consumed.current) {
+      consumed.current = true;
+      adopt(readFromHash());
     }
+
+    /*
+     * A fragment-only change is an in-page navigation: no request, no reload,
+     * no remount, so the mount effect above never runs again.
+     *
+     * That leaves a real dead end. Someone who lands on this page without a
+     * token sees "request a new one", goes to their inbox, and opens the reset
+     * link in that same tab — the URL changes, and absolutely nothing happens.
+     * They are already locked out and now the recovery page appears broken too.
+     *
+     * A hashchange carrying no token is ignored rather than adopted: clearing
+     * the fragment is not a reason to throw away a token someone is currently
+     * typing a password against.
+     */
+    const onHashChange = () => {
+      const found = readFromHash();
+      if (found) adopt(found);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
   // Checked here for a fast answer and again on the server, which is the one
