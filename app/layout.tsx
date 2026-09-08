@@ -174,10 +174,15 @@ function SiteFooter() {
 
           <nav aria-label="Product">
             <h2 className="hud-label mb-3">Product</h2>
+            {/* space-y-2 plus the links' own -my-1/py-1 keeps the visual
+                gap at 8px while giving each link a 24px tap target. */}
             <ul className="space-y-2 text-[13px]">
               {PRODUCT_LINKS.map((l) => (
                 <li key={l.href}>
-                  <Link href={l.href} className="text-muted-foreground transition-colors hover:text-foreground">
+                  <Link
+                    href={l.href}
+                    className="-my-1 inline-block py-1 text-muted-foreground transition-colors hover:text-foreground"
+                  >
                     {l.label}
                   </Link>
                 </li>
@@ -187,10 +192,15 @@ function SiteFooter() {
 
           <nav aria-label="Legal">
             <h2 className="hud-label mb-3">Legal</h2>
+            {/* space-y-2 plus the links' own -my-1/py-1 keeps the visual
+                gap at 8px while giving each link a 24px tap target. */}
             <ul className="space-y-2 text-[13px]">
               {LEGAL_LINKS.map((l) => (
                 <li key={l.href}>
-                  <Link href={l.href} className="text-muted-foreground transition-colors hover:text-foreground">
+                  <Link
+                    href={l.href}
+                    className="-my-1 inline-block py-1 text-muted-foreground transition-colors hover:text-foreground"
+                  >
                     {l.label}
                   </Link>
                 </li>

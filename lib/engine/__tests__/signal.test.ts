@@ -209,16 +209,17 @@ describe('decideVerdict', () => {
     expect(decideVerdict(snapshot(), coilOf({ coilScore: 0.35 }))).toBe('HOLD_THROUGH_NOISE');
   });
 
-  it('reserves APEX_ENTRY for clean structure, trapped float and accumulation', () => {
-    // coiledSupply raised from 0.02 to 0.09: an entry call now also requires
-    // enough float in profit for the coiled/trapped question to have an
-    // answer. The intent of this test — that APEX_ENTRY needs a clean
-    // contract, trapped float and accumulating flow — is unchanged.
+  it('declines the textbook entry setup, because the entry calls did not work', () => {
+    // Clean contract, trapped float overhead, flow accumulating — the exact
+    // shape that used to return APEX_ENTRY. Across 225 published entry calls
+    // that shape won 21.5% of the time for a total edge of −57.4. The engine
+    // measures who still has to sell; it has no input on who wants to buy, and
+    // low threat is not opportunity. So the answer is that there is no answer.
     const v = decideVerdict(
       snapshot(),
       coilOf({ coilScore: 0.1, trappedSupply: 0.3, coiledSupply: 0.09, velocityOfRealization: -0.4 }),
     );
-    expect(v).toBe('APEX_ENTRY');
+    expect(v).toBe('NO_SIGNAL');
   });
 
   it('will not call an entry on a flagged contract', () => {
@@ -407,7 +408,12 @@ describe('the engine declines rather than defaulting to a buy', () => {
     }
   });
 
-  it('still calls SCALE_IN when there is real support and real profitable float', () => {
+  it('declines even with real support and real profitable float', () => {
+    // The gate this test was written for — demanding positive evidence before
+    // an entry call rather than merely the absence of a threat — did not work.
+    // Accuracy went 20.6% to 22.9% and the total edge got worse, because the
+    // calls the gate kept were the ones with enough profitable float to fall a
+    // long way. There is no threshold that rescues a side with no edge.
     const verdict = decideVerdict(snapshot(), coilOf({
       coilScore: 0.1,
       coiledSupply: 0.12,
@@ -415,7 +421,25 @@ describe('the engine declines rather than defaulting to a buy', () => {
       velocityOfRealization: -0.05,
       structuralFlags: [],
     }));
-    expect(verdict).toBe('SCALE_IN');
+    expect(verdict).toBe('NO_SIGNAL');
+  });
+
+  it('emits no entry-side verdict for any coil report it can be handed', () => {
+    // A blanket guarantee rather than a list of cases: the entry side is off,
+    // and this is the test that notices if a future branch turns it back on.
+    for (const coilScore of [0, 0.05, 0.1, 0.19, 0.27]) {
+      for (const coiledSupply of [0, 0.04, 0.09, 0.2, 0.6]) {
+        for (const trappedSupply of [0, 0.1, 0.5, 0.9]) {
+          for (const velocityOfRealization of [-0.9, -0.4, -0.05, 0, 0.04]) {
+            const v = decideVerdict(
+              snapshot(),
+              coilOf({ coilScore, coiledSupply, trappedSupply, velocityOfRealization, structuralFlags: [] }),
+            );
+            expect(v === 'APEX_ENTRY' || v === 'SCALE_IN').toBe(false);
+          }
+        }
+      }
+    }
   });
 
   it('will not enter on a token with structural flags, however quiet it looks', () => {

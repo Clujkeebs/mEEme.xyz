@@ -89,7 +89,7 @@ export function PricingTable({ paymentsLive }: { paymentsLive: boolean }) {
                 <Badge className="absolute -top-2.5 left-6">most traders land here</Badge>
               )}
 
-              <h3 className="text-lg font-bold">{spec.name}</h3>
+              <h2 className="text-lg font-bold">{spec.name}</h2>
               <p className="mt-1 min-h-[2.5rem] text-sm text-muted-foreground">{spec.tagline}</p>
 
               <div className="mt-4 flex items-baseline gap-1">

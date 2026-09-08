@@ -60,8 +60,12 @@ describe('demo provider', () => {
     const dump = runAlphaEngine(buildDemoSnapshot('mEEmeDUMP1111111111111111111111111111111111', T));
     expect(['EXIT_IMMEDIATELY', 'SCALE_OUT_NOW']).toContain(dump.verdict);
 
-    const apex = runAlphaEngine(buildDemoSnapshot('mEEmeAPEX1111111111111111111111111111111111', T));
-    expect(['APEX_ENTRY', 'SCALE_IN']).toContain(apex.verdict);
+    // The quiet scenario is the one that used to produce an entry call. The
+    // engine no longer makes those, so what it now illustrates is the refusal —
+    // which is the more useful demo, because it is the answer two thirds of
+    // real tokens get.
+    const quiet = runAlphaEngine(buildDemoSnapshot('mEEmeAPEX1111111111111111111111111111111111', T));
+    expect(['NO_SIGNAL', 'HOLD_THROUGH_NOISE']).toContain(quiet.verdict);
   });
 
   it('never emits a NaN or negative price anywhere in the snapshot', () => {

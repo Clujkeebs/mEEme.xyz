@@ -81,12 +81,45 @@ export default async function TrackRecordPage() {
           text={
             stats.accuracy === null
               ? 'mEEme publishes every call it makes, win or lose, graded automatically by a rule fixed in code before the fact.'
-              : `mEEme's public track record: ${(stats.accuracy * 100).toFixed(0)}% accuracy over ${stats.correct + stats.incorrect} graded calls. Every call published, win or lose.`
+              : stats.exitSide.accuracy !== null
+                ? `mEEme grades ${(stats.exitSide.accuracy * 100).toFixed(0)}% on exit calls — the thing it is built for — over ${stats.exitSide.correct + stats.exitSide.incorrect} of them. The entry calls it used to make graded ${stats.entrySide.accuracy === null ? '—' : `${(stats.entrySide.accuracy * 100).toFixed(0)}%`} and have been retired. Both are still published.`
+                : `mEEme's public track record: ${(stats.accuracy * 100).toFixed(0)}% accuracy over ${stats.correct + stats.incorrect} graded calls. Every call published, win or lose.`
           }
           url={canonical('/track-record')}
           label="Share the record"
         />
       </header>
+
+      {/*
+        The headline figures below are computed over every call ever published,
+        which is the only number that cannot be gamed — and, as of the entry
+        side being retired, the only one that is also misleading, because most
+        of it was earned by a rule the engine no longer runs. Both readings
+        belong on the page: the blended number stays exactly where it was, and
+        this says why it is low and where to look instead. Deleting the losing
+        calls would have made the number better and the page worthless.
+      */}
+      {stats.entrySide.accuracy !== null && stats.exitSide.accuracy !== null && (
+        <section className="border-l-2 border-l-primary bg-primary/[0.04] px-5 py-4">
+          <h2 className="hud-label mb-1.5">read this before the numbers</h2>
+          <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+            This record spans two engines. The figures below blend them, so they under-report what
+            the tool does now and over-report what it used to do. mEEme reads who still has to sell.
+            That is a question about exits, and on exit calls it grades{' '}
+            <span className="font-semibold text-foreground">
+              {(stats.exitSide.accuracy * 100).toFixed(0)}%
+            </span>{' '}
+            over {stats.exitSide.correct + stats.exitSide.incorrect} calls. It also used to make
+            entry calls, which is a different question it has no input for, and those graded{' '}
+            <span className="font-semibold text-foreground">
+              {(stats.entrySide.accuracy * 100).toFixed(0)}%
+            </span>{' '}
+            over {stats.entrySide.correct + stats.entrySide.incorrect} calls. So it stopped making
+            them. Every one of those losses is still on this page and still counted in the totals —
+            a record you edit after the fact is not a record.
+          </p>
+        </section>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -128,8 +161,8 @@ export default async function TrackRecordPage() {
             slice={stats.exitSide}
           />
           <SideCard
-            title="Entry calls"
-            blurb="APEX ENTRY, SCALE IN — emitted by the scanner over tokens nobody holds, off the tool's core thesis."
+            title="Entry calls — retired"
+            blurb="APEX ENTRY, SCALE IN. The engine no longer makes these. It measures who still has to sell, which says nothing about who wants to buy, and 225 published calls at this accuracy is what that looks like. The record stays up; the calls stopped."
             slice={stats.entrySide}
           />
         </section>
@@ -144,8 +177,9 @@ export default async function TrackRecordPage() {
             you.
           </li>
           <li>
-            <span className="text-foreground/85">Entry calls</span> (APEX ENTRY, SCALE IN) are right
-            when price rose 10%+, wrong when it fell 10%+.
+            <span className="text-foreground/85">Entry calls</span> (APEX ENTRY, SCALE IN) were right
+            when price rose 10%+, wrong when it fell 10%+. The engine stopped emitting them — this
+            rule now only grades the ones already published.
           </li>
           <li>
             <span className="text-foreground/85">ARM EXIT</span> is vindicated by the drawdown it

@@ -171,7 +171,7 @@ export function SignInPanel({
 
         <button
           type="button"
-          className="mt-3 text-xs text-muted-foreground underline-offset-2 hover:underline"
+          className="-mx-1 mt-2 px-1 py-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
           onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
           disabled={busy}
         >

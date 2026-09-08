@@ -70,11 +70,40 @@ export const VERDICT_META: Record<Verdict, VerdictMeta> = {
 const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
 
 /**
- * Minimum share of float that must sit in profit before the engine will make
- * a directional entry call. Below this the coiled/trapped question it is built
- * to answer has no meaningful input.
+ * The engine no longer makes entry calls. This is measured, not stylistic.
+ *
+ * Every published call was graded by the fixed rule in lib/scoring.ts and the
+ * two sides separate cleanly:
+ *
+ *               graded   accuracy   total edge
+ *   exit side     105       72.3%       +2.71
+ *   entry side    225       21.5%      −57.42
+ *
+ * An earlier pass tried to fix the entry side by demanding positive evidence
+ * before calling one — a clean contract, support underneath, flow that was not
+ * walking out of the door. It changed almost nothing: 20.6% accuracy before the
+ * gate, 22.9% after, and the total edge got *worse* (−26.4 then −30.99),
+ * because the calls the gate kept were the ones with enough profitable float to
+ * fall a long way. Two hundred and twenty-five calls at 21.5% is not a tuning
+ * problem. It is the absence of an edge.
+ *
+ * The reason is in the thesis. This engine measures who still has to sell. That
+ * is a question about supply overhang, and it has an answer — the exit side is
+ * 82% and pays. "Who wants to buy" is a different question that this engine has
+ * no input for, and low threat is not the same as opportunity. types.ts has
+ * said so in a comment since the beginning: "coilScore is a *threat* score, and
+ * the absence of a threat is not the presence of an opportunity." The decision
+ * function said it in a comment and then made the inference anyway.
+ *
+ * So the answer to a token with no threat is NO_SIGNAL, which is what the front
+ * page already promises: every tool is built for the entry, and entry is a race
+ * you cannot win. The app was quietly racing anyway, and losing.
+ *
+ * APEX_ENTRY and SCALE_IN stay in the Verdict union and in VERDICT_META. All
+ * 225 of them are published on the track record and they are staying there —
+ * the record is the product's only real claim, and a record you edit after the
+ * fact is not one. They are simply never emitted again.
  */
-export const MIN_COILED_SUPPLY_FOR_ENTRY = 0.05;
 
 /**
  * Threat ordering: the worst true statement wins. We check the severe cases
@@ -96,50 +125,10 @@ export function decideVerdict(snapshot: TokenSnapshot, coil: CoilReport): Verdic
   if (coil.coilScore > 0.5 || coil.velocityOfRealization > 0.35) return 'ARM_EXIT';
   if (coil.coilScore > 0.28) return 'HOLD_THROUGH_NOISE';
 
-  const cleanStructure = coil.structuralFlags.length === 0;
-  const supportHeavy = coil.trappedSupply > coil.coiledSupply;
-  const accumulating = coil.velocityOfRealization < -0.15;
-
-  // The engine reasons about supply that can *profitably* sell into your exit.
-  // When almost none of the float is in profit there is no such supply, so the
-  // thesis has no input — and a token where nobody is above water is far more
-  // often one that has already died than one that is coiled for a run.
-  //
-  // This is the condition that produced the entry record: coilScore is a
-  // threat score, the `- supportNorm` term drives an all-underwater token
-  // toward zero, and zero used to fall straight through to SCALE_IN. Of the
-  // first 120 published entry calls, 28 were emitted at a coil score of
-  // exactly 0.000 — at an average confidence of 0.80, because confidence
-  // measures data coverage rather than whether there is anything to say — and
-  // they averaged -32% edge.
-  const hasProfitableSupply = coil.coiledSupply >= MIN_COILED_SUPPLY_FOR_ENTRY;
-
-  if (
-    coil.coilScore < 0.2 &&
-    cleanStructure &&
-    supportHeavy &&
-    accumulating &&
-    hasProfitableSupply
-  ) {
-    return 'APEX_ENTRY';
-  }
-
-  // An entry call now needs positive evidence, not merely the absence of a
-  // threat: real support underneath, a clean contract, and flow that is not
-  // walking out of the door.
-  if (
-    cleanStructure &&
-    supportHeavy &&
-    hasProfitableSupply &&
-    coil.velocityOfRealization < 0.05
-  ) {
-    return 'SCALE_IN';
-  }
-
-  // Nothing above was true, so the engine has nothing to say. Saying so is the
-  // whole point of this branch: the absence of a sell signal is not a buy
-  // signal, and a tool that must always emit a direction will be wrong most of
-  // the time by construction.
+  // Below the HOLD threshold there is no measurable overhang, and this engine
+  // has nothing else to measure. Everything it could say from here would be an
+  // entry call, and the entry calls do not work — see the note above the
+  // threat ordering. Saying nothing is the call.
   return 'NO_SIGNAL';
 }
 

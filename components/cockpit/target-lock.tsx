@@ -95,7 +95,7 @@ const DEMO_ADDRESSES = [
   { label: 'Rigged launch', address: 'mEEmeRUG11111111111111111111111111111111111' },
   { label: 'Mid-distribution', address: 'mEEmeDUMP1111111111111111111111111111111111' },
   { label: 'Chop', address: 'mEEmeCHPP1111111111111111111111111111111111' },
-  { label: 'Clean setup', address: 'mEEmeAPEX1111111111111111111111111111111111' },
+  { label: 'Nothing to call', address: 'mEEmeAPEX1111111111111111111111111111111111' },
 ];
 
 /**
@@ -252,7 +252,7 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
           onClick={() => setShowPosition((v) => !v)}
           aria-expanded={showPosition}
           aria-controls="position-fields"
-          className="mt-3 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          className="-mx-1 mt-2 inline-block px-1 py-1.5 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           {showPosition ? '− Hide my position' : '+ I already hold this, read it from my entry'}
         </button>
