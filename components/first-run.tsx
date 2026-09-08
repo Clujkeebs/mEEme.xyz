@@ -19,10 +19,13 @@ export function FirstRun({
   hasPositions,
   hasWatches,
   alertsReady,
+  pushAvailable,
 }: {
   hasPositions: boolean;
   hasWatches: boolean;
   alertsReady: boolean;
+  /** Whether this deployment has any push channel a user could connect. */
+  pushAvailable: boolean;
 }) {
   const steps = [
     {
@@ -43,15 +46,28 @@ export function FirstRun({
       action: null,
       hint: 'Use “watch a token” on the right.',
     },
-    {
-      done: alertsReady,
-      icon: Bell,
-      title: 'Give the alerts somewhere to land',
-      body:
-        'An alert that only exists in a database is not an alert. Connect Telegram or turn on email so a breaking stop reaches you in seconds.',
-      action: null,
-      hint: 'Set it up under “where alerts go”.',
-    },
+    /*
+     * Only worth asking for when there is something to connect. With no channel
+     * keys on the deployment this step could never be completed, so a new user
+     * followed the hint to "where alerts go", found both channels reading "not
+     * configured", and was left stuck at two of three with nothing they could
+     * do about it. A checklist that cannot be finished is worse than a shorter
+     * one — the pricing page and the alert panel both say where alerts land in
+     * the meantime.
+     */
+    ...(pushAvailable
+      ? [
+          {
+            done: alertsReady,
+            icon: Bell,
+            title: 'Give the alerts somewhere to land',
+            body:
+              'An alert that only exists in a database is not an alert. Connect Telegram or turn on email so a breaking stop reaches you in seconds.',
+            action: null,
+            hint: 'Set it up under “where alerts go”.',
+          },
+        ]
+      : []),
   ];
 
   const doneCount = steps.filter((s) => s.done).length;

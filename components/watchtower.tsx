@@ -362,6 +362,7 @@ export function Watchtower({
               hasPositions={positions.length > 0}
               hasWatches={watches.length > 0}
               alertsReady={alertPrefs.telegramLinked || alertPrefs.notifyEmail}
+              pushAvailable={telegramAvailable || emailAvailable}
             />
           )}
 

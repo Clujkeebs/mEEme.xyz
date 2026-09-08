@@ -86,6 +86,18 @@ export function AlertSettings({
         <BellRing className="h-3 w-3" /> where alerts go
       </h2>
 
+      {/* With neither channel available, every alert still fires and is still
+          written — it lands in this dashboard rather than reaching a phone.
+          Saying so beats a panel of "not configured" labels that leaves the
+          reader thinking alerts are off entirely. */}
+      {!telegramAvailable && !emailAvailable && (
+        <p className="border-l-2 border-l-warn bg-warn/[0.06] px-3 py-2 text-[12px] leading-relaxed text-warn">
+          No push channel is switched on for this deployment yet. The engine still watches your
+          positions and still raises every alert — they wait for you here in the Watchtower instead
+          of reaching your phone.
+        </p>
+      )}
+
       {/* Telegram */}
       <div className="rounded border border-border/70 bg-background/40 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
