@@ -2,7 +2,8 @@ import type Stripe from 'stripe';
 import { recordAffiliateCommission } from '@/lib/affiliate';
 import { prisma } from '@/lib/db';
 import { getStripe } from '@/lib/stripe';
-import { tierForPriceId, type Tier } from '@/lib/tiers';
+import { captureErrorAsync } from '@/lib/observability';
+import { entitlementFor, type Tier } from '@/lib/tiers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -142,20 +143,38 @@ async function applySubscription(
   }
 
   const priceId = subscription.items.data[0]?.price?.id ?? null;
-  const paidTier: Tier | null = tierForPriceId(priceId);
-  const entitled = ENTITLING.has(subscription.status);
-  const tier: Tier = entitled && paidTier ? paidTier : 'FREE';
+  const entitlement = entitlementFor(subscription.status, priceId, ENTITLING);
+
+  if (entitlement.problem) {
+    // Loud, and stored where the admin error page will show it. An unrecognized
+    // price on a paying subscription is a billing incident, not a log line.
+    console.error('[stripe]', entitlement.problem, { userId: user.id, customerId });
+    await captureErrorAsync('stripe.webhook', new Error(entitlement.problem), {
+      userId: user.id,
+      customerId,
+      priceId,
+      status: subscription.status,
+    });
+  }
 
   const periodEnd = subscription.current_period_end ?? null;
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      tier,
-      stripeCustomerId: customerId,
-      stripeSubId: subscription.id,
-      stripeStatus: subscription.status,
-      subscriptionEndsAt: periodEnd ? new Date(periodEnd * 1000) : null,
-    },
-  });
+  // Everything except the tier is a fact about the subscription and is always
+  // worth recording. The tier is the only field withheld when we could not
+  // price the plan — see entitlementFor.
+  const data: {
+    tier?: Tier;
+    stripeCustomerId: string;
+    stripeSubId: string;
+    stripeStatus: string;
+    subscriptionEndsAt: Date | null;
+  } = {
+    stripeCustomerId: customerId,
+    stripeSubId: subscription.id,
+    stripeStatus: subscription.status,
+    subscriptionEndsAt: periodEnd ? new Date(periodEnd * 1000) : null,
+  };
+  if (entitlement.tier !== null) data.tier = entitlement.tier;
+
+  await prisma.user.update({ where: { id: user.id }, data });
 }

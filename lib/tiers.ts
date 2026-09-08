@@ -126,3 +126,53 @@ export function priceIdForTier(tier: Tier): string | null {
   if (tier === 'APEX') return process.env.STRIPE_PRICE_APEX || null;
   return null;
 }
+
+/**
+ * What a subscription entitles a user to, and whether we understood it.
+ *
+ * Split out of the webhook so the money decision is a pure function with tests,
+ * because the failure it exists to prevent is silent and expensive: an active,
+ * paying subscription whose price id does not match STRIPE_PRICE_DEGEN or
+ * STRIPE_PRICE_APEX used to resolve to FREE and be written straight to the user
+ * row. Stripe hands out a new price id whenever a price is edited, and test and
+ * live mode have entirely separate ones, so the mismatch is a normal
+ * configuration slip rather than an exotic failure — and its result was a
+ * customer being charged full price while their account was quietly stripped
+ * back to the free tier, with nothing raised anywhere.
+ *
+ * `recognized: false` means "we cannot price this", which is not the same fact
+ * as "this person is not entitled" and must not be written to the database as
+ * though it were.
+ */
+export interface SubscriptionEntitlement {
+  /** The tier to write, or null when the caller must leave the row alone. */
+  tier: Tier | null;
+  /** False when the subscription is entitling but its price id is unknown. */
+  recognized: boolean;
+  /** Set when something needs a human — the webhook escalates this. */
+  problem: string | null;
+}
+
+export function entitlementFor(
+  status: string,
+  priceId: string | null | undefined,
+  entitlingStatuses: ReadonlySet<string>,
+): SubscriptionEntitlement {
+  const entitled = entitlingStatuses.has(status);
+
+  // Not entitled is unambiguous however the price reads: a cancelled or unpaid
+  // subscription buys nothing, so FREE is the correct write.
+  if (!entitled) return { tier: 'FREE', recognized: true, problem: null };
+
+  const paidTier = tierForPriceId(priceId);
+  if (paidTier) return { tier: paidTier, recognized: true, problem: null };
+
+  return {
+    tier: null,
+    recognized: false,
+    problem:
+      `Stripe subscription is ${status} on price ${priceId ?? 'unknown'}, which matches neither ` +
+      `STRIPE_PRICE_DEGEN nor STRIPE_PRICE_APEX. The customer is paying. Their tier has been left ` +
+      `as it was rather than downgraded — fix the price id environment variables.`,
+  };
+}
