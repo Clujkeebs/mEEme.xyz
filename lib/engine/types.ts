@@ -174,6 +174,46 @@ export interface ExitLadder {
   stopNote: string;
   /** Plain-language summary of the plan. */
   summary: string;
+  /**
+   * What acting on this plan actually costs, once the size of the position is
+   * known. Null when the trader has not told us their size — every number in it
+   * is a function of notional, and without a size there is no notional.
+   *
+   * Typed as a structural shape rather than importing from './execution' so
+   * that module can import these types without a cycle.
+   */
+  execution: LadderExecutionSummary | null;
+}
+
+/** See `lib/engine/execution.ts` — this is the shape it produces. */
+export interface RungExecutionSummary {
+  grossUsd: number;
+  networkFeeUsd: number;
+  takerFeeUsd: number;
+  impactUsd: number;
+  costUsd: number;
+  costPct: number;
+  netUsd: number;
+  clips: number;
+}
+
+export interface LadderExecutionSummary {
+  chain: Chain;
+  positionUsd: number;
+  rungs: RungExecutionSummary[];
+  exitCostPct: number;
+  breakevenMultiple: number;
+  proposedRungs: number;
+  collapsed: boolean;
+  sizeConstrained: boolean;
+  /**
+   * The range of position sizes whose exit stays cheap in this pool. Null when
+   * no size does — see `workableSizeBand` in lib/engine/execution.ts.
+   */
+  workableBand: { minUsd: number; maxUsd: number } | null;
+  /** True when the trader's own position sits outside that band. */
+  outsideBand: boolean;
+  note: string;
 }
 
 export interface CoilReport {

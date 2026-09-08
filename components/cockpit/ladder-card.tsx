@@ -1,9 +1,9 @@
 'use client';
 
-import { TriangleAlert } from 'lucide-react';
+import { Layers, Receipt, TriangleAlert } from 'lucide-react';
 import * as React from 'react';
 import { Badge } from '@/components/ui/badge';
-import type { ExitLadder } from '@/lib/engine/types';
+import type { ExitLadder, LadderExecutionSummary, RungExecutionSummary } from '@/lib/engine/types';
 import { cn, formatPrice } from '@/lib/utils';
 
 /**
@@ -46,7 +46,16 @@ export function LadderCard({ ladder, spotUsd, className }: LadderCardProps) {
             Decided now, so you are not deciding mid-dump.
           </p>
         </div>
-        <Badge variant="muted">{ladder.rungs.length} rungs</Badge>
+        <div className="flex shrink-0 items-center gap-2">
+          {ladder.execution?.collapsed && (
+            <Badge variant="muted" title="Merged because the position could not pay for the extra sells">
+              from {ladder.execution.proposedRungs}
+            </Badge>
+          )}
+          <Badge variant="muted">
+            {ladder.rungs.length} {ladder.rungs.length === 1 ? 'rung' : 'rungs'}
+          </Badge>
+        </div>
       </div>
 
       <ol className="divide-y divide-border/60">
@@ -68,6 +77,7 @@ export function LadderCard({ ladder, spotUsd, className }: LadderCardProps) {
                 )}
               </div>
               <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">{rung.rationale}</p>
+              {ladder.execution?.rungs[i] && <RungCost exec={ladder.execution.rungs[i]!} />}
             </div>
           </li>
         ))}
@@ -90,6 +100,8 @@ export function LadderCard({ ladder, spotUsd, className }: LadderCardProps) {
         )}
       </ol>
 
+      {ladder.execution && <ExecutionPanel execution={ladder.execution} />}
+
       <div className="border-t border-border/70 bg-destructive/[0.05] px-6 py-4">
         <div className="flex items-start gap-3">
           <TriangleAlert className={cn('mt-0.5 h-4 w-4 shrink-0', STOP_TONE[ladder.stopQuality])} />
@@ -106,6 +118,79 @@ export function LadderCard({ ladder, spotUsd, className }: LadderCardProps) {
             </div>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">{ladder.stopNote}</p>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const fmtUsd = (v: number): string =>
+  v >= 1000
+    ? `$${Math.round(v).toLocaleString('en-US')}`
+    : v >= 1
+      ? `$${v.toFixed(2)}`
+      : `$${v.toFixed(3)}`;
+
+/**
+ * What this one rung costs to take. Sits under the rationale rather than beside
+ * the price, because it is a second-order fact: the price is the decision, this
+ * is what the decision costs.
+ */
+function RungCost({ exec }: { exec: RungExecutionSummary }) {
+  const heavy = exec.costPct >= 0.05;
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted-foreground/80">
+      <span className="tnum">{fmtUsd(exec.grossUsd)} gross</span>
+      <span aria-hidden="true">·</span>
+      <span className={cn('tnum', heavy && 'text-warn')}>
+        −{fmtUsd(exec.costUsd)} to fees and impact ({(exec.costPct * 100).toFixed(1)}%)
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className="tnum text-foreground/70">{fmtUsd(exec.netUsd)} lands</span>
+      {exec.clips > 1 && (
+        <span className="inline-flex items-center gap-1 text-hud">
+          <Layers className="h-3 w-3" aria-hidden="true" />
+          work it in ~{exec.clips} orders
+        </span>
+      )}
+    </p>
+  );
+}
+
+/**
+ * The cost of the whole plan.
+ *
+ * This is the panel that makes the same engine useful at both ends of the
+ * market. A ladder built from supply structure alone is size-blind, and a
+ * size-blind exit plan quietly lies to the two traders who most need the truth:
+ * the one whose position is too small to pay for the sells it prescribes, and
+ * the one whose position is large enough to move the price through every level
+ * it quotes.
+ */
+function ExecutionPanel({ execution }: { execution: LadderExecutionSummary }) {
+  const breakeven = Number.isFinite(execution.breakevenMultiple)
+    ? `${execution.breakevenMultiple.toFixed(2)}×`
+    : 'unreachable';
+  const tone = execution.sizeConstrained || execution.exitCostPct >= 0.05 ? 'text-warn' : 'text-foreground';
+
+  return (
+    <div className="border-t border-border/70 bg-hud/[0.04] px-6 py-4">
+      <div className="flex items-start gap-3">
+        <Receipt className="mt-0.5 h-4 w-4 shrink-0 text-hud" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+            <span className="hud-label">what it costs to get out</span>
+            <span className="tnum text-[13px] text-muted-foreground">
+              position <span className="text-foreground">{fmtUsd(execution.positionUsd)}</span>
+            </span>
+            <span className="tnum text-[13px] text-muted-foreground">
+              exit costs <span className={cn('font-semibold', tone)}>{(execution.exitCostPct * 100).toFixed(1)}%</span>
+            </span>
+            <span className="tnum text-[13px] text-muted-foreground">
+              breakeven <span className={cn('font-semibold', tone)}>{breakeven}</span> on entry
+            </span>
+          </div>
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">{execution.note}</p>
         </div>
       </div>
     </div>

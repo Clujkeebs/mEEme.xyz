@@ -1,4 +1,5 @@
 import { clamp } from './coil';
+import { applyExecutionReality } from './execution';
 import type {
   CoilReport,
   ExitLadder,
@@ -245,17 +246,38 @@ export function buildLadder(
     }
   }
 
-  const takenNow = rungs[0] && urgentNow ? rungs[0].fraction : 0;
-  const summary = buildSummary({ rungs, runner, hardStop: stop.priceUsd, takenNow, position, spot });
+  // Structure is settled. Now make it something this particular position can
+  // actually execute: a ladder is a sequence of trades, and trades cost money
+  // and move the price in proportion to size. This can merge rungs (a position
+  // too small to pay for staging one) or flag them as unfillable in one order
+  // (a position too large for the pool). The summary is written afterwards so
+  // it describes the plan the trader is actually given, not the draft.
+  const priced = applyExecutionReality(
+    {
+      rungs,
+      runnerFraction: runner,
+      hardStopUsd: stop.priceUsd,
+      stopQuality: stop.quality,
+      stopNote: stop.note,
+      summary: '',
+      execution: null,
+    },
+    snapshot,
+    position,
+  );
 
-  return {
-    rungs,
-    runnerFraction: runner,
-    hardStopUsd: stop.priceUsd,
-    stopQuality: stop.quality,
-    stopNote: stop.note,
-    summary,
-  };
+  const first = priced.rungs[0];
+  const takenNow = first && urgentNow ? first.fraction : 0;
+  const summary = buildSummary({
+    rungs: priced.rungs,
+    runner: priced.runnerFraction,
+    hardStop: stop.priceUsd,
+    takenNow,
+    position,
+    spot,
+  });
+
+  return { ...priced, summary };
 }
 
 function shelfFractionAt(coil: CoilReport, priceUsd: number): number {

@@ -98,6 +98,34 @@ const DEMO_ADDRESSES = [
   { label: 'Clean setup', address: 'mEEmeAPEX1111111111111111111111111111111111' },
 ];
 
+/**
+ * Token units from whichever field the trader filled in.
+ *
+ * Returns null rather than a fallback when the inputs do not describe a real
+ * position: a wrong size is worse than no size, because every execution number
+ * downstream is a function of it and a silently-wrong one reads as fact.
+ */
+export function resolveSize(args: {
+  sizeMode: 'tokens' | 'usd';
+  size: string;
+  usdIn: string;
+  entry: number;
+}): number | null {
+  const { sizeMode, size, usdIn, entry } = args;
+
+  if (sizeMode === 'tokens') {
+    const qty = Number.parseFloat(size);
+    return Number.isFinite(qty) && qty > 0 ? qty : null;
+  }
+
+  const usd = Number.parseFloat(usdIn);
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  // Dollars only become a size once there is an entry price to divide by.
+  if (!Number.isFinite(entry) || entry <= 0) return null;
+  const qty = usd / entry;
+  return Number.isFinite(qty) && qty > 0 ? qty : null;
+}
+
 export interface TargetLockProps {
   initialAddress?: string;
   signedIn: boolean;
@@ -107,6 +135,15 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
   const [address, setAddress] = React.useState(initialAddress);
   const [entryPrice, setEntryPrice] = React.useState('');
   const [size, setSize] = React.useState('');
+  /*
+   * Nobody who put $2 into a coin knows they hold 476,190 of it — they know
+   * they spent $2. Asking only for a token count made the whole execution
+   * read (what the exit costs, what it has to reach to break even) unreachable
+   * for exactly the trader it helps most, because the gate on it was a number
+   * they would have had to go and look up.
+   */
+  const [sizeMode, setSizeMode] = React.useState<'tokens' | 'usd'>('usd');
+  const [usdIn, setUsdIn] = React.useState('');
   const [showPosition, setShowPosition] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<LockResponse | null>(null);
@@ -122,15 +159,15 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
       setLoading(true);
       try {
         const entry = Number.parseFloat(entryPrice);
-        const qty = Number.parseFloat(size);
-        const hasPosition = Number.isFinite(entry) && entry > 0 && Number.isFinite(qty) && qty > 0;
+        const qty = resolveSize({ sizeMode, size, usdIn, entry });
+        const hasPosition = Number.isFinite(entry) && entry > 0 && qty !== null;
 
         const res = await fetch('/api/lock', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             address: trimmed,
-            position: hasPosition ? { size: qty, entryPriceUsd: entry } : null,
+            position: hasPosition ? { size: qty as number, entryPriceUsd: entry } : null,
           }),
         });
 
@@ -157,7 +194,7 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
         setLoading(false);
       }
     },
-    [entryPrice, size],
+    [entryPrice, size, sizeMode, usdIn],
   );
 
   React.useEffect(() => {
@@ -221,33 +258,60 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
         </button>
 
         {showPosition && (
-          <div id="position-fields" className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div>
-              <label className="hud-label mb-1 block" htmlFor="entry">
-                your entry price (usd)
-              </label>
-              <Input
-                id="entry"
-                value={entryPrice}
-                onChange={(e) => setEntryPrice(e.target.value)}
-                placeholder="0.0000042"
-                inputMode="decimal"
-                className="font-mono"
-              />
+          <div id="position-fields" className="mt-3 space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <label className="hud-label mb-1 block" htmlFor="entry">
+                  your entry price (usd)
+                </label>
+                <Input
+                  id="entry"
+                  value={entryPrice}
+                  onChange={(e) => setEntryPrice(e.target.value)}
+                  placeholder="0.0000042"
+                  inputMode="decimal"
+                  className="font-mono"
+                />
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="hud-label" htmlFor={sizeMode === 'usd' ? 'usd-in' : 'size'}>
+                    {sizeMode === 'usd' ? 'usd you put in' : 'tokens held'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setSizeMode((m) => (m === 'usd' ? 'tokens' : 'usd'))}
+                    className="text-[11px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {sizeMode === 'usd' ? 'enter tokens instead' : 'enter dollars instead'}
+                  </button>
+                </div>
+                {sizeMode === 'usd' ? (
+                  <Input
+                    id="usd-in"
+                    value={usdIn}
+                    onChange={(e) => setUsdIn(e.target.value)}
+                    placeholder="2.00"
+                    inputMode="decimal"
+                    className="font-mono"
+                  />
+                ) : (
+                  <Input
+                    id="size"
+                    value={size}
+                    onChange={(e) => setSize(e.target.value)}
+                    placeholder="1200000"
+                    inputMode="decimal"
+                    className="font-mono"
+                  />
+                )}
+              </div>
             </div>
-            <div>
-              <label className="hud-label mb-1 block" htmlFor="size">
-                tokens held
-              </label>
-              <Input
-                id="size"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-                placeholder="1200000"
-                inputMode="decimal"
-                className="font-mono"
-              />
-            </div>
+            <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+              Size is what turns the ladder into a plan you can actually execute. Without it the exit
+              is priced as though your sells were free and your order moved nothing — which is true
+              for nobody.
+            </p>
           </div>
         )}
 
