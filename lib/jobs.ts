@@ -341,6 +341,41 @@ export async function runScore(): Promise<ScoreResult> {
 
 /** Do not re-call the same token more often than this. */
 const RESCAN_COOLDOWN_MS = 6 * 60 * 60_000;
+
+/*
+ * Tokens whose last read could not be resolved well enough to publish.
+ *
+ * The rescan cooldown is derived from Signal rows, and a read that fails the
+ * confidence floor is never recorded — so nothing stopped the scanner picking
+ * the same unresolvable token again on the very next pass, and again half an
+ * hour after that, forever. Production showed exactly that: the same
+ * "volume-profile:0.14/0.03" and "none:0.05/0.00" entries repeating pass after
+ * pass, each one costing a batch slot and up to sixty paced Helius calls to
+ * arrive at the same answer.
+ *
+ * Only unresolvable reads go in here, and the distinction matters. A token that
+ * returns NO_SIGNAL is not a failure — the market is quiet and that can change
+ * within the half hour, so those must stay eligible or the scanner goes blind
+ * to the thing it exists to catch. Coverage does not change on that timescale.
+ *
+ * Process-local, like the rate limiter and the provider pacer above it, for the
+ * same reason: this is one long-lived Node process. Losing the map on deploy
+ * costs one wasted pass.
+ */
+const UNRESOLVABLE_COOLDOWN_MS = 6 * 60 * 60_000;
+const unresolvableUntil = new Map<string, number>();
+
+/** Keep the map from growing without bound across a long uptime. */
+function pruneUnresolvable(now: number): void {
+  for (const [address, until] of unresolvableUntil) {
+    if (until <= now) unresolvableUntil.delete(address);
+  }
+}
+
+/** Exposed for tests, which need a clean slate between cases. */
+export function __resetUnresolvable(): void {
+  unresolvableUntil.clear();
+}
 /**
  * How many candidates to rank before choosing a batch. Deliberately much larger
  * than SCAN_BATCH: the surplus is what the scanner falls through to while its
@@ -366,6 +401,11 @@ export interface ScanResult {
      * loss.
      */
     noVerdict: number;
+    /**
+     * Held back because a previous pass could not resolve enough of their float
+     * to publish. Distinct from recentlyCalled, which is a token we did call.
+     */
+    unresolvable: number;
   };
   /**
    * Coil scores of the declined reads, for telling "genuinely quiet" apart from
@@ -388,7 +428,9 @@ export async function runScan(): Promise<ScanResult> {
   const empty: ScanResult = {
     considered: 0,
     called: 0,
-    skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
+    skipped: {
+      recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0, unresolvable: 0,
+    },
     declinedCoil: null,
     lowConfidenceDetail: [],
   };
@@ -420,6 +462,12 @@ export async function runScan(): Promise<ScanResult> {
   });
   const recentlyCalled = new Set(recent.map((r) => r.tokenAddress));
 
+  // Tokens the last pass could not resolve are held back the same way, so the
+  // batch is spent on candidates that might actually produce a call.
+  const now = Date.now();
+  pruneUnresolvable(now);
+  let unresolvableSkipped = 0;
+
   let called = 0;
   let declined = 0;
   /*
@@ -447,7 +495,17 @@ export async function runScan(): Promise<ScanResult> {
   // only a few seconds, but there is no reason for this job to behave
   // differently from sweep and score, and consistency here is one less shape to
   // remember.
-  const toFetch = candidates.filter((c) => !recentlyCalled.has(c.address)).slice(0, SCAN_BATCH);
+  const toFetch = candidates
+    .filter((c) => {
+      if (recentlyCalled.has(c.address)) return false;
+      const until = unresolvableUntil.get(c.address);
+      if (until !== undefined && until > now) {
+        unresolvableSkipped++;
+        return false;
+      }
+      return true;
+    })
+    .slice(0, SCAN_BATCH);
   const fetchResults = await mapWithConcurrency(
     toFetch,
     SNAPSHOT_FETCH_CONCURRENCY,
@@ -497,6 +555,7 @@ export async function runScan(): Promise<ScanResult> {
       lowConfidenceDetail.push(
         `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}`,
       );
+      unresolvableUntil.set(snapshot.address, Date.now() + UNRESOLVABLE_COOLDOWN_MS);
       continue;
     }
 
@@ -533,6 +592,7 @@ export async function runScan(): Promise<ScanResult> {
       noLiveData,
       tooThin,
       lowConfidence,
+      unresolvable: unresolvableSkipped,
     },
     declinedCoil: summarizeCoil(declinedCoil),
     lowConfidenceDetail,

@@ -50,7 +50,7 @@ vi.mock('@/lib/providers', () => ({
   }),
 }));
 
-const { runScan, summarizeCoil } = await import('@/lib/jobs');
+const { runScan, summarizeCoil, __resetUnresolvable } = await import('@/lib/jobs');
 
 /** A candidate the engine will happily call: deep enough, confident enough. */
 function candidate(i: number): Candidate {
@@ -80,6 +80,7 @@ function poolOf(n: number): Candidate[] {
 }
 
 beforeEach(() => {
+  __resetUnresolvable();
   recordSignal.mockReset();
   recordSignal.mockResolvedValue({ slug: 's' });
   signalFindMany.mockReset();
@@ -146,7 +147,9 @@ describe('runScan batching', () => {
     expect(res).toEqual({
       considered: 0,
       called: 0,
-      skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
+      skipped: {
+        recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0, unresolvable: 0,
+      },
       declinedCoil: null,
       lowConfidenceDetail: [],
     });
@@ -218,5 +221,70 @@ describe('summarizeCoil', () => {
 
   it('handles a single decline', () => {
     expect(summarizeCoil([0.123456])).toEqual({ min: 0.123, median: 0.123, max: 0.123 });
+  });
+});
+
+describe('unresolvable tokens are held back', () => {
+  /**
+   * A read that fails the confidence floor is never recorded as a Signal, and
+   * the rescan cooldown is derived from Signal rows — so nothing stopped the
+   * scanner picking the same unresolvable token again on the very next pass,
+   * and again half an hour later, forever. Production showed the identical
+   * "volume-profile:0.14/0.03" entries repeating pass after pass, each costing
+   * a batch slot and up to sixty paced Helius calls to reach the same answer.
+   */
+  it('does not re-read a token whose float could not be resolved', async () => {
+    // Confidence is built from the distribution, not from dataQuality, so the
+    // way to reproduce production here is to leave it nothing to build from:
+    // no holders and no candles gives method 'none' and the 0.05 floor.
+    for (const s of snapshots.values()) {
+      s.holders = [];
+      s.candles = [];
+    }
+    const first = await runScan();
+    expect(first.skipped.lowConfidence).toBeGreaterThan(0);
+    expect(first.skipped.unresolvable).toBe(0);
+
+    const second = await runScan();
+    expect(second.skipped.unresolvable).toBeGreaterThan(0);
+  });
+
+  it('leaves a quiet token eligible, because quiet is not a failure', async () => {
+    /*
+     * NO_SIGNAL means the market has nothing to say right now, and that can
+     * change inside the half hour. Cooling those down would make the scanner
+     * blind to exactly the move it exists to catch — only unresolvable reads
+     * are held back.
+     */
+    recordSignal.mockResolvedValue(null);
+    await runScan();
+    const second = await runScan();
+
+    expect(second.skipped.noVerdict).toBeGreaterThan(0);
+    expect(second.skipped.unresolvable).toBe(0);
+  });
+
+  it('counts a held-back token separately from one it actually called', async () => {
+    for (const s of snapshots.values()) {
+      s.holders = [];
+      s.candles = [];
+    }
+    await runScan();
+    const second = await runScan();
+
+    // recentlyCalled is "we published this"; unresolvable is "we could not".
+    expect(second.skipped.recentlyCalled).toBe(0);
+    expect(second.skipped.unresolvable).toBeGreaterThan(0);
+  });
+
+  it('starts clean again once the hold is reset', async () => {
+    for (const s of snapshots.values()) {
+      s.holders = [];
+      s.candles = [];
+    }
+    await runScan();
+    __resetUnresolvable();
+    const after = await runScan();
+    expect(after.skipped.unresolvable).toBe(0);
   });
 });
