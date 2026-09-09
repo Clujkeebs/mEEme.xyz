@@ -561,15 +561,23 @@ export async function runScan(): Promise<ScanResult> {
        * volume is very often minutes old, with almost no candle history to
        * build a profile from.
        *
-       * Age and candle count are recorded to settle that. If these reads are
-       * consistently young and candle-starved, the fix is to decline them
-       * before spending sixty paced Helius calls on a token too new to read —
-       * not to lower the floor, which exists precisely to refuse a read that
-       * priced three per cent of the float.
+       * Age and candle count settled it, and the answer was no. These reads are
+       * not young: 407, 904 and 1285 minutes old with zero candles, alongside
+       * others carrying ninety to a hundred and twenty candles and still
+       * resolving to 'none'. Youth is not the problem; candles simply are not
+       * arriving, and sometimes are not being used when they do.
+       *
+       * Which providers actually answered is the next thing to know, so the
+       * source list travels with each entry. Candles come from Birdeye when it
+       * is keyed, otherwise from GeckoTerminal keyed by the pool DexScreener
+       * resolved — and these candidates now arrive from GeckoTerminal's own
+       * pool ranking, whose pool address discovery discards. If the source list
+       * shows no ohlcv provider, that round trip is the suspect.
        */
       lowConfidenceDetail.push(
         `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}` +
-          `@${Math.round(snapshot.ageMinutes)}m/${snapshot.candles.length}c`,
+          `@${Math.round(snapshot.ageMinutes)}m/${snapshot.candles.length}c` +
+          `[${snapshot.dataQuality.sources.join('+') || 'no-sources'}]`,
       );
       unresolvableUntil.set(snapshot.address, Date.now() + UNRESOLVABLE_COOLDOWN_MS);
       continue;
