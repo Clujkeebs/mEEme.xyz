@@ -34,6 +34,21 @@ const searchSchema = z.object({
     .nullish(),
 });
 
+/**
+ * The batch token endpoint returns the pairs for up to thirty mints at once,
+ * which is what makes pricing the boost list affordable: one request instead of
+ * one per token.
+ */
+const tokensSchema = z.array(
+  z.object({
+    chainId: z.string().nullish(),
+    baseToken: z.object({ address: z.string().nullish(), symbol: z.string().nullish() }).nullish(),
+    liquidity: z.object({ usd: z.union([z.number(), z.string()]).nullish() }).nullish(),
+    volume: z.object({ h24: z.union([z.number(), z.string()]).nullish() }).nullish(),
+    pairCreatedAt: z.number().nullish(),
+  }),
+);
+
 const num = (v: number | string | null | undefined): number => {
   if (v === null || v === undefined) return 0;
   const n = typeof v === 'string' ? Number.parseFloat(v) : v;
@@ -128,6 +143,58 @@ async function fromSearch(query: string): Promise<Candidate[]> {
   return out;
 }
 
+/** DexScreener takes at most thirty addresses per batch lookup. */
+const TOKEN_BATCH_SIZE = 30;
+
+/**
+ * Price a set of mints in as few requests as possible.
+ *
+ * The boost list arrives as bare addresses with no market data, and every one
+ * of them used to enter the scan batch unpriced — which meant the liquidity and
+ * volume bounds could not be applied to them at all, and roughly half came back
+ * below the floor after buildSnapshot had already spent its expensive
+ * per-holder work on them.
+ *
+ * Returns whatever it could price. A failure here is not fatal: the caller
+ * keeps the old passthrough behaviour for anything still unpriced, so a bad
+ * response degrades this to exactly what it replaced rather than emptying the
+ * pool.
+ */
+async function priceTokens(addresses: string[], nowMs: number): Promise<Map<string, Candidate>> {
+  const out = new Map<string, Candidate>();
+
+  for (let i = 0; i < addresses.length; i += TOKEN_BATCH_SIZE) {
+    const chunk = addresses.slice(i, i + TOKEN_BATCH_SIZE);
+    if (chunk.length === 0) continue;
+
+    const data = await fetchJson({
+      provider: 'dexscreener:tokens',
+      url: `${BASE}/tokens/v1/solana/${chunk.join(',')}`,
+      schema: tokensSchema,
+      revalidateSeconds: 180,
+    });
+    if (!data) continue;
+
+    for (const pair of data) {
+      if (pair.chainId !== 'solana') continue;
+      const address = pair.baseToken?.address;
+      if (!address) continue;
+      const candidate: Candidate = {
+        address,
+        symbol: pair.baseToken?.symbol ?? '',
+        liquidityUsd: num(pair.liquidity?.usd),
+        volumeH24Usd: num(pair.volume?.h24),
+        ageMinutes: pair.pairCreatedAt ? (nowMs - pair.pairCreatedAt) / 60_000 : 60 * 24,
+      };
+      // A mint can have several pairs; keep its deepest.
+      const existing = out.get(address);
+      if (!existing || candidate.liquidityUsd > existing.liquidityUsd) out.set(address, candidate);
+    }
+  }
+
+  return out;
+}
+
 /**
  * Candidates worth a scan, best first.
  *
@@ -179,11 +246,34 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
     if (!existing || c.liquidityUsd > existing.liquidityUsd) byAddress.set(c.address, c);
   }
   const fromSearchCount = byAddress.size;
-  // Boosted tokens we know nothing else about still deserve a look.
+
+  /*
+   * Price the boost list before it reaches the bounds check.
+   *
+   * Production made this unmissable: every pass logged qualified == unpriced ==
+   * boosted, meaning not one search result was surviving qualification and the
+   * scanner was running entirely on bare boost addresses. Those bypassed the
+   * liquidity and volume bounds altogether — there was nothing to check them
+   * against — and about half then came back under the floor at snapshot time,
+   * after buildSnapshot had already spent its per-holder work on them.
+   *
+   * One batch request prices up to thirty of them, which also gives them a real
+   * churn figure instead of the zero that sorted them last.
+   */
+  const nowMs = Date.now();
+  const needPricing = boosted.filter((a) => !byAddress.has(a));
+  const priced = needPricing.length > 0 ? await priceTokens(needPricing, nowMs) : new Map<string, Candidate>();
+
   for (const address of boosted) {
-    if (!byAddress.has(address)) {
-      byAddress.set(address, { address, symbol: '', liquidityUsd: 0, volumeH24Usd: 0, ageMinutes: 0 });
-    }
+    if (byAddress.has(address)) continue;
+    const known = priced.get(address);
+    // Still unpriced means the batch call could not answer for this mint. Keep
+    // the old passthrough rather than dropping it: buildSnapshot can still
+    // price it, and a failed lookup should not shrink the pool.
+    byAddress.set(
+      address,
+      known ?? { address, symbol: '', liquidityUsd: 0, volumeH24Usd: 0, ageMinutes: 0 },
+    );
   }
 
   const qualified = [...byAddress.values()].filter((c) => {
@@ -206,7 +296,8 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
 
   console.log(
     `[discover] ${perTerm} searchUnique=${fromSearchCount} boosted=${boosted.length} ` +
-      `pool=${byAddress.size} qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)}`,
+      `boostPriced=${priced.size}/${needPricing.length} pool=${byAddress.size} ` +
+      `qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)}`,
   );
 
   return qualified
