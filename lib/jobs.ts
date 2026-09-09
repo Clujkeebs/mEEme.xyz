@@ -551,9 +551,25 @@ export async function runScan(): Promise<ScanResult> {
        * dropped. `method` separates them: 'wallet' or 'hybrid' means the holder
        * data arrived and was simply thin, 'volume-profile' or 'none' means it
        * did not arrive at all.
+       *
+       * Production answered that: every entry is 'volume-profile' or 'none'
+       * with coverage between 0.00 and 0.06. Holders are fetched — the
+       * provider layer does that and reports helius:holders in `missing` when
+       * it fails — but the float's *cost basis* comes from the volume profile,
+       * and a profile can only account for volume that has actually traded. So
+       * the live hypothesis is age: a pool near the top of Solana by 24-hour
+       * volume is very often minutes old, with almost no candle history to
+       * build a profile from.
+       *
+       * Age and candle count are recorded to settle that. If these reads are
+       * consistently young and candle-starved, the fix is to decline them
+       * before spending sixty paced Helius calls on a token too new to read —
+       * not to lower the floor, which exists precisely to refuse a read that
+       * priced three per cent of the float.
        */
       lowConfidenceDetail.push(
-        `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}`,
+        `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}` +
+          `@${Math.round(snapshot.ageMinutes)}m/${snapshot.candles.length}c`,
       );
       unresolvableUntil.set(snapshot.address, Date.now() + UNRESOLVABLE_COOLDOWN_MS);
       continue;
