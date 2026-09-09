@@ -114,3 +114,94 @@ export async function fetchGeckoCandles(
   // GeckoTerminal returns newest first; everything downstream assumes oldest first.
   return candles.sort((a, b) => a.timeSec - b.timeSec);
 }
+
+
+/* ------------------------------ top pools -------------------------------- */
+
+/**
+ * Solana pools ranked by 24-hour volume.
+ *
+ * The address lists this app discovers from — boosted tokens and token
+ * profiles — are promotion signals, and promotion is cheapest for the smallest
+ * projects: production measured thirty-two of thirty-nine of them sitting under
+ * the $25k liquidity floor. That is the floor working, not failing, but it
+ * leaves roughly six usable candidates a pass.
+ *
+ * This is the opposite population. A pool near the top of Solana by traded
+ * volume clears the volume bar by construction and usually the liquidity bar
+ * too, and it is exactly the shape the engine has something to say about:
+ * real churn against a real book, where supply structure decides the outcome.
+ *
+ * Reserve and volume come back in the response, so these candidates arrive
+ * already priced and need no batch lookup.
+ */
+const poolsSchema = z.object({
+  data: z
+    .array(
+      z.object({
+        attributes: z
+          .object({
+            reserve_in_usd: z.union([z.number(), z.string()]).nullish(),
+            volume_usd: z.object({ h24: z.union([z.number(), z.string()]).nullish() }).nullish(),
+            pool_created_at: z.string().nullish(),
+          })
+          .nullish(),
+        relationships: z
+          .object({
+            base_token: z.object({ data: z.object({ id: z.string().nullish() }).nullish() }).nullish(),
+          })
+          .nullish(),
+      }),
+    )
+    .nullish(),
+});
+
+export interface TopPool {
+  address: string;
+  liquidityUsd: number;
+  volumeH24Usd: number;
+  ageMinutes: number;
+}
+
+const toNum = (v: number | string | null | undefined): number => {
+  if (v === null || v === undefined) return 0;
+  const n = typeof v === 'string' ? Number.parseFloat(v) : v;
+  return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * GeckoTerminal namespaces token ids by network, so a base token comes back as
+ * "solana_<mint>". Strip it defensively rather than assuming the prefix is
+ * always there — an unprefixed id is still a usable address.
+ */
+function mintFromTokenId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  const bare = id.startsWith('solana_') ? id.slice('solana_'.length) : id;
+  return bare.length >= 32 ? bare : null;
+}
+
+/** One page is twenty pools. Returns [] on any failure — callers treat it as optional. */
+export async function fetchTopPools(page = 1, nowMs = Date.now()): Promise<TopPool[]> {
+  const data = await fetchJson({
+    provider: `geckoterminal:pools:${page}`,
+    url: `${BASE}/networks/solana/pools?page=${page}`,
+    schema: poolsSchema,
+    revalidateSeconds: 300,
+  });
+  if (!data?.data) return [];
+
+  const out: TopPool[] = [];
+  for (const pool of data.data) {
+    const address = mintFromTokenId(pool.relationships?.base_token?.data?.id);
+    if (!address) continue;
+    const created = pool.attributes?.pool_created_at;
+    const createdMs = created ? Date.parse(created) : Number.NaN;
+    out.push({
+      address,
+      liquidityUsd: toNum(pool.attributes?.reserve_in_usd),
+      volumeH24Usd: toNum(pool.attributes?.volume_usd?.h24),
+      ageMinutes: Number.isFinite(createdMs) ? (nowMs - createdMs) / 60_000 : 60 * 24,
+    });
+  }
+  return out;
+}

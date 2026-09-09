@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { fetchTopPools } from './geckoterminal';
 import { fetchJson } from './http';
 
 /**
@@ -227,12 +228,18 @@ async function priceTokens(addresses: string[], nowMs: number): Promise<Map<stri
  */
 
 export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
-  const [boostLatest, boostTop, profiles] = await Promise.all([
+  const [boostLatest, boostTop, profiles, pools1, pools2] = await Promise.all([
     fromBoosts('latest'),
     fromBoosts('top'),
     fromProfiles(),
+    // Two pages of the busiest Solana pools. Unlike the promotion lists these
+    // arrive already priced, and they are the population most likely to clear
+    // the bars — see fetchTopPools for why that matters.
+    fetchTopPools(1),
+    fetchTopPools(2),
   ]);
   const boosted = [...new Set([...boostLatest, ...boostTop, ...profiles])];
+  const topPools = [...pools1, ...pools2];
 
   /*
    * Where the pool comes from, and where it goes.
@@ -244,6 +251,21 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
    * twenty-three results were majors, every pass.
    */
   const byAddress = new Map<string, Candidate>();
+
+  // Volume-ranked pools first: they come with real reserve and volume figures,
+  // so they never need the batch lookup below and they set the entry for any
+  // mint a promotion list also names.
+  for (const pool of topPools) {
+    const existing = byAddress.get(pool.address);
+    if (existing && existing.liquidityUsd >= pool.liquidityUsd) continue;
+    byAddress.set(pool.address, {
+      address: pool.address,
+      symbol: '',
+      liquidityUsd: pool.liquidityUsd,
+      volumeH24Usd: pool.volumeH24Usd,
+      ageMinutes: pool.ageMinutes,
+    });
+  }
 
   /*
    * Price every address before it reaches the bounds check.
@@ -319,7 +341,7 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
 
   console.log(
     `[discover] boostLatest=${boostLatest.length} boostTop=${boostTop.length} ` +
-      `profiles=${profiles.length} union=${boosted.length} ` +
+      `profiles=${profiles.length} union=${boosted.length} topPools=${topPools.length} ` +
       `boostPriced=${priced.size}/${needPricing.length} pool=${byAddress.size} ` +
       `qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)} ` +
       `rejected[mint=${rejected.mint} symbol=${rejected.symbol} thin=${rejected.thin} ` +

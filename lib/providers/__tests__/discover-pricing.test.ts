@@ -189,3 +189,50 @@ describe('boost-list pricing', () => {
     expect(requested.filter((u) => u.includes('/tokens/v1/solana/'))).toHaveLength(0);
   });
 });
+
+describe('volume-ranked pools in discovery', () => {
+  it('takes them, and does not spend a batch lookup on them', async () => {
+    // They arrive with reserve and volume already, which is the point.
+    const hot = MINT(11);
+    responses.set('/networks/solana/pools?page=1', {
+      data: [
+        {
+          attributes: { reserve_in_usd: '400000', volume_usd: { h24: '3000000' } },
+          relationships: { base_token: { data: { id: `solana_${hot}` } } },
+        },
+      ],
+    });
+
+    const out = await discoverCandidates(60);
+    expect(out.map((c) => c.address)).toContain(hot);
+    expect(requested.filter((u) => u.includes('/tokens/v1/solana/'))).toHaveLength(0);
+  });
+
+  it('outranks a promoted token on churn, which is the whole reason to add them', async () => {
+    const promoted = MINT(12);
+    const hot = MINT(13);
+    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: promoted }]);
+    responses.set('/tokens/v1/solana/', [pair(promoted, 500_000, 600_000)]);
+    responses.set('/networks/solana/pools?page=1', {
+      data: [
+        {
+          attributes: { reserve_in_usd: '120000', volume_usd: { h24: '4000000' } },
+          relationships: { base_token: { data: { id: `solana_${hot}` } } },
+        },
+      ],
+    });
+
+    const out = await discoverCandidates(60);
+    expect(out[0]?.address).toBe(hot);
+  });
+
+  it('still discovers from the promotion lists when the pools endpoint is down', async () => {
+    const promoted = MINT(14);
+    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: promoted }]);
+    responses.set('/tokens/v1/solana/', [pair(promoted, 200_000, 900_000)]);
+    // No /pools response registered — resolves null.
+
+    const out = await discoverCandidates(60);
+    expect(out.map((c) => c.address)).toContain(promoted);
+  });
+});
