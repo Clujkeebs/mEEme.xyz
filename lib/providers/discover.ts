@@ -128,31 +128,23 @@ async function fromBoosts(path: 'latest' | 'top'): Promise<string[]> {
     .map((b) => b.tokenAddress as string);
 }
 
-/** Search results, used to widen the net beyond whatever is being boosted. */
-async function fromSearch(query: string): Promise<Candidate[]> {
+/**
+ * Recently published token profiles. A third address list of the same shape:
+ * a project that has bothered to fill in a profile is a project doing
+ * promotion, which is the same attention signal the boost lists carry, sourced
+ * differently enough to surface names neither of them has.
+ */
+async function fromProfiles(): Promise<string[]> {
   const data = await fetchJson({
-    provider: 'dexscreener:search',
-    url: `${BASE}/latest/dex/search?q=${encodeURIComponent(query)}`,
-    schema: searchSchema,
-    revalidateSeconds: 180,
+    provider: 'dexscreener:profiles',
+    url: `${BASE}/token-profiles/latest/v1`,
+    schema: boostSchema,
+    revalidateSeconds: 300,
   });
-  if (!data?.pairs) return [];
-
-  const now = Date.now();
-  const out: Candidate[] = [];
-  for (const pair of data.pairs) {
-    if (pair.chainId !== 'solana') continue;
-    const address = pair.baseToken?.address;
-    if (!address) continue;
-    out.push({
-      address,
-      symbol: pair.baseToken?.symbol ?? '',
-      liquidityUsd: num(pair.liquidity?.usd),
-      volumeH24Usd: num(pair.volume?.h24),
-      ageMinutes: pair.pairCreatedAt ? (now - pair.pairCreatedAt) / 60_000 : 60 * 24,
-    });
-  }
-  return out;
+  if (!data) return [];
+  return data
+    .filter((b) => b.chainId === 'solana' && b.tokenAddress)
+    .map((b) => b.tokenAddress as string);
 }
 
 /** DexScreener takes at most thirty addresses per batch lookup. */
@@ -215,63 +207,52 @@ async function priceTokens(addresses: string[], nowMs: number): Promise<Map<stri
  * something to say that a chart does not.
  */
 /*
- * More than one query, because one query is one page.
+ * There is no search path here any more, and the reason is worth keeping.
  *
- * DexScreener's search returns a bounded page, so a single term gave a small
- * pool whose churn ranking barely moved between passes — the scanner saw
- * substantially the same names every thirty minutes and, with a six-hour
- * rescan cooldown, had nothing new to call for most of the day.
+ * It searched DexScreener for "SOL" and "USDC" on the theory that those match
+ * the quote side of essentially every Solana memecoin pair. They do not.
+ * DexScreener's search matches a token's own name, symbol and address, so
+ * querying a quote currency returns that currency's own pools — and the
+ * rejection counters said so exactly: of twenty-three unique results per pass,
+ * twenty-one were thrown out by the majors symbol filter and the rest missed
+ * the liquidity and volume bars. Yield was zero, every pass, for two HTTP
+ * requests each time.
  *
- * These surface genuinely different populations rather than reshuffling one:
- * a Solana memecoin is quoted against SOL or against USDC, rarely both with the
- * same depth, so the two searches overlap far less than they look like they
- * should.
+ * Adding the USDC term was mine, and I claimed it widened the pool without
+ * checking. It doubled a mechanism that produced nothing.
+ *
+ * What is left are address lists, which do work: the two boost lists and the
+ * token-profile list. All three are batch-priced before the bounds are applied,
+ * so a candidate is judged on real liquidity rather than passed through blind.
  */
-const SEARCH_TERMS = ['SOL', 'USDC'] as const;
 
 export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
-  const [boostLatest, boostTop, ...searches] = await Promise.all([
+  const [boostLatest, boostTop, profiles] = await Promise.all([
     fromBoosts('latest'),
     fromBoosts('top'),
-    ...SEARCH_TERMS.map((term) => fromSearch(term)),
+    fromProfiles(),
   ]);
-  const boosted = [...new Set([...boostLatest, ...boostTop])];
+  const boosted = [...new Set([...boostLatest, ...boostTop, ...profiles])];
 
   /*
    * Where the pool comes from, and where it goes.
    *
-   * The scanner asks for sixty candidates and production returns eleven to
-   * seventeen, which makes discovery — not the scan batching, and not the
-   * engine's thresholds — the thing actually capping how fast the public ledger
-   * can grow. Adding the USDC term was supposed to widen this and there is no
-   * evidence either way, because nothing recorded what each term contributed.
-   *
-   * One line every thirty minutes, so the next look at this is arithmetic
-   * rather than another guess.
+   * Discovery — not the scan batching, and not the engine's thresholds — is
+   * what caps how fast the public ledger can grow, so one line every thirty
+   * minutes records each source's contribution and each rejection clause. That
+   * is how the dead search path was found: the counters said twenty-one of its
+   * twenty-three results were majors, every pass.
    */
-  const perTerm = SEARCH_TERMS.map((term, i) => {
-    const found = searches[i] ?? [];
-    return `${term}=${new Set(found.map((c) => c.address)).size}`;
-  }).join(' ');
-
   const byAddress = new Map<string, Candidate>();
-  for (const c of searches.flat()) {
-    const existing = byAddress.get(c.address);
-    if (!existing || c.liquidityUsd > existing.liquidityUsd) byAddress.set(c.address, c);
-  }
-  const fromSearchCount = byAddress.size;
 
   /*
-   * Price the boost list before it reaches the bounds check.
+   * Price every address before it reaches the bounds check.
    *
-   * Production made this unmissable: every pass logged qualified == unpriced ==
-   * boosted, meaning not one search result was surviving qualification and the
-   * scanner was running entirely on bare boost addresses. Those bypassed the
-   * liquidity and volume bounds altogether — there was nothing to check them
-   * against — and about half then came back under the floor at snapshot time,
-   * after buildSnapshot had already spent its per-holder work on them.
-   *
-   * One batch request prices up to thirty of them, which also gives them a real
+   * These lists carry bare mints with no market data, so the liquidity and
+   * volume bounds could not be applied to them at all — there was nothing to
+   * check against — and roughly half then came back under the floor at snapshot
+   * time, after buildSnapshot had already spent its per-holder Helius work on
+   * them. One batch request prices up to thirty, which also gives them a real
    * churn figure instead of the zero that sorted them last.
    */
   const nowMs = Date.now();
@@ -337,8 +318,8 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
   const unpriced = qualified.filter((c) => c.liquidityUsd === 0).length;
 
   console.log(
-    `[discover] ${perTerm} searchUnique=${fromSearchCount} ` +
-      `boostLatest=${boostLatest.length} boostTop=${boostTop.length} boosted=${boosted.length} ` +
+    `[discover] boostLatest=${boostLatest.length} boostTop=${boostTop.length} ` +
+      `profiles=${profiles.length} union=${boosted.length} ` +
       `boostPriced=${priced.size}/${needPricing.length} pool=${byAddress.size} ` +
       `qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)} ` +
       `rejected[mint=${rejected.mint} symbol=${rejected.symbol} thin=${rejected.thin} ` +

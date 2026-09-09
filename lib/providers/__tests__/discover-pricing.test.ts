@@ -38,8 +38,6 @@ function pair(address: string, liquidityUsd: number, volumeH24Usd: number, symbo
 beforeEach(() => {
   responses.clear();
   requested.length = 0;
-  // Search contributes nothing, which is the production situation.
-  responses.set('/latest/dex/search', { pairs: [] });
 });
 
 describe('boost sources', () => {
@@ -146,13 +144,43 @@ describe('boost-list pricing', () => {
     expect(out.map((c) => c.address)).toContain(unknown);
   });
 
-  it('does not re-price a boosted mint the search already priced', async () => {
-    const both = MINT(6);
-    responses.set('/latest/dex/search', { pairs: [pair(both, 300_000, 900_000)] });
-    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: both }]);
+  it('never searches, because searching a quote currency returns that currency', async () => {
+    /*
+     * The path this replaced queried DexScreener for "SOL" and "USDC" to widen
+     * the pool. DexScreener matches a token's own name, symbol and address, so
+     * those queries returned SOL's and USDC's own pools: the rejection counters
+     * showed twenty-one of twenty-three results thrown out as majors, every
+     * pass, for two HTTP requests each time. Yield was exactly zero.
+     */
+    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: MINT(6) }]);
+    responses.set('/tokens/v1/solana/', [pair(MINT(6), 200_000, 900_000)]);
 
     await discoverCandidates(60);
-    expect(requested.filter((u) => u.includes('/tokens/v1/solana/'))).toHaveLength(0);
+    expect(requested.filter((u) => u.includes('/dex/search'))).toHaveLength(0);
+  });
+
+  it('takes candidates from the token-profile list too', async () => {
+    const profiled = MINT(7);
+    responses.set('/token-profiles/latest/v1', [{ chainId: 'solana', tokenAddress: profiled }]);
+    responses.set('/tokens/v1/solana/', [pair(profiled, 200_000, 900_000)]);
+
+    const out = await discoverCandidates(60);
+    expect(out.map((c) => c.address)).toContain(profiled);
+  });
+
+  it('prices all three lists in one shared batch', async () => {
+    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: MINT(8) }]);
+    responses.set('/token-boosts/top/v1', [{ chainId: 'solana', tokenAddress: MINT(9) }]);
+    responses.set('/token-profiles/latest/v1', [{ chainId: 'solana', tokenAddress: MINT(10) }]);
+    responses.set('/tokens/v1/solana/', [
+      pair(MINT(8), 200_000, 900_000),
+      pair(MINT(9), 200_000, 900_000),
+      pair(MINT(10), 200_000, 900_000),
+    ]);
+
+    const out = await discoverCandidates(60);
+    expect(requested.filter((u) => u.includes('/tokens/v1/solana/'))).toHaveLength(1);
+    expect(out).toHaveLength(3);
   });
 
   it('makes no batch request when nothing is boosted', async () => {
