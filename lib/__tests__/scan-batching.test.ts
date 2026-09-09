@@ -148,6 +148,7 @@ describe('runScan batching', () => {
       called: 0,
       skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
       declinedCoil: null,
+      lowConfidenceDetail: [],
     });
   });
 });

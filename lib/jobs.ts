@@ -372,6 +372,11 @@ export interface ScanResult {
    * "stacked just under the threshold". Null when nothing was declined.
    */
   declinedCoil: { min: number; median: number; max: number } | null;
+  /**
+   * One `method:confidence/supplyCovered` entry per read the confidence floor
+   * rejected, for telling "cannot be resolved" apart from "resolved badly".
+   */
+  lowConfidenceDetail: string[];
 }
 
 /**
@@ -385,6 +390,7 @@ export async function runScan(): Promise<ScanResult> {
     called: 0,
     skipped: { recentlyCalled: 0, noLiveData: 0, tooThin: 0, lowConfidence: 0, noVerdict: 0 },
     declinedCoil: null,
+    lowConfidenceDetail: [],
   };
 
   /*
@@ -430,6 +436,8 @@ export async function runScan(): Promise<ScanResult> {
    * It reports the distribution so the question can be answered with evidence.
    */
   const declinedCoil: number[] = [];
+  /** method:confidence/supplyCovered for each read the confidence floor rejected. */
+  const lowConfidenceDetail: string[] = [];
   let noLiveData = 0;
   let tooThin = 0;
   let lowConfidence = 0;
@@ -472,6 +480,23 @@ export async function runScan(): Promise<ScanResult> {
     // token; they are not evidence of accuracy.
     if (signal.coil.confidence < TRACK_RECORD_CONFIDENCE_FLOOR) {
       lowConfidence++;
+      /*
+       * Confidence is a function of how much of the float the read could
+       * actually price, so the method it fell back to is the diagnosis.
+       *
+       * This started appearing at three to five a pass — around a third of
+       * everything read — the moment volume-ranked pools joined the candidate
+       * mix, and there are two different stories behind that. Either those
+       * tokens genuinely cannot be resolved, in which case the floor is
+       * correctly refusing to publish a guess, or they resolve badly for a
+       * fixable reason and a third of the ledger's potential growth is being
+       * dropped. `method` separates them: 'wallet' or 'hybrid' means the holder
+       * data arrived and was simply thin, 'volume-profile' or 'none' means it
+       * did not arrive at all.
+       */
+      lowConfidenceDetail.push(
+        `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}`,
+      );
       continue;
     }
 
@@ -510,6 +535,7 @@ export async function runScan(): Promise<ScanResult> {
       lowConfidence,
     },
     declinedCoil: summarizeCoil(declinedCoil),
+    lowConfidenceDetail,
   };
 }
 
