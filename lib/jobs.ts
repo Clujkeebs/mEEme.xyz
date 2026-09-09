@@ -509,7 +509,7 @@ export async function runScan(): Promise<ScanResult> {
   const fetchResults = await mapWithConcurrency(
     toFetch,
     SNAPSHOT_FETCH_CONCURRENCY,
-    (candidate) => buildSnapshot(candidate.address),
+    (candidate) => buildSnapshot(candidate.address, Date.now(), candidate.poolAddress ?? null),
     (err, candidate) => {
       console.warn('[scan] snapshot fetch failed for', candidate.address, err instanceof Error ? err.message : err);
       captureError('scan:snapshot', err, { address: candidate.address });
@@ -577,7 +577,16 @@ export async function runScan(): Promise<ScanResult> {
       lowConfidenceDetail.push(
         `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}` +
           `@${Math.round(snapshot.ageMinutes)}m/${snapshot.candles.length}c` +
-          `[${snapshot.dataQuality.sources.join('+') || 'no-sources'}]`,
+          `[${snapshot.dataQuality.sources.join('+') || 'no-sources'}]` +
+          // The second, separate failure: reads arriving with a hundred-odd
+          // candles and an ohlcv source, and still resolving to 'none'.
+          // fromVolumeProfile returns 'none' from exactly two places once it is
+          // past the candle count — a float of zero, or no candle contributing
+          // any volume. Supply and total volume tell those apart, and nothing
+          // else in the log can.
+          `{sup=${Math.round(snapshot.circulatingSupply)},vol=${Math.round(
+            snapshot.candles.reduce((t, c) => t + (c.volumeUsd || 0), 0),
+          )}}`,
       );
       unresolvableUntil.set(snapshot.address, Date.now() + UNRESOLVABLE_COOLDOWN_MS);
       continue;

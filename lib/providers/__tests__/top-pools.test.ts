@@ -24,9 +24,16 @@ const { fetchTopPools } = await import('../geckoterminal');
 
 const MINT = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
 
-function pool(tokenId: string, reserve: unknown, volume: unknown, createdAt?: string) {
+function pool(
+  tokenId: string,
+  reserve: unknown,
+  volume: unknown,
+  createdAt?: string,
+  poolAddress?: string,
+) {
   return {
     attributes: {
+      ...(poolAddress ? { address: poolAddress } : {}),
       reserve_in_usd: reserve,
       volume_usd: { h24: volume },
       ...(createdAt ? { pool_created_at: createdAt } : {}),
@@ -101,5 +108,26 @@ describe('fetchTopPools', () => {
     poolsBody = { data: [] };
     await fetchTopPools(3);
     expect(requested.some((u) => u.includes('page=3'))).toBe(true);
+  });
+});
+
+describe('the pool address travels with the candidate', () => {
+  it('keeps the pool that produced the ranking', async () => {
+    /*
+     * Candles are keyed by pool. Discovery used to drop this and let
+     * buildSnapshot ask DexScreener to resolve one all over again — and when
+     * that came back empty there was no pool to fetch candles with at all,
+     * which production showed as "none:0.05/0.00@1581m/0c[dexscreener+rugcheck]"
+     * on a token a full day old.
+     */
+    poolsBody = { data: [pool(`solana_${MINT}`, 250_000, 900_000, undefined, 'POOL_ADDR_1')] };
+    const out = await fetchTopPools(1);
+    expect(out[0]?.poolAddress).toBe('POOL_ADDR_1');
+  });
+
+  it('reports null rather than an empty string when the pool has no address', async () => {
+    // Null is what the caller falls back on; '' would be treated as a pool.
+    poolsBody = { data: [pool(`solana_${MINT}`, 250_000, 900_000)] };
+    expect(await fetchTopPools(1).then((o) => o[0]?.poolAddress)).toBeNull();
   });
 });

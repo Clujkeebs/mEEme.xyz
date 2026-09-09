@@ -101,6 +101,15 @@ export interface Candidate {
   liquidityUsd: number;
   volumeH24Usd: number;
   ageMinutes: number;
+  /**
+   * The pool this candidate was found in, when the source knew one.
+   *
+   * Only the volume ranking supplies it. Carrying it means the candle fetch can
+   * ask about the pool that actually ranked rather than whichever one a second
+   * provider resolves — and when that second lookup comes back empty, which
+   * production showed it doing, there is still a pool to ask with.
+   */
+  poolAddress?: string | null;
 }
 
 /**
@@ -264,6 +273,7 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
       liquidityUsd: pool.liquidityUsd,
       volumeH24Usd: pool.volumeH24Usd,
       ageMinutes: pool.ageMinutes,
+      poolAddress: pool.poolAddress,
     });
   }
 

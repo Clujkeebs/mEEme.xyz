@@ -141,6 +141,7 @@ const poolsSchema = z.object({
       z.object({
         attributes: z
           .object({
+            address: z.string().nullish(),
             reserve_in_usd: z.union([z.number(), z.string()]).nullish(),
             volume_usd: z.object({ h24: z.union([z.number(), z.string()]).nullish() }).nullish(),
             pool_created_at: z.string().nullish(),
@@ -157,7 +158,18 @@ const poolsSchema = z.object({
 });
 
 export interface TopPool {
+  /** The base token's mint. */
   address: string;
+  /**
+   * The pool this ranking came from.
+   *
+   * Worth carrying rather than rediscovering: OHLCV here is keyed by pool, and
+   * the alternative is asking DexScreener to resolve one all over again. When
+   * that round trip returns nothing there is no pool to ask for candles with,
+   * which production showed as reads carrying no ohlcv source at all —
+   * "none:0.05/0.00@1581m/0c[dexscreener+rugcheck]" on a token a day old.
+   */
+  poolAddress: string | null;
   liquidityUsd: number;
   volumeH24Usd: number;
   ageMinutes: number;
@@ -198,6 +210,7 @@ export async function fetchTopPools(page = 1, nowMs = Date.now()): Promise<TopPo
     const createdMs = created ? Date.parse(created) : Number.NaN;
     out.push({
       address,
+      poolAddress: pool.attributes?.address ?? null,
       liquidityUsd: toNum(pool.attributes?.reserve_in_usd),
       volumeH24Usd: toNum(pool.attributes?.volume_usd?.h24),
       ageMinutes: Number.isFinite(createdMs) ? (nowMs - createdMs) / 60_000 : 60 * 24,

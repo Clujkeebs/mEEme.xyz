@@ -59,6 +59,14 @@ export function anyProviderConfigured(): boolean {
 export async function buildSnapshot(
   tokenAddress: string,
   nowMs: number = Date.now(),
+  /**
+   * A pool the caller already knows about, preferred over the one DexScreener
+   * resolves. Candles are keyed by pool, and the discovery source that ranked
+   * this token by volume already had one — asking a second provider to find it
+   * again is a round trip that production showed coming back empty, leaving
+   * nothing to fetch candles with at all.
+   */
+  knownPoolAddress: string | null = null,
 ): Promise<SnapshotResult> {
   if (demoModeForced()) {
     return {
@@ -103,7 +111,7 @@ export async function buildSnapshot(
   const decimals = rugcheck?.decimals ?? 6;
 
   const [candleResult, solPrice, asset] = await Promise.all([
-    fetchPriceHistory(tokenAddress, market.pairAddress, market.ageMinutes, nowMs),
+    fetchPriceHistory(tokenAddress, knownPoolAddress ?? market.pairAddress, market.ageMinutes, nowMs),
     fetchSolPriceUsd(),
     heliusConfigured() ? fetchAsset(tokenAddress) : Promise.resolve(null),
   ]);
@@ -264,8 +272,8 @@ async function fetchPriceHistory(
     if (candles) return { candles, source: 'birdeye:ohlcv' };
   }
 
-  // GeckoTerminal is keyed by pool, and DexScreener already resolved the
-  // deepest pool for this token.
+  // GeckoTerminal is keyed by pool — either the one the caller already knew, or
+  // whichever DexScreener resolved as deepest.
   if (poolAddress) {
     const candles = await fetchGeckoCandles(poolAddress, ageMinutes);
     if (candles) return { candles, source: 'geckoterminal:ohlcv' };
