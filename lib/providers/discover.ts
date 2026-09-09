@@ -102,11 +102,23 @@ export interface Candidate {
   ageMinutes: number;
 }
 
-/** Boosted tokens — a paid-for signal of attention, which is where the action is. */
-async function fromBoosts(): Promise<string[]> {
+/**
+ * Boosted tokens — a paid-for signal of attention, which is where the action is.
+ *
+ * Two lists, because they are different populations rather than the same one
+ * ordered differently: `latest` is whatever was boosted most recently, `top` is
+ * whatever carries the most boosts right now, and a token can easily be in one
+ * and not the other. With the search path contributing nothing (see
+ * discoverCandidates), these are the only sources actually feeding the scanner,
+ * so a second one is worth having.
+ *
+ * Each is independent: if one endpoint fails, fetchJson returns null and the
+ * other still supplies a pool.
+ */
+async function fromBoosts(path: 'latest' | 'top'): Promise<string[]> {
   const data = await fetchJson({
-    provider: 'dexscreener:boosts',
-    url: `${BASE}/token-boosts/latest/v1`,
+    provider: `dexscreener:boosts:${path}`,
+    url: `${BASE}/token-boosts/${path}/v1`,
     schema: boostSchema,
     revalidateSeconds: 300,
   });
@@ -218,10 +230,12 @@ async function priceTokens(addresses: string[], nowMs: number): Promise<Map<stri
 const SEARCH_TERMS = ['SOL', 'USDC'] as const;
 
 export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
-  const [boosted, ...searches] = await Promise.all([
-    fromBoosts(),
+  const [boostLatest, boostTop, ...searches] = await Promise.all([
+    fromBoosts('latest'),
+    fromBoosts('top'),
     ...SEARCH_TERMS.map((term) => fromSearch(term)),
   ]);
+  const boosted = [...new Set([...boostLatest, ...boostTop])];
 
   /*
    * Where the pool comes from, and where it goes.
@@ -276,16 +290,44 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
     );
   }
 
+  /*
+   * Why a candidate was dropped, counted.
+   *
+   * Every pass rejects all twenty-odd search results and there are five
+   * different bounds that could be doing it. Three separate guesses at this job
+   * have now been wrong, and the endpoint is not reachable from the environment
+   * this is written in, so the only honest way to pick the right fix is to make
+   * the filter say which clause fired.
+   */
+  const rejected = { mint: 0, symbol: 0, thin: 0, deep: 0, quiet: 0 };
+
   const qualified = [...byAddress.values()].filter((c) => {
-    if (EXCLUDED_MINTS.has(c.address)) return false;
-    if (c.symbol && EXCLUDED_SYMBOLS.has(c.symbol.toUpperCase())) return false;
-    // Unknowns from the boost list pass through; buildSnapshot will price them.
+    if (EXCLUDED_MINTS.has(c.address)) {
+      rejected.mint++;
+      return false;
+    }
+    if (c.symbol && EXCLUDED_SYMBOLS.has(c.symbol.toUpperCase())) {
+      rejected.symbol++;
+      return false;
+    }
+    // Unknowns pass through; buildSnapshot will price them. Since the boost
+    // list is batch-priced above, this now only catches mints that lookup
+    // could not answer for.
     if (c.liquidityUsd === 0 && c.volumeH24Usd === 0) return true;
-    return (
-      c.liquidityUsd >= SCAN_MIN_LIQUIDITY_USD &&
-      c.liquidityUsd <= SCAN_MAX_LIQUIDITY_USD &&
-      c.volumeH24Usd >= SCAN_MIN_VOLUME_H24_USD
-    );
+
+    if (c.liquidityUsd < SCAN_MIN_LIQUIDITY_USD) {
+      rejected.thin++;
+      return false;
+    }
+    if (c.liquidityUsd > SCAN_MAX_LIQUIDITY_USD) {
+      rejected.deep++;
+      return false;
+    }
+    if (c.volumeH24Usd < SCAN_MIN_VOLUME_H24_USD) {
+      rejected.quiet++;
+      return false;
+    }
+    return true;
   });
 
   // Unpriced boost entries sort last (churn 0), so they only reach the batch
@@ -295,9 +337,12 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
   const unpriced = qualified.filter((c) => c.liquidityUsd === 0).length;
 
   console.log(
-    `[discover] ${perTerm} searchUnique=${fromSearchCount} boosted=${boosted.length} ` +
+    `[discover] ${perTerm} searchUnique=${fromSearchCount} ` +
+      `boostLatest=${boostLatest.length} boostTop=${boostTop.length} boosted=${boosted.length} ` +
       `boostPriced=${priced.size}/${needPricing.length} pool=${byAddress.size} ` +
-      `qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)}`,
+      `qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)} ` +
+      `rejected[mint=${rejected.mint} symbol=${rejected.symbol} thin=${rejected.thin} ` +
+      `deep=${rejected.deep} quiet=${rejected.quiet}]`,
   );
 
   return qualified

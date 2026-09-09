@@ -42,6 +42,39 @@ beforeEach(() => {
   responses.set('/latest/dex/search', { pairs: [] });
 });
 
+describe('boost sources', () => {
+  it('asks both boost lists, because they are different populations', async () => {
+    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: MINT(1) }]);
+    responses.set('/token-boosts/top/v1', [{ chainId: 'solana', tokenAddress: MINT(2) }]);
+    responses.set('/tokens/v1/solana/', [pair(MINT(1), 200_000, 900_000), pair(MINT(2), 200_000, 900_000)]);
+
+    const out = await discoverCandidates(60);
+    const addrs = out.map((c) => c.address);
+    expect(addrs).toContain(MINT(1));
+    expect(addrs).toContain(MINT(2));
+  });
+
+  it('counts a token in both lists once', async () => {
+    const both = MINT(3);
+    responses.set('/token-boosts/latest/v1', [{ chainId: 'solana', tokenAddress: both }]);
+    responses.set('/token-boosts/top/v1', [{ chainId: 'solana', tokenAddress: both }]);
+    responses.set('/tokens/v1/solana/', [pair(both, 200_000, 900_000)]);
+
+    const out = await discoverCandidates(60);
+    expect(out.filter((c) => c.address === both)).toHaveLength(1);
+  });
+
+  it('still returns a pool when one boost endpoint is down', async () => {
+    // Independent sources: a failure in one must not empty the scanner.
+    responses.set('/token-boosts/top/v1', [{ chainId: 'solana', tokenAddress: MINT(4) }]);
+    responses.set('/tokens/v1/solana/', [pair(MINT(4), 200_000, 900_000)]);
+    // No response registered for /token-boosts/latest/v1 — resolves null.
+
+    const out = await discoverCandidates(60);
+    expect(out.map((c) => c.address)).toContain(MINT(4));
+  });
+});
+
 describe('boost-list pricing', () => {
   it('prices boosted mints in one batch rather than one request each', async () => {
     const mints = Array.from({ length: 25 }, (_, i) => MINT(i));
