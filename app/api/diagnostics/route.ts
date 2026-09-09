@@ -6,7 +6,7 @@ import { birdeyeConfigured } from '@/lib/providers/birdeye';
 import { heliusConfigured } from '@/lib/providers/helius';
 import { demoModeForced, providerStatus } from '@/lib/providers';
 import { discoverCandidates } from '@/lib/providers/discover';
-import { stripeConfigured } from '@/lib/stripe';
+import { getStripe, stripeConfigured } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,6 +44,76 @@ async function resolveProbeMint(): Promise<{ mint: string; representative: boole
   return { mint: FALLBACK_PROBE_MINT, representative: false };
 }
 
+/**
+ * Live-mode and price verification. Separate from the probe helper below
+ * because it reports several independent facts and a boolean would flatten them
+ * into "something about billing is wrong".
+ */
+async function stripeCheck(): Promise<{ name: string; ok: boolean; detail: string }> {
+  const name = 'stripe (billing)';
+  if (!stripeConfigured()) {
+    return {
+      name,
+      ok: false,
+      detail: 'STRIPE_SECRET_KEY or price IDs unset — upgrade buttons are inert and everyone stays free.',
+    };
+  }
+
+  const stripe = getStripe();
+  if (!stripe) return { name, ok: false, detail: 'Stripe client could not be constructed.' };
+
+  const key = process.env.STRIPE_SECRET_KEY ?? '';
+  const live = key.startsWith('sk_live_');
+  const mode = live ? 'LIVE' : key.startsWith('sk_test_') ? 'TEST' : 'UNRECOGNISED';
+
+  const notes: string[] = [];
+  let ok = live;
+  if (!live) {
+    notes.push(
+      mode === 'TEST'
+        ? 'Key is TEST mode: real cards will be declined. Do not run ads against this.'
+        : 'Key is neither sk_live_ nor sk_test_ — cannot tell what this is.',
+    );
+  }
+
+  for (const [tier, priceId] of [
+    ['DEGEN', process.env.STRIPE_PRICE_DEGEN],
+    ['APEX', process.env.STRIPE_PRICE_APEX],
+  ] as const) {
+    if (!priceId) {
+      notes.push(`${tier}: no price id set, that tier cannot be bought.`);
+      ok = false;
+      continue;
+    }
+    try {
+      const price = await stripe.prices.retrieve(priceId);
+      const problems: string[] = [];
+      if (!price.active) problems.push('archived');
+      if (price.type !== 'recurring') problems.push(`type=${price.type}, expected recurring`);
+      if (price.livemode !== live) problems.push(`livemode=${price.livemode} but key is ${mode}`);
+
+      if (problems.length > 0) {
+        notes.push(`${tier}: ${problems.join(', ')}.`);
+        ok = false;
+      } else {
+        const amount = price.unit_amount === null ? '?' : (price.unit_amount / 100).toFixed(2);
+        notes.push(`${tier}: ${amount} ${price.currency.toUpperCase()}/${price.recurring?.interval ?? '?'} ok.`);
+      }
+    } catch (err) {
+      // The common cause is an id from the other mode or another account.
+      notes.push(`${tier}: could not retrieve ${priceId} — ${err instanceof Error ? err.message : 'unknown error'}`);
+      ok = false;
+    }
+  }
+
+  if (!process.env.STRIPE_WEBHOOK_SECRET?.trim()) {
+    notes.push('STRIPE_WEBHOOK_SECRET unset — payments would succeed and never grant a tier.');
+    ok = false;
+  }
+
+  return { name, ok, detail: `Key mode ${mode}. ${notes.join(' ')}` };
+}
+
 export async function GET() {
   const checks: { name: string; ok: boolean; detail: string }[] = [];
   const probeTarget = await resolveProbeMint();
@@ -73,13 +143,21 @@ export async function GET() {
       : 'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset — the Google button is hidden, email/password sign-in is unaffected.',
   });
 
-  checks.push({
-    name: 'stripe',
-    ok: stripeConfigured(),
-    detail: stripeConfigured()
-      ? 'Configured.'
-      : 'STRIPE_SECRET_KEY or price IDs unset — everyone stays on the free tier.',
-  });
+  /*
+   * Billing, actually asked rather than assumed.
+   *
+   * stripeConfigured() only says a key and a price id are present as strings,
+   * which is exactly the reassuring lie this route exists to prevent. A
+   * deployment holding test-mode keys, or price ids from a different Stripe
+   * account, or ids for a price that has since been archived, passes that check
+   * and then declines every real customer at the till. Nobody finds out until
+   * an ad campaign is running and the conversion rate is zero.
+   *
+   * So this makes a real call: it reports which mode the key is in and
+   * retrieves each configured price to confirm it exists, is active, and is a
+   * recurring price in that same mode.
+   */
+  checks.push(await stripeCheck());
 
   // Alerts are the entire reason a paid tier exists — a deployment can run for
   // weeks with both of these unset and nothing errors, because a Watch simply
