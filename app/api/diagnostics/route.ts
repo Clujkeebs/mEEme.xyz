@@ -5,6 +5,7 @@ import { emailConfigured, telegramConfigured } from '@/lib/notify';
 import { birdeyeConfigured } from '@/lib/providers/birdeye';
 import { heliusConfigured } from '@/lib/providers/helius';
 import { demoModeForced, providerStatus } from '@/lib/providers';
+import { rateLimitBreakers } from '@/lib/providers/http';
 import { discoverCandidates } from '@/lib/providers/discover';
 import { getStripe, stripeConfigured } from '@/lib/stripe';
 
@@ -158,6 +159,33 @@ export async function GET() {
    * recurring price in that same mode.
    */
   checks.push(await stripeCheck());
+
+  /*
+   * Whether an upstream is currently refusing us.
+   *
+   * A throttled provider is the most expensive kind of invisible failure: every
+   * read still returns, just with a whole source silently missing, and the only
+   * evidence is a wall of identical warnings in the logs. Production ran that way
+   * long enough for a scan pass to be spending most of six minutes waiting out
+   * 429s — 360 wallet-history calls against a free tier, all of them refused.
+   * This makes it a line you can read.
+   */
+  const throttled = rateLimitBreakers();
+  const open = throttled.filter((b) => b.openForMs > 0);
+  checks.push({
+    name: 'upstream rate limits',
+    ok: open.length === 0,
+    detail:
+      open.length === 0
+        ? throttled.length === 0
+          ? 'No provider has hit a rate limit since this instance started.'
+          : `Recovered: ${throttled.map((b) => `${b.family} (${b.trips} trips)`).join(', ')}.`
+        : `Backing off: ${open
+            .map((b) => `${b.family} for ${Math.ceil(b.openForMs / 1000)}s (${b.trips} trips)`)
+            .join(', ')}. Reads still work, but that provider is contributing nothing — ` +
+          'if this is Helius, the insider cost basis and cluster analysis are unavailable ' +
+          'and every read falls back to the volume profile alone.',
+  });
 
   // Alerts are the entire reason a paid tier exists — a deployment can run for
   // weeks with both of these unset and nothing errors, because a Watch simply

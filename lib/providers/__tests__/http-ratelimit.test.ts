@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { fetchJson } from '../http';
+import { __resetRateLimitBreakers, fetchJson, rateLimitBreakers } from '../http';
 import { createPacer, TtlCache } from '../ratelimit';
 
 const schema = z.object({ ok: z.boolean() });
@@ -19,6 +19,8 @@ function rateLimited(retryAfter?: string): Response {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+  // The breaker is process-global, so one test's 429s must not reach the next.
+  __resetRateLimitBreakers();
 });
 
 describe('fetchJson rate-limit handling', () => {
@@ -120,5 +122,122 @@ describe('TtlCache', () => {
     expect(cache.get('a')).toBeUndefined();
     expect(cache.get('b')).toBe(2);
     expect(cache.get('c')).toBe(3);
+  });
+});
+
+/**
+ * The breaker exists because the patient 429 schedule is the wrong behaviour
+ * against an exhausted quota: every call waits eleven seconds to learn what the
+ * previous one already established. Production burned most of a six-minute scan
+ * pass that way, on 360 wallet-history calls that all returned nothing.
+ */
+describe('rate-limit breaker', () => {
+  const url = 'https://example.test/x';
+
+  /** Exhaust the 429 budget `times` times against one provider family. */
+  async function saturate(provider: string, times: number, fetchMock: ReturnType<typeof vi.fn>) {
+    for (let i = 0; i < times; i++) {
+      await fetchJson({ provider, url, schema });
+    }
+    return fetchMock;
+  }
+
+  it('stops calling a family that has said no three times in a row', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(rateLimited('0'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saturate('helius:wallet-transactions', 3, fetchMock);
+    const callsWhenTripped = fetchMock.mock.calls.length;
+    expect(callsWhenTripped).toBeGreaterThan(0);
+
+    // Tripped. Further calls must not reach the network at all.
+    const result = await fetchJson({ provider: 'helius:wallet-transactions', url, schema });
+    expect(result).toBeNull();
+    expect(fetchMock.mock.calls.length).toBe(callsWhenTripped);
+  });
+
+  it('treats a quota as belonging to the account, not the endpoint', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(rateLimited('0'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saturate('helius:wallet-transactions', 3, fetchMock);
+    const callsWhenTripped = fetchMock.mock.calls.length;
+
+    // A different Helius endpoint shares the same key, so it is throttled too.
+    expect(await fetchJson({ provider: 'helius:getAsset', url, schema })).toBeNull();
+    expect(fetchMock.mock.calls.length).toBe(callsWhenTripped);
+  });
+
+  it('leaves other providers alone', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input) =>
+        String(input).includes('gecko') ? jsonResponse({ ok: true }) : rateLimited('0'),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saturate('helius:wallet-transactions', 3, fetchMock);
+
+    const other = await fetchJson({ provider: 'geckoterminal:ohlcv', url: 'https://gecko.test/x', schema });
+    expect(other).toEqual({ ok: true });
+  });
+
+  it('recovers after the cooldown', async () => {
+    // shouldAdvanceTime keeps the retry sleeps firing while Date.now stays ours.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let limited = true;
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => (limited ? rateLimited('0') : jsonResponse({ ok: true })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saturate('helius:getAsset', 3, fetchMock);
+    expect(await fetchJson({ provider: 'helius:getAsset', url, schema })).toBeNull();
+
+    limited = false;
+    vi.setSystemTime(Date.now() + 61_000);
+
+    expect(await fetchJson({ provider: 'helius:getAsset', url, schema })).toEqual({ ok: true });
+  });
+
+  it('does not trip on failures that are not about the quota', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('nope', { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    for (let i = 0; i < 5; i++) {
+      await fetchJson({ provider: 'helius:getAsset', url, schema });
+    }
+    // A 404 is about one URL. Five of them must not pause the whole family.
+    expect(rateLimitBreakers().some((b) => b.openForMs > 0)).toBe(false);
+    expect(fetchMock.mock.calls.length).toBe(5);
+  });
+
+  it('a success clears the streak, so intermittent limits never trip it', async () => {
+    let call = 0;
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => {
+      // Alternate: exhaust, succeed, exhaust, succeed...
+      call++;
+      return call % 5 === 0 ? jsonResponse({ ok: true }) : rateLimited('0');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    for (let i = 0; i < 4; i++) {
+      await fetchJson({ provider: 'helius:getAsset', url, schema });
+    }
+    expect(rateLimitBreakers().some((b) => b.openForMs > 0)).toBe(false);
+  });
+
+  it('reports itself so a throttled provider is visible in diagnostics', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(rateLimited('0'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saturate('helius:wallet-transactions', 3, fetchMock);
+
+    const reported = rateLimitBreakers().find((b) => b.family === 'helius');
+    expect(reported).toBeDefined();
+    expect(reported!.trips).toBeGreaterThan(0);
+    expect(reported!.openForMs).toBeGreaterThan(0);
   });
 });

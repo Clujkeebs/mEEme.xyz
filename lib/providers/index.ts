@@ -56,6 +56,30 @@ export function anyProviderConfigured(): boolean {
   return !demoModeForced();
 }
 
+export interface SnapshotOptions {
+  /**
+   * How many wallets may be priced with their own trade history.
+   *
+   * The default is what a user asking about one token deserves: everything that
+   * could change the answer. Speculative discovery is a different bargain. A
+   * scan pass reads twelve tokens it has no reason to believe in yet, and at the
+   * full budget that is 360 Helius calls every thirty minutes — which production
+   * showed exhausting the quota outright, so that *every* read, scan and user
+   * alike, lost its wallet data and fell back to the volume profile. Spending
+   * less per speculative token is what keeps any of it working.
+   *
+   * The cut is affordable because these are not equal calls. `selectWalletsToPrice`
+   * already orders by decisiveness — deployer first, then snipers and bundlers,
+   * then the flagged cluster, then size — and the distribution's *shape* does not
+   * come from wallets at all. Wallet history only supplies the insider overlay,
+   * and the actors that overlay exists to expose are the first handful.
+   */
+  walletBudget?: number;
+}
+
+/** Wallets priced per token on a speculative scan, against 30 for a real read. */
+export const SCAN_WALLET_BUDGET = 8;
+
 export async function buildSnapshot(
   tokenAddress: string,
   nowMs: number = Date.now(),
@@ -67,6 +91,7 @@ export async function buildSnapshot(
    * nothing to fetch candles with at all.
    */
   knownPoolAddress: string | null = null,
+  options: SnapshotOptions = {},
 ): Promise<SnapshotResult> {
   if (demoModeForced()) {
     return {
@@ -176,7 +201,11 @@ export async function buildSnapshot(
     // deployer, the snipers, and the biggest holders. That is a few dozen
     // addresses, not the token's entire trade log.
     if (heliusConfigured()) {
-      const suspects = selectWalletsToPrice(holders, rugcheck?.creator ?? null);
+      const suspects = selectWalletsToPrice(
+        holders,
+        rugcheck?.creator ?? null,
+        options.walletBudget,
+      );
       const history = await fetchWalletHistories(
         suspects,
         tokenAddress,
@@ -293,7 +322,7 @@ async function fetchPriceHistory(
 export function selectWalletsToPrice(
   holders: HolderPosition[],
   deployer: string | null,
-  limit = 30,
+  limit: number = 30,
 ): string[] {
   const priority = (h: HolderPosition): number => {
     if (h.address === deployer) return 0;

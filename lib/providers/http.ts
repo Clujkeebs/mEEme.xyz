@@ -51,6 +51,101 @@ const MAX_RETRY_AFTER_MS = 15_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/* --------------------------- rate-limit breaker --------------------------- */
+
+/**
+ * Stop asking a provider that has already said no.
+ *
+ * The patient 429 schedule above is right for an occasional rate limit and
+ * catastrophic for a saturated quota: each exhausted call waits 1s, 3s and 7s
+ * before giving up, so once Helius is out of credits every request costs eleven
+ * seconds and returns nothing. Production showed a scan pass spending most of
+ * six minutes that way — 360 wallet-history calls per pass against a free tier,
+ * all of them 429, the cost-basis half of the engine getting nothing either way.
+ *
+ * So after a few consecutive exhaustions the family is left alone for a cooldown
+ * and its calls fail immediately. The read degrades exactly as it already did,
+ * only in milliseconds instead of minutes, which is what lets the rest of the
+ * pass finish. It is also the polite behaviour: an upstream sending 429 is
+ * asking us to back off, and retrying every wallet in the book is not that.
+ *
+ * Keyed by family — the part before the first colon — because a quota belongs to
+ * an account, not an endpoint. `helius:getAsset` being throttled means
+ * `helius:wallet-transactions` is throttled too.
+ */
+const BREAKER_TRIP_AFTER = 3;
+const BREAKER_COOLDOWN_MS = 60_000;
+
+interface BreakerState {
+  consecutive: number;
+  openUntilMs: number;
+  trips: number;
+}
+
+const breakers = new Map<string, BreakerState>();
+
+const familyOf = (provider: string): string => provider.split(':')[0] || provider;
+
+function stateFor(family: string): BreakerState {
+  const existing = breakers.get(family);
+  if (existing) return existing;
+  const fresh: BreakerState = { consecutive: 0, openUntilMs: 0, trips: 0 };
+  breakers.set(family, fresh);
+  return fresh;
+}
+
+/**
+ * Only a rate limit trips the breaker. A 404 or a schema mismatch is about one
+ * URL; a 429 is about the account, and that is the only thing worth pausing for.
+ */
+function noteRateLimitExhausted(provider: string): void {
+  const family = familyOf(provider);
+  const state = stateFor(family);
+  state.consecutive++;
+  if (state.consecutive >= BREAKER_TRIP_AFTER && state.openUntilMs <= Date.now()) {
+    state.openUntilMs = Date.now() + BREAKER_COOLDOWN_MS;
+    state.trips++;
+    console.warn(
+      `[provider:${family}] rate limited ${state.consecutive}x in a row — ` +
+        `skipping for ${BREAKER_COOLDOWN_MS / 1000}s rather than waiting out each one`,
+    );
+  }
+}
+
+function noteSuccess(provider: string): void {
+  const state = breakers.get(familyOf(provider));
+  if (state) state.consecutive = 0;
+}
+
+/** True when the family is in cooldown and this call should fail immediately. */
+function breakerOpen(provider: string): boolean {
+  const state = breakers.get(familyOf(provider));
+  return state !== undefined && state.openUntilMs > Date.now();
+}
+
+/** Breaker state for /api/diagnostics, so a throttled provider is visible. */
+export function rateLimitBreakers(): {
+  family: string;
+  consecutive: number;
+  openForMs: number;
+  trips: number;
+}[] {
+  const now = Date.now();
+  return [...breakers.entries()]
+    .map(([family, s]) => ({
+      family,
+      consecutive: s.consecutive,
+      openForMs: Math.max(0, s.openUntilMs - now),
+      trips: s.trips,
+    }))
+    .filter((b) => b.trips > 0 || b.consecutive > 0);
+}
+
+/** Test seam: the breaker is process-global, so a test has to be able to clear it. */
+export function __resetRateLimitBreakers(): void {
+  breakers.clear();
+}
+
 /** Parse Retry-After, which is either delta-seconds or an HTTP date. */
 function retryAfterMs(res: Response): number | null {
   const raw = res.headers.get('retry-after');
@@ -79,6 +174,10 @@ export async function fetchJson<S extends z.ZodTypeAny>(
     revalidateSeconds,
   } = opts;
 
+  if (breakerOpen(provider)) {
+    return null;
+  }
+
   let lastReason = 'unknown';
   // 429s get their own, more patient retry budget than ordinary failures.
   let rateLimitAttempt = 0;
@@ -104,6 +203,7 @@ export async function fetchJson<S extends z.ZodTypeAny>(
           // otherwise keep this loop going forever.
           if (rateLimitAttempt >= RATE_LIMIT_BACKOFF_MS.length) {
             console.warn(`[provider:${provider}] rate limited, out of patience for ${redact(url)}`);
+            noteRateLimitExhausted(provider);
             return null;
           }
           const wait = retryAfterMs(res) ?? RATE_LIMIT_BACKOFF_MS[rateLimitAttempt]!;
@@ -136,6 +236,7 @@ export async function fetchJson<S extends z.ZodTypeAny>(
         return null;
       }
 
+      noteSuccess(provider);
       return parsed.data;
     } catch (err) {
       lastReason = err instanceof Error ? err.message : String(err);

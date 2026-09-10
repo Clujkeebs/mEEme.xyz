@@ -5,6 +5,7 @@ import {
   SCAN_LOW_TURNOVER,
   SCAN_MIN_VOLUME_H24_USD,
 } from '../discover';
+import { SCAN_WALLET_BUDGET, selectWalletsToPrice } from '../index';
 import { fromVolumeProfile } from '@/lib/engine/distribution';
 import { computeConfidence } from '@/lib/engine/coil';
 import { snapshot } from '@/lib/engine/__tests__/factory';
@@ -120,5 +121,42 @@ describe('turnover as an observation', () => {
     for (const run of [2, 5, 20]) {
       expect(confidenceAt(turnover, run)).toBeLessThan(TRACK_RECORD_CONFIDENCE_FLOOR);
     }
+  });
+});
+
+/**
+ * The scan's Helius budget. Twelve speculative tokens at the full per-token
+ * budget was 360 wallet-history calls every thirty minutes, which production
+ * showed exhausting the quota — and an exhausted quota costs every read its
+ * wallet data, not just the scan's.
+ */
+describe('scan wallet budget', () => {
+  const holders = Array.from({ length: 40 }, (_, i) => ({
+    address: `W${i}`,
+    balance: 1_000 - i,
+    costBasisUsd: null,
+    realizedFraction: 0,
+    lastActivityMs: 0,
+    tags: i === 3 ? ['sniper'] : [],
+  }));
+
+  it('spends far less per speculative token than a real read does', () => {
+    expect(SCAN_WALLET_BUDGET).toBeGreaterThan(0);
+    expect(SCAN_WALLET_BUDGET).toBeLessThan(30);
+    // A whole pass has to fit inside a free tier, so the ceiling matters.
+    expect(SCAN_WALLET_BUDGET * 12).toBeLessThan(120);
+  });
+
+  it('still spends it on the wallets that decide the answer', () => {
+    const picked = selectWalletsToPrice(holders, 'W7', SCAN_WALLET_BUDGET);
+    expect(picked).toHaveLength(SCAN_WALLET_BUDGET);
+    // Deployer first, then the flagged sniper: a smaller budget must not mean a
+    // budget spent on whoever happened to be biggest.
+    expect(picked[0]).toBe('W7');
+    expect(picked).toContain('W3');
+  });
+
+  it('leaves a real read at the full budget', () => {
+    expect(selectWalletsToPrice(holders, 'W7')).toHaveLength(30);
   });
 });

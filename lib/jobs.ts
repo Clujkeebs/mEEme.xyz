@@ -5,7 +5,7 @@ import { runAlphaEngine } from '@/lib/engine';
 import type { TokenSnapshot, Verdict } from '@/lib/engine/types';
 import { flushPendingAlerts } from '@/lib/notify';
 import { captureError } from '@/lib/observability';
-import { buildSnapshot } from '@/lib/providers';
+import { buildSnapshot, SCAN_WALLET_BUDGET } from '@/lib/providers';
 import { SCAN_MIN_LIQUIDITY_USD, discoverCandidates } from '@/lib/providers/discover';
 import { gradeSignal } from '@/lib/scoring';
 import { TRACK_RECORD_CONFIDENCE_FLOOR, recordSignal } from '@/lib/signal-store';
@@ -509,7 +509,13 @@ export async function runScan(): Promise<ScanResult> {
   const fetchResults = await mapWithConcurrency(
     toFetch,
     SNAPSHOT_FETCH_CONCURRENCY,
-    (candidate) => buildSnapshot(candidate.address, Date.now(), candidate.poolAddress ?? null),
+    (candidate) =>
+      buildSnapshot(candidate.address, Date.now(), candidate.poolAddress ?? null, {
+        // Speculative reads get the reduced wallet budget. Twelve tokens at the
+        // full one exhausted the Helius quota and cost every other read its
+        // wallet data too — see SCAN_WALLET_BUDGET.
+        walletBudget: SCAN_WALLET_BUDGET,
+      }),
     (err, candidate) => {
       console.warn('[scan] snapshot fetch failed for', candidate.address, err instanceof Error ? err.message : err);
       captureError('scan:snapshot', err, { address: candidate.address });

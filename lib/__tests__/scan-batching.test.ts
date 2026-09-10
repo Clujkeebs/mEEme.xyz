@@ -44,6 +44,7 @@ vi.mock('@/lib/providers/discover', async (orig) => ({
   discoverCandidates: vi.fn(async (limit: number) => discovered.slice(0, limit)),
 }));
 vi.mock('@/lib/providers', () => ({
+  SCAN_WALLET_BUDGET: 8,
   buildSnapshot: vi.fn(async (address: string) => {
     const snapshot = snapshots.get(address);
     return snapshot ? { snapshot, mode: 'live' as const, sources: ['x'], missing: [] } : null;
