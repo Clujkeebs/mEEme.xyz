@@ -8,7 +8,7 @@ import {
 import { SCAN_WALLET_BUDGET, selectWalletsToPrice } from '../index';
 import { fromVolumeProfile } from '@/lib/engine/distribution';
 import { computeConfidence } from '@/lib/engine/coil';
-import { snapshot } from '@/lib/engine/__tests__/factory';
+import { holder, snapshot } from '@/lib/engine/__tests__/factory';
 import { TRACK_RECORD_CONFIDENCE_FLOOR } from '@/lib/signal-store';
 import type { Candle } from '@/lib/engine/types';
 
@@ -131,14 +131,9 @@ describe('turnover as an observation', () => {
  * wallet data, not just the scan's.
  */
 describe('scan wallet budget', () => {
-  const holders = Array.from({ length: 40 }, (_, i) => ({
-    address: `W${i}`,
-    balance: 1_000 - i,
-    costBasisUsd: null,
-    realizedFraction: 0,
-    lastActivityMs: 0,
-    tags: i === 3 ? ['sniper'] : [],
-  }));
+  const holders = Array.from({ length: 40 }, (_, i) =>
+    holder(1_000 - i, 0.01, { address: `W${i}`, tags: i === 3 ? ['sniper'] : [] }),
+  );
 
   it('spends far less per speculative token than a real read does', () => {
     expect(SCAN_WALLET_BUDGET).toBeGreaterThan(0);

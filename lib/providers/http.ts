@@ -146,6 +146,36 @@ export function __resetRateLimitBreakers(): void {
   breakers.clear();
 }
 
+/* ---------------------------- spend accounting ---------------------------- */
+
+/**
+ * How many requests each provider family actually made.
+ *
+ * The quota exhaustion that killed the wallet path was invisible for weeks, and
+ * the reason is plain in hindsight: nothing counted the calls. The cost was
+ * spread across three jobs at three intervals with a per-wallet cache in the
+ * middle, so it could only be inferred — and it was inferred wrong, repeatedly.
+ * A number per pass is cheaper than any amount of reasoning about one.
+ */
+const callCounts = new Map<string, { attempted: number; served: number; refused: number }>();
+
+function countCall(provider: string, outcome: 'served' | 'refused'): void {
+  const family = familyOf(provider);
+  const entry = callCounts.get(family) ?? { attempted: 0, served: 0, refused: 0 };
+  entry.attempted++;
+  entry[outcome]++;
+  callCounts.set(family, entry);
+}
+
+/** Snapshot the counters and clear them, so each pass reports its own spend. */
+export function drainProviderCallCounts(): string {
+  const parts = [...callCounts.entries()]
+    .sort((a, b) => b[1].attempted - a[1].attempted)
+    .map(([family, c]) => `${family}=${c.attempted}(${c.served}ok/${c.refused}429)`);
+  callCounts.clear();
+  return parts.join(' ') || 'none';
+}
+
 /** Parse Retry-After, which is either delta-seconds or an HTTP date. */
 function retryAfterMs(res: Response): number | null {
   const raw = res.headers.get('retry-after');
@@ -204,6 +234,7 @@ export async function fetchJson<S extends z.ZodTypeAny>(
           if (rateLimitAttempt >= RATE_LIMIT_BACKOFF_MS.length) {
             console.warn(`[provider:${provider}] rate limited, out of patience for ${redact(url)}`);
             noteRateLimitExhausted(provider);
+            countCall(provider, 'refused');
             return null;
           }
           const wait = retryAfterMs(res) ?? RATE_LIMIT_BACKOFF_MS[rateLimitAttempt]!;
@@ -237,6 +268,7 @@ export async function fetchJson<S extends z.ZodTypeAny>(
       }
 
       noteSuccess(provider);
+      countCall(provider, 'served');
       return parsed.data;
     } catch (err) {
       lastReason = err instanceof Error ? err.message : String(err);

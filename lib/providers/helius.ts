@@ -277,8 +277,24 @@ export async function fetchWalletHistories(
  * trades against one mint barely move on that timescale, so the uncached
  * version spent the entire rate-limit budget re-deriving an answer we already
  * had — and left nothing for a user actually running a Target Lock.
+ *
+ * The TTL was ten minutes against a five-minute sweep, which meant every second
+ * pass refetched everything: forty tokens at thirty wallets, a hundred and forty
+ * times a day. That is the shape of a cost that grows with paying users, and it
+ * is most of why the quota was exhausted.
+ *
+ * Thirty minutes is the honest number. Most of what these calls return is a
+ * historical fact — a wallet's cost basis against a mint does not change unless
+ * it trades — and the parts that do move, `realizedFraction` and
+ * `lastActivityMs`, still refresh twice an hour. What they feed is the insider
+ * overlay's urgency, not the trade decision: a stop or rung is checked against
+ * the mark stored with the position, and price and the volume profile still
+ * update every five minutes, so an insider actually dumping shows up in the
+ * candles immediately whether or not we have re-read their wallet. Lagging that
+ * overlay by half an hour is a far smaller loss than having no wallet data at
+ * all, which is what the exhausted quota was actually delivering.
  */
-const walletHistoryCache = new TtlCache<WalletHistory | null>(10 * 60 * 1000, 2_000);
+const walletHistoryCache = new TtlCache<WalletHistory | null>(30 * 60 * 1000, 2_000);
 
 async function fetchOneWalletCached(
   wallet: string,

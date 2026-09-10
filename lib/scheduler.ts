@@ -17,6 +17,7 @@
 
 import { withLease } from './lease';
 import { captureError } from './observability';
+import { drainProviderCallCounts } from '@/lib/providers/http';
 
 interface Job {
   name: string;
@@ -85,7 +86,15 @@ export function startScheduler(): void {
           console.log(`[cron:${job.name}] skipped — another replica holds the lease`);
           return;
         }
-        console.log(`[cron:${job.name}] ok in ${Date.now() - started}ms`, JSON.stringify(result));
+        // Provider spend for the window that just closed. Attribution is
+        // approximate — the counter is global and two jobs can overlap — but a
+        // rough number every pass is what makes an exhausted quota visible,
+        // which inferring it from three intervals and a cache never did.
+        console.log(
+          `[cron:${job.name}] ok in ${Date.now() - started}ms`,
+          JSON.stringify(result),
+          `providers[${drainProviderCallCounts()}]`,
+        );
       } catch (err) {
         // One failing job must never stop the schedule — but it must also not
         // vanish. A cron that quietly stops means alerts stop and the track
