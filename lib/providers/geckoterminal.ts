@@ -144,6 +144,8 @@ const poolsSchema = z.object({
             address: z.string().nullish(),
             reserve_in_usd: z.union([z.number(), z.string()]).nullish(),
             volume_usd: z.object({ h24: z.union([z.number(), z.string()]).nullish() }).nullish(),
+            market_cap_usd: z.union([z.number(), z.string()]).nullish(),
+            fdv_usd: z.union([z.number(), z.string()]).nullish(),
             pool_created_at: z.string().nullish(),
           })
           .nullish(),
@@ -172,6 +174,12 @@ export interface TopPool {
   poolAddress: string | null;
   liquidityUsd: number;
   volumeH24Usd: number;
+  /**
+   * Market cap where reported, else FDV, else zero for unknown. GeckoTerminal
+   * leaves market_cap_usd null for tokens it has not indexed a supply for, and
+   * FDV is the closer stand-in than nothing.
+   */
+  marketCapUsd: number;
   ageMinutes: number;
 }
 
@@ -213,6 +221,7 @@ export async function fetchTopPools(page = 1, nowMs = Date.now()): Promise<TopPo
       poolAddress: pool.attributes?.address ?? null,
       liquidityUsd: toNum(pool.attributes?.reserve_in_usd),
       volumeH24Usd: toNum(pool.attributes?.volume_usd?.h24),
+      marketCapUsd: toNum(pool.attributes?.market_cap_usd) || toNum(pool.attributes?.fdv_usd),
       ageMinutes: Number.isFinite(createdMs) ? (nowMs - createdMs) / 60_000 : 60 * 24,
     });
   }

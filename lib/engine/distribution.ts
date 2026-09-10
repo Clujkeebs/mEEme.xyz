@@ -53,8 +53,26 @@ export interface Distribution {
 
 /** Beyond this much cumulative turnover, survival is under 0.3% — stop walking. */
 const MAX_TURNOVER_MULTIPLES = 6;
-/** Bands smaller than this share of float are noise. */
+/**
+ * Bands smaller than this share of the *accounted* supply are noise.
+ *
+ * Relative, because it is a significance test: a shelf has to matter among the
+ * supply we could actually see. Measuring it against the whole float instead is
+ * what silently deleted every shelf on any token whose volume had turned over
+ * only a sliver of its supply.
+ */
 const BAND_MIN_SHARE = 0.004;
+/**
+ * And an absolute backstop against dust, because significance among a handful of
+ * priced wallets is not the same as mattering to the price. A block this small
+ * cannot move a book at any liquidity we scan.
+ *
+ * The two floors are eight times apart on purpose. In the production case that
+ * exposed this, the surviving shelves were 0.0007–0.005 of float and $18k–$37k
+ * of supply apiece; the dust the old floor was written to catch was one ten-
+ * thousandth of float and worth ten cents.
+ */
+const BAND_MIN_FLOAT_SHARE = 0.0005;
 /** Log-price bin ratio. Cost bases span orders of magnitude; linear bins hide the early cohort. */
 const BIN_RATIO = 1.08;
 
@@ -97,20 +115,35 @@ function bin(
     bins.set(key, entry);
   }
 
+  let measured = 0;
+  for (const [, entry] of bins) measured += entry.tokens;
+  if (measured <= 0) return [];
+
   const bands: SupplyBand[] = [];
   for (const [, entry] of bins) {
-    const share = entry.tokens / float;
-    if (share < BAND_MIN_SHARE) continue;
     bands.push({
       priceUsd: entry.weightedPrice / entry.tokens,
-      share,
+      share: entry.tokens / float,
       insiderShare: Math.min(1, entry.insiderTokens / entry.tokens),
       realizedShare: Math.min(1, entry.realizedTokens / entry.tokens),
       urgency: entry.urgencyTokens / entry.tokens,
     });
   }
 
-  return mergeAdjacent(bands.sort((a, b) => a.priceUsd - b.priceUsd));
+  // Merge before filtering, not after. A cluster of cost bases that straddles a
+  // bin edge arrives as two half-sized bins; dropping them for being small and
+  // *then* merging deletes both halves of a shelf that was never noise. The
+  // merge is undoing an artefact of our own binning, so it has to run first.
+  const merged = mergeAdjacent(bands.sort((a, b) => a.priceUsd - b.priceUsd));
+
+  // Significance among what we measured, then dust. `covered` stays the honest
+  // statement of how little of the float this described, and confidence
+  // downstream is scaled by it — surviving the filter is not a promise of a
+  // trustworthy read, only of a read worth describing.
+  const measuredShare = Math.min(1, measured / float);
+  return merged.filter(
+    (b) => b.share >= BAND_MIN_SHARE * measuredShare && b.share >= BAND_MIN_FLOAT_SHARE,
+  );
 }
 
 /**
@@ -275,7 +308,14 @@ export function resolveDistribution(
   if (wallet.covered >= WALLET_COVERAGE_FLOOR) return wallet;
 
   const profile = fromVolumeProfile(snapshot.candles, float);
-  if (profile.bands.length === 0) return wallet.bands.length > 0 ? wallet : { bands: [], covered: 0, method: 'none' };
+  if (profile.bands.length === 0) {
+    if (wallet.bands.length > 0) return wallet;
+    // No describable shelves — but still report what supply we saw change hands.
+    // A read that measured 4% of the float and a read with no price history at
+    // all are different failures, and collapsing both to zero hid the first one
+    // behind the second for weeks of scan diagnostics.
+    return { bands: [], covered: Math.max(profile.covered, wallet.covered), method: 'none' };
+  }
   if (wallet.bands.length === 0) return profile;
 
   return {

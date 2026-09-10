@@ -46,6 +46,8 @@ const tokensSchema = z.array(
     baseToken: z.object({ address: z.string().nullish(), symbol: z.string().nullish() }).nullish(),
     liquidity: z.object({ usd: z.union([z.number(), z.string()]).nullish() }).nullish(),
     volume: z.object({ h24: z.union([z.number(), z.string()]).nullish() }).nullish(),
+    marketCap: z.union([z.number(), z.string()]).nullish(),
+    fdv: z.union([z.number(), z.string()]).nullish(),
     pairCreatedAt: z.number().nullish(),
   }),
 );
@@ -74,6 +76,32 @@ export const SCAN_MIN_VOLUME_H24_USD = 50_000;
  * by a deployer-linked cluster, and there is no trapdoor under a major.
  */
 export const SCAN_MAX_LIQUIDITY_USD = 50_000_000;
+
+/**
+ * Volume-to-market-cap below which a token is *usually* too quiet to describe —
+ * counted, never rejected on.
+ *
+ * The reasoning that produced this number was that turnover bounds coverage:
+ * the distribution is built from volume, every candle assigns `volume / price`
+ * tokens a cost basis, so a token whose traded history is one percent of its
+ * market cap yields a distribution covering one percent of its float, and the
+ * confidence from that can never clear the track-record floor. Scanning one is a
+ * slot that could not have produced a call.
+ *
+ * All true, and it still does not make a usable filter, which a test caught
+ * before this shipped as one. The turnover needed to reach the floor depends on
+ * how far the price has run: 0.33 on a token that has doubled, 0.075 at 20x,
+ * 0.0032 at 1000x. Coverage is measured in tokens, and a price that has run
+ * hard means the same dollars bought far more of the float. A fixed bound safe
+ * for the 1000x case rejects almost nothing; one calibrated on the 2x case
+ * discards exactly the vertical, early runners this engine exists to find.
+ *
+ * So it stays an observation. The scan line reports how much of the candidate
+ * pool sits under it, which is the number worth having before touching any
+ * behaviour, and the real saving is taken later — in `buildSnapshot`, where
+ * coverage can be measured from candles instead of predicted from a ratio.
+ */
+export const SCAN_LOW_TURNOVER = 0.1;
 
 /**
  * Assets to never scan. Majors and stablecoins are not what this tool is for,
@@ -110,6 +138,13 @@ export interface Candidate {
    * production showed it doing, there is still a pool to ask with.
    */
   poolAddress?: string | null;
+  /**
+   * Market cap, when the source reported one. Zero means unknown, never zero.
+   *
+   * Carried because it is half of the only ratio that predicts whether the
+   * engine can say anything at all about a token — see SCAN_MIN_TURNOVER.
+   */
+  marketCapUsd?: number;
 }
 
 /**
@@ -198,6 +233,7 @@ async function priceTokens(addresses: string[], nowMs: number): Promise<Map<stri
         symbol: pair.baseToken?.symbol ?? '',
         liquidityUsd: num(pair.liquidity?.usd),
         volumeH24Usd: num(pair.volume?.h24),
+        marketCapUsd: num(pair.marketCap) || num(pair.fdv),
         ageMinutes: pair.pairCreatedAt ? (nowMs - pair.pairCreatedAt) / 60_000 : 60 * 24,
       };
       // A mint can have several pairs; keep its deepest.
@@ -272,6 +308,7 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
       symbol: '',
       liquidityUsd: pool.liquidityUsd,
       volumeH24Usd: pool.volumeH24Usd,
+      marketCapUsd: pool.marketCapUsd,
       ageMinutes: pool.ageMinutes,
       poolAddress: pool.poolAddress,
     });
@@ -348,6 +385,13 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
   // this size, is most passes. Counted separately because they are the ones
   // most likely to come back too thin once buildSnapshot prices them.
   const unpriced = qualified.filter((c) => c.liquidityUsd === 0).length;
+  // Observational: how much of the pool is quiet relative to its own valuation.
+  // Not a rejection — see SCAN_LOW_TURNOVER for why it cannot be one.
+  const lowTurnover = qualified.filter((c) => {
+    const mcap = c.marketCapUsd ?? 0;
+    return mcap > 0 && c.volumeH24Usd / mcap < SCAN_LOW_TURNOVER;
+  }).length;
+  const unvalued = qualified.filter((c) => !c.marketCapUsd).length;
 
   console.log(
     `[discover] boostLatest=${boostLatest.length} boostTop=${boostTop.length} ` +
@@ -355,7 +399,8 @@ export async function discoverCandidates(limit = 12): Promise<Candidate[]> {
       `boostPriced=${priced.size}/${needPricing.length} pool=${byAddress.size} ` +
       `qualified=${qualified.length} unpriced=${unpriced} returned=${Math.min(qualified.length, limit)} ` +
       `rejected[mint=${rejected.mint} symbol=${rejected.symbol} thin=${rejected.thin} ` +
-      `deep=${rejected.deep} quiet=${rejected.quiet}]`,
+      `deep=${rejected.deep} quiet=${rejected.quiet}] ` +
+      `lowTurnover=${lowTurnover} unvalued=${unvalued}`,
   );
 
   return qualified

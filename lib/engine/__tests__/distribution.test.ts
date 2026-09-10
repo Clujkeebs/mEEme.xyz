@@ -31,6 +31,85 @@ describe('fromVolumeProfile', () => {
     expect(dist.covered).toBeLessThanOrEqual(1);
   });
 
+  /** A rising price, so cost bases spread across many logarithmic bins. */
+  function risingCandles(count: number, startPrice: number, runMultiple: number, volumeUsd: number): Candle[] {
+    return Array.from({ length: count }, (_, i) => {
+      const price = startPrice * Math.pow(runMultiple, i / Math.max(1, count - 1));
+      return {
+        timeSec: Math.floor(NOW / 1000) - (count - i) * 300,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volumeUsd,
+      };
+    });
+  }
+
+  it('describes a token whose volume only turned over a sliver of its float', () => {
+    // The production case that returned `none` for weeks: 1e9 float, 69 candles,
+    // $428k of lifetime volume, price up 5x. Every log-price bin holds well under
+    // 0.4% of the float, so a float-relative noise floor deleted all of them and
+    // the read came back indistinguishable from having no price history at all.
+    const float = 1_000_000_000;
+    const candles = risingCandles(69, 0.03 / 5, 5, 428_008 / 69);
+
+    const dist = fromVolumeProfile(candles, float);
+
+    expect(dist.method).toBe('volume-profile');
+    // Several shelves survive, and the shape spans the run rather than collapsing
+    // to a single bar at spot.
+    expect(dist.bands.length).toBeGreaterThan(3);
+    const cheapest = dist.bands[0]!.priceUsd;
+    const dearest = dist.bands[dist.bands.length - 1]!.priceUsd;
+    expect(dearest / cheapest).toBeGreaterThan(2);
+    // Every shelf is a sliver of the float — none of them would clear a
+    // float-relative noise floor built for a fully-covered token.
+    for (const band of dist.bands) expect(band.share).toBeLessThan(0.01);
+    // And coverage stays honest about how little of the float we described.
+    expect(dist.covered).toBeGreaterThan(0);
+    expect(dist.covered).toBeLessThan(0.1);
+    const summed = dist.bands.reduce((t, b) => t + b.share, 0);
+    expect(summed).toBeLessThanOrEqual(dist.covered + 1e-9);
+  });
+
+  it('does not let a thin read buy confidence it has not earned', async () => {
+    const { computeConfidence } = await import('../coil');
+    const float = 1_000_000_000;
+    const candles = risingCandles(69, 0.03 / 5, 5, 428_008 / 69);
+    const dist = fromVolumeProfile(candles, float);
+    const snap = snapshot({ candles, circulatingSupply: float, holders: [] });
+
+    // Bands now exist, but coverage is a few percent, so the read still lands far
+    // below the floor the track record requires. Describing a token is not the
+    // same as being confident about it.
+    expect(computeConfidence(snap, dist)).toBeLessThan(0.45);
+  });
+
+  it('still refuses dust, however significant it is among what we measured', () => {
+    // One wallet holding a ten-thousandth of the float is 100% of the priced
+    // supply, so the relative floor cannot catch it. The absolute one has to.
+    const dist = fromWallets([holder(100, 0.001)], 1_000_000, NOW, 240);
+    expect(dist.bands).toHaveLength(0);
+  });
+
+  it('keeps a shelf that straddles a bin edge instead of deleting both halves', () => {
+    const float = 100_000;
+    // Two prices a hair apart: same cluster, but they round to different bins.
+    // Each half is under the noise floor; together they are a real shelf.
+    const price = 0.01;
+    const justOver = price * 1.05;
+    const candles: Candle[] = [
+      ...flatCandles(3, price, 0.3),
+      ...flatCandles(3, justOver, 0.3),
+      ...flatCandles(3, price * 40, 20),
+    ];
+
+    const dist = fromVolumeProfile(candles, float);
+    const shelf = dist.bands.find((b) => b.priceUsd > price * 0.9 && b.priceUsd < justOver * 1.1);
+    expect(shelf).toBeDefined();
+  });
+
   it('reports partial coverage when the float has barely turned over', () => {
     // Total volume buys only a tenth of the float across the window.
     const dist = fromVolumeProfile(flatCandles(10, 0.01, 10), 100_000);
@@ -299,5 +378,29 @@ describe('degradation to obtainable data', () => {
     expect(picked[1]).toBe('sniper');
     expect(picked[2]).toBe('big-organic');
     expect(picked).not.toContain('pool');
+  });
+});
+
+describe('resolveDistribution reporting', () => {
+  it('reports the supply it saw even when nothing was describable', () => {
+    // Volume so small that no band survives either floor. The read is still not
+    // the same read as one with no price history, and the diagnostics have to be
+    // able to tell them apart — that distinction is what took weeks to find.
+    const float = 1_000_000_000;
+    const candles = flatCandles(40, 5, 60);
+    const snap = snapshot({ candles, circulatingSupply: float, holders: [] });
+
+    const dist = resolveDistribution(snap, float);
+
+    expect(dist.bands).toHaveLength(0);
+    expect(dist.method).toBe('none');
+    expect(dist.covered).toBeGreaterThan(0);
+  });
+
+  it('reports zero coverage when there genuinely is no price history', () => {
+    const snap = snapshot({ candles: [], circulatingSupply: 1_000_000_000, holders: [] });
+    const dist = resolveDistribution(snap, 1_000_000_000);
+    expect(dist.method).toBe('none');
+    expect(dist.covered).toBe(0);
   });
 });
