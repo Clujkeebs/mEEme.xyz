@@ -7,6 +7,7 @@ import { CookieConsent } from '@/components/cookie-consent';
 import { PromoBanner } from '@/components/promo-banner';
 import { SiteHeader } from '@/components/site-header';
 import { Providers } from '@/components/providers';
+import { BRAND_TOKEN_SYMBOL } from '@/lib/brand-token';
 import { appOrigin } from '@/lib/stripe';
 import {
   canonical,
@@ -169,6 +170,16 @@ function SiteFooter() {
                 Read the risk disclosure
               </Link>{' '}
               before you trade.
+            </p>
+            {/* Deliberately its own paragraph, not folded into the "Product"
+                nav column below — the point is that this is a different kind
+                of thing from the tool, and it should not read like a feature. */}
+            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-muted-foreground/80">
+              We also hold and promote our own token, {BRAND_TOKEN_SYMBOL}.{' '}
+              <Link href="/token" className="text-primary underline-offset-4 hover:underline">
+                Disclosure and links
+              </Link>
+              .
             </p>
           </div>
 

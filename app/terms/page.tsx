@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Bullets, Callout, CONTACT_EMAIL, LegalShell, Section } from '@/components/legal';
+import { BRAND_TOKEN_SYMBOL } from '@/lib/brand-token';
 import { TIERS } from '@/lib/tiers';
 import { canonicalMetadata } from '@/lib/seo';
 
@@ -252,7 +253,32 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section id="contact" heading="13. Contact">
+      <Section id="brand-token" heading={`13. Our own token (${BRAND_TOKEN_SYMBOL})`}>
+        <p>
+          We hold, and are promoting on this site, our own token — {BRAND_TOKEN_SYMBOL}, launched on
+          pump.fun. Section 6 forbids you from promoting a token while concealing that you hold it.
+          This is that same rule applied to us: any page on this site that mentions {BRAND_TOKEN_SYMBOL}{' '}
+          says plainly that we hold it and are promoting it, because a memecoin analysis tool that hid
+          its own conflict of interest would be indefensible.
+        </p>
+        <Callout>
+          <strong className="font-semibold">Nothing about {BRAND_TOKEN_SYMBOL} changes the analysis.</strong>{' '}
+          The engine and the scanner apply the same thresholds, the same confidence floor, and the same
+          public track record to every token, including this one, if it is ever priced or scanned. No
+          code path treats it differently, and none will be added. Promotion of it lives only in the
+          specific places that say so — never inside a verdict, a coil score, or the track record.
+        </Callout>
+        <p>
+          {BRAND_TOKEN_SYMBOL} is, like every other token discussed on this site, a speculative asset
+          that can go to zero. Everything in the{' '}
+          <Link href="/risk" className="text-primary underline underline-offset-4">
+            Risk Disclosure
+          </Link>{' '}
+          applies to it exactly as written, with no exception for the fact that we made it.
+        </p>
+      </Section>
+
+      <Section id="contact" heading="14. Contact">
         <p>
           Questions about these terms:{' '}
           <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary underline underline-offset-4">
