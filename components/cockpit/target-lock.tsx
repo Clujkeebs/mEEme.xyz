@@ -348,7 +348,20 @@ export function TargetLock({ initialAddress = '', signedIn }: TargetLockProps) {
 
       {loading && !result && <LoadingSkeleton />}
 
-      {result && <LockResult result={result} entryUsd={hasEntry ? entryNumber : null} signedIn={signedIn} />}
+      {result && (
+        // Keyed by address so a second lock — while the previous read is still
+        // on screen — unmounts and remounts the whole panel instead of just
+        // patching its props. Otherwise the entrance below plays once per
+        // session instead of once per read: exactly the problem CoilGauge's
+        // own re-trigger effect exists to solve, applied here at the panel
+        // level instead of inside one gauge.
+        <LockResult
+          key={result.token.address}
+          result={result}
+          entryUsd={hasEntry ? entryNumber : null}
+          signedIn={signedIn}
+        />
+      )}
     </div>
   );
 }
@@ -425,9 +438,16 @@ function LockResult({
   React.useEffect(() => setOrigin(window.location.origin), []);
 
   return (
+    // The whole read arrives as one coordinated sequence rather than popping
+    // in at once — the same "enter" primitive the landing page uses to stage
+    // its hero, applied here to the moment the product actually exists for.
+    // Every top-level block gets its own delay rather than nesting reveals,
+    // so the motion reads as one arrival, not a cascade of independent ones.
     <div className="space-y-6">
       {mode === 'demo' && (
-        <div className="rounded-lg border border-warn/40 bg-warn/[0.06] px-4 py-3 text-sm text-warn">
+        <div
+          className="enter rounded-lg border border-warn/40 bg-warn/[0.06] px-4 py-3 text-sm text-warn"
+        >
           <strong className="font-semibold">Demo data.</strong> The engine below is real and running
           on a synthetic token. This deployment has no live market feed, see{' '}
           <code className="rounded bg-black/30 px-1">/api/diagnostics</code>. Demo reads are never
@@ -435,21 +455,30 @@ function LockResult({
         </div>
       )}
 
-      <TokenHeader token={token} />
+      <div className="enter">
+        <TokenHeader token={token} />
+      </div>
 
-      <VerdictBanner
-        verdict={signal.verdict}
-        conviction={signal.conviction}
-        headline={signal.headline}
-        halfLifeMinutes={signal.halfLifeMinutes}
-        coilScore={coil.coilScore}
-        confidence={coil.confidence}
-      />
+      <div className="enter" style={{ '--reveal-delay': '70ms' } as React.CSSProperties}>
+        <VerdictBanner
+          verdict={signal.verdict}
+          conviction={signal.conviction}
+          headline={signal.headline}
+          halfLifeMinutes={signal.halfLifeMinutes}
+          coilScore={coil.coilScore}
+          confidence={coil.confidence}
+        />
+      </div>
 
       {/* Directly under the call, not in the footer. See components/not-advice. */}
-      <NotAdvice />
+      <div className="enter" style={{ '--reveal-delay': '130ms' } as React.CSSProperties}>
+        <NotAdvice />
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div
+        className="enter grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]"
+        style={{ '--reveal-delay': '180ms' } as React.CSSProperties}
+      >
         <div className="space-y-6">
           <section className="hud-panel p-6">
             <h3 className="section-title">Price, with the engine&rsquo;s levels on it</h3>

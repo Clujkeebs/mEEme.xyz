@@ -16,6 +16,17 @@ export interface LadderCardProps {
   className?: string;
 }
 
+/**
+ * The card itself sits inside a wrapper that is already fading in with its
+ * own 180ms delay (see target-lock.tsx) — without accounting for that, the
+ * first couple of rungs would start their own rise while still masked by the
+ * still-transparent wrapper around them, compositing into a softer, muddier
+ * arrival instead of a clean staggered one. Starting the rung stagger after
+ * the wrapper's own delay keeps "the ladder assembles rung by rung" legible
+ * rather than partly hidden inside a bigger fade.
+ */
+const RUNG_BASE_DELAY_MS = 180;
+
 const STOP_TONE = {
   structural: 'text-coil',
   volatility: 'text-warn',
@@ -60,7 +71,11 @@ export function LadderCard({ ladder, spotUsd, className }: LadderCardProps) {
 
       <ol className="divide-y divide-border/60">
         {ladder.rungs.map((rung, i) => (
-          <li key={i} className="flex gap-4 px-6 py-4 transition-colors hover:bg-primary/[0.03]">
+          <li
+            key={i}
+            className="enter flex gap-4 px-6 py-4 transition-colors hover:bg-primary/[0.03]"
+            style={{ '--reveal-delay': `${RUNG_BASE_DELAY_MS + Math.min(i * 70, 350)}ms` } as React.CSSProperties}
+          >
             <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/35 bg-primary/10 font-mono text-[11px] font-semibold text-primary">
               {i + 1}
             </div>
@@ -83,7 +98,10 @@ export function LadderCard({ ladder, spotUsd, className }: LadderCardProps) {
         ))}
 
         {ladder.runnerFraction > 0.005 && (
-          <li className="flex gap-4 px-6 py-4">
+          <li
+            className="enter flex gap-4 px-6 py-4"
+            style={{ '--reveal-delay': `${RUNG_BASE_DELAY_MS + Math.min(ladder.rungs.length * 70, 350)}ms` } as React.CSSProperties}
+          >
             <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-hud/35 bg-hud/10 font-mono text-[11px] text-hud">
               ∞
             </div>

@@ -287,8 +287,12 @@ export function Watchtower({
             <Bell className="h-3 w-3" /> alerts
           </h2>
           <ul className="space-y-2">
-            {alerts.slice(0, 8).map((a) => (
-              <li key={a.id} className="hud-panel flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3">
+            {alerts.slice(0, 8).map((a, i) => (
+              <li
+                key={a.id}
+                className="enter hud-panel flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
+                style={{ '--reveal-delay': `${Math.min(i * 45, 300)}ms` } as React.CSSProperties}
+              >
                 <Badge variant={a.kind === 'STOP_HIT' || a.kind === 'INSIDER_DUMP' ? 'danger' : 'warn'}>
                   {a.kind.replace('_', ' ')}
                 </Badge>
@@ -384,10 +388,14 @@ export function Watchtower({
               )
             ) : (
               <ul className="space-y-2">
-                {positions.map((p) => {
+                {positions.map((p, i) => {
                   const v = valuePosition(p, nowMs);
                   return (
-                  <li key={p.id} className="hud-panel px-4 py-3">
+                  <li
+                    key={p.id}
+                    className="enter hud-panel px-4 py-3"
+                    style={{ '--reveal-delay': `${Math.min(i * 45, 300)}ms` } as React.CSSProperties}
+                  >
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                     {/* basis-full below sm: identity gets the whole line and the
                         controls drop underneath, instead of three blocks
@@ -558,8 +566,12 @@ export function Watchtower({
               )
             ) : (
               <ul className="space-y-2">
-                {watches.map((w) => (
-                  <li key={w.id} className="hud-panel flex flex-wrap items-center gap-4 px-4 py-3">
+                {watches.map((w, i) => (
+                  <li
+                    key={w.id}
+                    className="enter hud-panel flex flex-wrap items-center gap-4 px-4 py-3"
+                    style={{ '--reveal-delay': `${Math.min(i * 45, 300)}ms` } as React.CSSProperties}
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="font-semibold">${w.symbol}</span>
