@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Candle } from '@/lib/engine/types';
 import { fetchJson } from './http';
+import { createPacer } from './ratelimit';
 
 /**
  * GeckoTerminal — price history, with no API key.
@@ -22,8 +23,32 @@ import { fetchJson } from './http';
 
 const BASE = process.env.GECKOTERMINAL_BASE_URL || 'https://api.geckoterminal.com/api/v2';
 
-/** The keyless tier is roughly 30 requests/minute. Snapshots are cached hard for this reason. */
+/**
+ * The keyless tier is roughly 30 requests/minute — documented here, and until
+ * now not enforced anywhere. Production showed why that matters: cutting the
+ * scan pass from ~390s to ~21s (fixing the Helius breaker) concentrated the
+ * same per-pass GeckoTerminal traffic — candle fetches and top-pool pages,
+ * both routed through this file — into a much shorter window, and its own
+ * breaker started tripping shortly after. Bounded *concurrency* upstream
+ * (SNAPSHOT_FETCH_CONCURRENCY) is not bounded *rate*: five workers that each
+ * finish in under a second still burst well past 30 requests/minute. This
+ * paces every call the same way Helius's already was, at 2 seconds between
+ * requests — 30/minute exactly, with headroom for GeckoTerminal's own
+ * variance in what a "request" costs against its limit.
+ */
 const TIMEOUT_MS = 12_000;
+const GECKOTERMINAL_MIN_INTERVAL_MS = Number(process.env.GECKOTERMINAL_MIN_INTERVAL_MS ?? 2_000);
+const geckoPacer = createPacer(
+  Number.isFinite(GECKOTERMINAL_MIN_INTERVAL_MS) && GECKOTERMINAL_MIN_INTERVAL_MS >= 0
+    ? GECKOTERMINAL_MIN_INTERVAL_MS
+    : 2_000,
+);
+
+/** Every GeckoTerminal request goes through the pacer, then the shared HTTP layer. */
+const pacedFetchJson: typeof fetchJson = async (opts) => {
+  await geckoPacer.take();
+  return fetchJson(opts);
+};
 
 const ohlcvSchema = z.object({
   data: z
@@ -72,7 +97,7 @@ export async function fetchGeckoCandles(
 ): Promise<Candle[] | null> {
   const { timeframe, aggregate, limit } = resolutionForAge(ageMinutes);
 
-  const data = await fetchJson({
+  const data = await pacedFetchJson({
     provider: `geckoterminal:ohlcv:${timeframe}${aggregate}`,
     url:
       `${BASE}/networks/solana/pools/${encodeURIComponent(poolAddress)}/ohlcv/${timeframe}` +
@@ -202,7 +227,7 @@ function mintFromTokenId(id: string | null | undefined): string | null {
 
 /** One page is twenty pools. Returns [] on any failure — callers treat it as optional. */
 export async function fetchTopPools(page = 1, nowMs = Date.now()): Promise<TopPool[]> {
-  const data = await fetchJson({
+  const data = await pacedFetchJson({
     provider: `geckoterminal:pools:${page}`,
     url: `${BASE}/networks/solana/pools?page=${page}`,
     schema: poolsSchema,

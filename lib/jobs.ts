@@ -2,6 +2,7 @@ import { writeCachedSnapshot } from '@/lib/cache';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { prisma } from '@/lib/db';
 import { runAlphaEngine } from '@/lib/engine';
+import { tradableSupply } from '@/lib/engine/coil';
 import type { TokenSnapshot, Verdict } from '@/lib/engine/types';
 import { flushPendingAlerts } from '@/lib/notify';
 import { captureError } from '@/lib/observability';
@@ -580,19 +581,30 @@ export async function runScan(): Promise<ScanResult> {
        * pool ranking, whose pool address discovery discards. If the source list
        * shows no ohlcv provider, that round trip is the suspect.
        */
+      // A third instance of this same failure — real volume, 88 candles, an
+      // ohlcv source — survived the fix that was supposed to end it (304674b).
+      // A synthetic reproduction of that exact shape (float, candle count,
+      // total volume) at every plausible market cap and run multiple could not
+      // make fromVolumeProfile return zero bands, which rules out the bug I
+      // went looking for. Two things the log did not carry are the obvious
+      // remaining suspects: `sup` here has always been circulatingSupply, not
+      // the tradableSupply that actually gets used as `float` inside the
+      // distribution — if a large LP balance is present they diverge — and
+      // there was no way to see what price level or spread the candles
+      // actually covered. Both travel now, so the next occurrence is evidence
+      // instead of another guess.
+      const float = tradableSupply(snapshot);
+      const priced = snapshot.candles.filter((c) => c.close > 0);
+      const closes = priced.map((c) => c.close);
+      const minClose = closes.length > 0 ? Math.min(...closes) : 0;
+      const maxClose = closes.length > 0 ? Math.max(...closes) : 0;
       lowConfidenceDetail.push(
-        `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(2)}` +
+        `${signal.coil.method}:${signal.coil.confidence.toFixed(2)}/${signal.coil.supplyCovered.toFixed(4)}` +
           `@${Math.round(snapshot.ageMinutes)}m/${snapshot.candles.length}c` +
           `[${snapshot.dataQuality.sources.join('+') || 'no-sources'}]` +
-          // The second, separate failure: reads arriving with a hundred-odd
-          // candles and an ohlcv source, and still resolving to 'none'.
-          // fromVolumeProfile returns 'none' from exactly two places once it is
-          // past the candle count — a float of zero, or no candle contributing
-          // any volume. Supply and total volume tell those apart, and nothing
-          // else in the log can.
-          `{sup=${Math.round(snapshot.circulatingSupply)},vol=${Math.round(
+          `{sup=${Math.round(snapshot.circulatingSupply)},float=${Math.round(float)},vol=${Math.round(
             snapshot.candles.reduce((t, c) => t + (c.volumeUsd || 0), 0),
-          )}}`,
+          )},px=${minClose.toExponential(2)}..${maxClose.toExponential(2)}}`,
       );
       unresolvableUntil.set(snapshot.address, Date.now() + UNRESOLVABLE_COOLDOWN_MS);
       continue;
