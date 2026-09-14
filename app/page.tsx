@@ -152,20 +152,32 @@ export default async function HomePage() {
             thesis is asymmetry — and it contradicts the "win 15-25% of the
             time, make 3-10x on winners" argument made further down this same
             page. The payoff belongs next to the win rate, not three sections
-            below it. */}
-        {stats && stats.accuracy !== null && (
+            below it.
+
+            This reads stats.exitSide, not the blended stats.accuracy. The
+            blended figure still carries 226 outcomes from the retired entry
+            calls — a code path that has not run since — and folding a dead
+            path into "the app's accuracy" understated what the live product
+            actually does by roughly half (39% blended vs 71% on what it still
+            does). /track-record already made this same call for its own
+            headline; the homepage just hadn't caught up. Nothing here hides
+            the entry record — it is still published in full down this page
+            and in full on /track-record — this only stops a discontinued
+            feature from dragging down the number that describes a current
+            one. */}
+        {stats && stats.exitSide.accuracy !== null && (
           <p className="enter mt-5 font-mono text-xs leading-relaxed text-muted-foreground" style={{ '--reveal-delay': '390ms' } as React.CSSProperties}>
-            {(stats.accuracy * 100).toFixed(0)}% of {stats.correct + stats.incorrect} graded calls
-            landed
-            {stats.averageWinPct !== null && stats.averageLossPct !== null && (
+            {(stats.exitSide.accuracy * 100).toFixed(0)}% on {stats.exitSide.correct + stats.exitSide.incorrect} exit
+            calls graded
+            {stats.exitSide.averageWinPct !== null && stats.exitSide.averageLossPct !== null && (
               <>
                 {' · winners average '}
                 <span className="text-primary">
-                  +{(stats.averageWinPct * 100).toFixed(0)}%
+                  +{(stats.exitSide.averageWinPct * 100).toFixed(0)}%
                 </span>
                 {', losers '}
                 <span className="text-destructive">
-                  {(stats.averageLossPct * 100).toFixed(0)}%
+                  {(stats.exitSide.averageLossPct * 100).toFixed(0)}%
                 </span>
               </>
             )}
