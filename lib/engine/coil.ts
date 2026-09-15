@@ -27,8 +27,15 @@ const COIL_SATURATION_K = 2.2;
  */
 const TRAP_CURVE_EXPONENT = 0.6;
 
-/** Profit-weighted coiled supply at which selling pressure is considered maxed. */
-const COIL_NORMALIZER = 0.45;
+/**
+ * Profit-weighted coiled supply at which selling pressure is considered maxed
+ * — for the purpose of the composite coilScore, which clamps its contribution
+ * here. Exported because the verdict layer needs the same number to know
+ * where that clamp bites; see the comment on the HOLD_THROUGH_NOISE boundary
+ * in verdict.ts for why the raw value still matters past this point even
+ * though the composite score stops moving.
+ */
+export const COIL_NORMALIZER = 0.45;
 /** Insider-held profitable supply at which insider risk is considered maxed. */
 const INSIDER_NORMALIZER = 0.2;
 /** Trapped supply at which structural support is considered maxed. */

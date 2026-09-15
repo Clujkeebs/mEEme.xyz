@@ -1,4 +1,4 @@
-import { clamp, isInsider } from './coil';
+import { clamp, COIL_NORMALIZER, isInsider } from './coil';
 import { buildLadder } from './ladder';
 import type {
   AlphaSignal,
@@ -130,6 +130,34 @@ export function decideVerdict(snapshot: TokenSnapshot, coil: CoilReport): Verdic
     return 'SCALE_OUT_NOW';
   }
   if (coil.coilScore > 0.5 || coil.velocityOfRealization > 0.35) return 'ARM_EXIT';
+
+  /*
+   * HOLD_THROUGH_NOISE graded 9/28 correct in production (32%) — the worst
+   * of the live verdicts by a wide margin, and confirmed across two
+   * independent pulls a week apart, not a one-off sample. coilScore and
+   * conviction were statistically identical between its right and wrong
+   * calls (~0.30 both ways) — no separation, which is why neither looked
+   * like the lever. Raw coiledSupply was a different story: 0.39 average on
+   * the calls that held, 0.55 on the ones that broke, and a threshold sweep
+   * across 0.41-0.49 held up as a stable plateau rather than one lucky cut —
+   * kept accuracy 42-50%, excluded accuracy 9-25%, at every point in that
+   * range.
+   *
+   * The reason coilScore couldn't see what coiledSupply could: csNorm in
+   * coil.ts clamps coiled/COIL_NORMALIZER to 1, so once coiledSupply passes
+   * 0.45 the composite treats it exactly like 0.45 — a token sitting on 1.1
+   * (observed in this data) scores the same as one at 0.46. That saturation
+   * is correct for the score's own job of staying in 0..1, but it throws
+   * away precisely the information this boundary needs: whether there is
+   * more coiled supply than "moderate" once the composite has already maxed
+   * out on it. So this checks the unsaturated number directly rather than
+   * trusting coilScore to have kept it. ARM_EXIT is where that supply level
+   * already routes on every other path into this function — this is the one
+   * path where the clamp was hiding it, not a new judgment about what
+   * counts as risky.
+   */
+  if (coil.coiledSupply >= COIL_NORMALIZER) return 'ARM_EXIT';
+
   if (coil.coilScore > 0.28) return 'HOLD_THROUGH_NOISE';
 
   // Below the HOLD threshold there is no measurable overhang, and this engine

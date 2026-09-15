@@ -252,6 +252,36 @@ describe('decideVerdict', () => {
       expect(VERDICT_META[key as keyof typeof VERDICT_META].label.length).toBeGreaterThan(0);
     }
   });
+
+  it('escalates to ARM_EXIT when coiledSupply passes the coilScore composite clamp, even with a mid-band score', () => {
+    // Production regression: coilScore's csNorm term saturates at
+    // coiled/COIL_NORMALIZER (0.45), so a token sitting on far more coiled
+    // supply than that reads identically to one right at 0.45 in the
+    // composite alone. HOLD_THROUGH_NOISE graded 32% correct in production
+    // because of exactly this — coiledSupply 0.55+ tokens were falling into
+    // the same coilScore=0.30ish band as genuinely quiet ones. This is the
+    // branch that stops that: coiledSupply at or past the clamp routes to
+    // ARM_EXIT regardless of what the saturated composite says.
+    const v = decideVerdict(snapshot(), coilOf({ coilScore: 0.35, coiledSupply: 0.55 }));
+    expect(v).toBe('ARM_EXIT');
+  });
+
+  it('still calls HOLD_THROUGH_NOISE in the middle band when coiledSupply has not reached the clamp', () => {
+    const v = decideVerdict(snapshot(), coilOf({ coilScore: 0.35, coiledSupply: 0.3 }));
+    expect(v).toBe('HOLD_THROUGH_NOISE');
+  });
+
+  it('treats coiledSupply exactly at COIL_NORMALIZER as past the clamp', () => {
+    const v = decideVerdict(snapshot(), coilOf({ coilScore: 0.3, coiledSupply: 0.45 }));
+    expect(v).toBe('ARM_EXIT');
+  });
+
+  it('does not let the new coiledSupply check override the higher-severity verdicts above it', () => {
+    // coilScore alone already earns SCALE_OUT_NOW here; a high coiledSupply
+    // must not downgrade that outcome.
+    const v = decideVerdict(snapshot(), coilOf({ coilScore: 0.7, coiledSupply: 0.6 }));
+    expect(v).toBe('SCALE_OUT_NOW');
+  });
 });
 
 describe('computeHalfLife', () => {
