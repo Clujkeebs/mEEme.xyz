@@ -6,6 +6,7 @@ import { MeemeLogo } from '@/components/brand';
 import { CookieConsent } from '@/components/cookie-consent';
 import { PromoBanner } from '@/components/promo-banner';
 import { SiteHeader } from '@/components/site-header';
+import { TokenBar } from '@/components/token-bar';
 import { Providers } from '@/components/providers';
 import { BRAND_TOKEN_SYMBOL } from '@/lib/brand-token';
 import { appOrigin } from '@/lib/stripe';
@@ -102,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           >
             Skip to main content
           </a>
+          <TokenBar />
           <SiteHeader />
           <PromoBanner />
           <AffiliateCapture />

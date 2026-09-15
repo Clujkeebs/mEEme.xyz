@@ -37,9 +37,10 @@ export default function TokenPage() {
       <Section id="what" heading="What this is">
         <p>
           {BRAND_TOKEN_SYMBOL} is a token we launched on pump.fun. We hold a share of the supply, and
-          this page — along with a small link in the footer — is us promoting it. That is the entire
-          relationship between this page and the rest of the site: nowhere else does mEEme mention it,
-          and this page does not pretend to be anything other than promotion.
+          promote it in exactly three places: a bar across the top of every page, a line in the
+          footer, and this page. All three carry the same disclosure you are reading now — none of
+          them pretend to be anything other than promotion, and nowhere on the site is it presented
+          as a signal, a verdict, or an engine output.
         </p>
       </Section>
 
