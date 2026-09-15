@@ -136,9 +136,36 @@ export interface HeliusAsset {
   decimals: number | null;
 }
 
+/**
+ * getAsset had no cache at all, unlike wallet history below — and it is
+ * called once per buildSnapshot, which the 20-90s price-cache TTL (lib/cache.ts)
+ * re-runs for any actively locked or watched token. That is a tighter loop
+ * than the five-minute sweep that exhausted the wallet-history quota before
+ * that one got a cache: a single Target Lock left open re-fetches the same
+ * symbol, name, decimals and supply every 20 seconds, forever, for numbers
+ * that are effectively static once a token exists — none of what this call
+ * actually returns is time-sensitive the way price, liquidity or volume are
+ * (those still refresh on the normal cadence, unaffected by this cache; mint
+ * and freeze authority come from RugCheck, not here, and are not cached by
+ * this change).
+ */
+const assetCache = new TtlCache<HeliusAsset | null>(30 * 60 * 1000, 2_000);
+
 export async function fetchAsset(mint: string): Promise<HeliusAsset | null> {
   if (!heliusConfigured()) return null;
 
+  const cached = assetCache.get(mint);
+  if (cached !== undefined) return cached;
+
+  const fresh = await fetchAssetUncached(mint);
+  // A null here is usually "rate limited" rather than "asset does not
+  // exist" — caching that would turn a transient miss into 30 minutes of
+  // reading a real token as if it had no metadata at all.
+  if (fresh) assetCache.set(mint, fresh);
+  return fresh;
+}
+
+async function fetchAssetUncached(mint: string): Promise<HeliusAsset | null> {
   const data = await pacedFetchJson({
     provider: 'helius:getAsset',
     url: RPC(),
