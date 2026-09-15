@@ -2,6 +2,7 @@
 
 import { Check, Copy, X } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import * as React from 'react';
 import { BRAND_TOKEN_MINT, BRAND_TOKEN_SYMBOL } from '@/lib/brand-token';
 
@@ -19,16 +20,70 @@ import { BRAND_TOKEN_MINT, BRAND_TOKEN_SYMBOL } from '@/lib/brand-token';
  * this whole feature exists to prevent. So the disclosure word ("ours") is
  * in the bar itself, not just one click away on /token.
  *
- * Not sticky: it occupies real space on first paint (where the ad traffic
- * this was asked for actually lands) and then scrolls away with the rest of
- * the page, rather than permanently eating a strip of every screen forever.
- * Dismissible for the rest of the session, same pattern as PromoBanner —
- * plain component state, no persistence, so it is back at full visibility on
- * the next fresh visit.
+ * Not sticky: it occupies real space on first paint and then scrolls away
+ * with the rest of the page, rather than permanently eating a strip of every
+ * screen forever. Dismissible for the rest of the session, same pattern as
+ * PromoBanner — plain component state, no persistence, so it is back at
+ * full visibility on the next fresh visit.
+ *
+ * Suppressed for paid-ad landings specifically (see AD_CLICK_PARAMS below).
+ * X's ad review reads the landing page, not just the creative, and an app
+ * ad that lands on a page showing a live token contract address and a "copy
+ * CA" button reads as crypto-token promotion to that review regardless of
+ * what the ad itself says — real risk of the ad getting flagged or the
+ * account restricted. Wrapped in Suspense for the same reason
+ * AffiliateCapture is: a bare useSearchParams() would force every statically
+ * prerendered page back to fully dynamic rendering.
  */
 export function TokenBar() {
+  return (
+    <React.Suspense fallback={null}>
+      <TokenBarInner />
+    </React.Suspense>
+  );
+}
+
+const STORAGE_KEY = 'meeme.paid-landing';
+
+/** Click-id params set by the major ad platforms, plus a generic paid utm_medium. */
+const AD_CLICK_PARAMS = ['twclid', 'gclid', 'fbclid', 'msclkid'];
+
+function isPaidLanding(searchParams: URLSearchParams): boolean {
+  if (AD_CLICK_PARAMS.some((p) => searchParams.has(p))) return true;
+  const medium = searchParams.get('utm_medium');
+  return medium ? /^(cpc|ppc|paid|ads?)$/i.test(medium) : false;
+}
+
+function TokenBarInner() {
+  const searchParams = useSearchParams();
+  // Computed straight from the URL during render, not an effect — this is
+  // the one that actually matters for ad review, and it has to be true on
+  // the very first paint of the landing page with zero flash-in.
+  const urlSaysPaid = isPaidLanding(searchParams);
   const [dismissed, setDismissed] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  // Carries the suppression to later pages in the same tab once the ad-click
+  // param has been left behind by navigation. Session-only by design — a
+  // fresh visit with no ad param is a fresh judgment call.
+  const [sessionSaysPaid, setSessionSaysPaid] = React.useState(false);
+
+  React.useEffect(() => {
+    if (urlSaysPaid) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, '1');
+      } catch {
+        // Private browsing or a full quota — this page load is still
+        // suppressed via urlSaysPaid, it just will not carry to the next one.
+      }
+      return;
+    }
+    try {
+      if (sessionStorage.getItem(STORAGE_KEY) === '1') setSessionSaysPaid(true);
+    } catch {
+      // No stored flag reachable — default to showing the bar, same as a
+      // visitor who was never flagged.
+    }
+  }, [urlSaysPaid]);
 
   const copy = async () => {
     try {
@@ -40,7 +95,7 @@ export function TokenBar() {
     }
   };
 
-  if (dismissed) return null;
+  if (dismissed || urlSaysPaid || sessionSaysPaid) return null;
 
   return (
     <div role="region" aria-label="Our own token" className="border-b border-primary/30 bg-primary/[0.07]">
