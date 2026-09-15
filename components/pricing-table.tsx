@@ -111,7 +111,10 @@ export function PricingTable({
               )}
             >
               {featured && (
-                <Badge className="absolute -top-2.5 left-6">most traders land here</Badge>
+                // -top-2.5 used to leave the badge's own height overlapping the
+                // card's 2px top border, so the border line drew straight through
+                // the bottom of the text. -top-5 clears the badge fully above it.
+                <Badge className="absolute -top-5 left-6">most traders land here</Badge>
               )}
 
               <h2 className="text-lg font-bold">{spec.name}</h2>
