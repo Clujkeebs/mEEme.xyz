@@ -37,69 +37,79 @@ export async function GET(request: Request) {
       ? { size, entryPriceUsd: entry }
       : null;
 
-  let snapshot = await readCachedSnapshot(address);
-  let mode: 'live' | 'demo' = 'live';
-  if (!snapshot) {
-    const result = await buildSnapshot(address);
+  // Wrapped end to end, unlike the browser Target Lock route: that one fails
+  // toward a human who can read a generic error page, this one fails toward a
+  // trading bot parsing JSON. An unhandled exception here would otherwise hit
+  // it as an HTML 500 it cannot parse, rather than a response shape it can
+  // branch on the same way it already does for auth and 404 failures above.
+  try {
+    let snapshot = await readCachedSnapshot(address);
+    let mode: 'live' | 'demo' = 'live';
+    if (!snapshot) {
+      const result = await buildSnapshot(address);
 
-    // A bot pointed at an address nobody trades must get a 404 it can branch
-    // on, not a fabricated verdict it will act on. This is the same fix as the
-    // browser route, and it matters more here: there is no human reading a
-    // caption to notice the numbers are invented.
-    if (result.mode === 'unknown' || !result.snapshot) {
-      return jsonError('No market data for that address.', 404);
+      // A bot pointed at an address nobody trades must get a 404 it can branch
+      // on, not a fabricated verdict it will act on. This is the same fix as the
+      // browser route, and it matters more here: there is no human reading a
+      // caption to notice the numbers are invented.
+      if (result.mode === 'unknown' || !result.snapshot) {
+        return jsonError('No market data for that address.', 404);
+      }
+
+      snapshot = result.snapshot;
+      mode = result.mode;
+      if (mode === 'live') await writeCachedSnapshot(snapshot);
+    } else {
+      mode = snapshot.dataQuality.synthetic ? 'demo' : 'live';
     }
 
-    snapshot = result.snapshot;
-    mode = result.mode;
-    if (mode === 'live') await writeCachedSnapshot(snapshot);
-  } else {
-    mode = snapshot.dataQuality.synthetic ? 'demo' : 'live';
+    const signal = runAlphaEngine(snapshot, position);
+    const stored = await recordSignal(signal, auth.key.userId);
+
+    return Response.json(
+      {
+        ok: true,
+        mode,
+        token: {
+          address: snapshot.address,
+          symbol: snapshot.symbol,
+          priceUsd: snapshot.priceUsd,
+          liquidityUsd: snapshot.liquidityUsd,
+          fdvUsd: snapshot.fdvUsd,
+          ageMinutes: snapshot.ageMinutes,
+        },
+        verdict: signal.verdict,
+        conviction: signal.conviction,
+        headline: signal.headline,
+        reasoning: signal.reasoning,
+        halfLifeMinutes: signal.halfLifeMinutes,
+        coil: {
+          score: signal.coil.coilScore,
+          confidence: signal.coil.confidence,
+          method: signal.coil.method,
+          supplyCovered: signal.coil.supplyCovered,
+          coiledSupply: signal.coil.coiledSupply,
+          trappedSupply: signal.coil.trappedSupply,
+          insiderCoil: signal.coil.insiderCoil,
+          insiderRealized: signal.coil.insiderRealized,
+          velocityOfRealization: signal.coil.velocityOfRealization,
+          trapdoorUsd: signal.coil.trapdoorUsd,
+          ceilingUsd: signal.coil.ceilingUsd,
+          shelves: signal.coil.shelves,
+        },
+        ladder: signal.ladder,
+        signalId: stored?.id ?? null,
+        shareUrl: stored ? `/signal/${stored.shareSlug}` : null,
+      },
+      {
+        headers: {
+          'x-ratelimit-limit': String(API_DAILY_LIMIT),
+          'x-ratelimit-remaining': String(Math.max(0, API_DAILY_LIMIT - auth.key.callsToday)),
+        },
+      },
+    );
+  } catch (err) {
+    console.error('[api/v1/lock] unhandled error:', err instanceof Error ? err.message : err);
+    return jsonError('Something went wrong reading that token. Try again in a moment.', 500);
   }
-
-  const signal = runAlphaEngine(snapshot, position);
-  const stored = await recordSignal(signal, auth.key.userId);
-
-  return Response.json(
-    {
-      ok: true,
-      mode,
-      token: {
-        address: snapshot.address,
-        symbol: snapshot.symbol,
-        priceUsd: snapshot.priceUsd,
-        liquidityUsd: snapshot.liquidityUsd,
-        fdvUsd: snapshot.fdvUsd,
-        ageMinutes: snapshot.ageMinutes,
-      },
-      verdict: signal.verdict,
-      conviction: signal.conviction,
-      headline: signal.headline,
-      reasoning: signal.reasoning,
-      halfLifeMinutes: signal.halfLifeMinutes,
-      coil: {
-        score: signal.coil.coilScore,
-        confidence: signal.coil.confidence,
-        method: signal.coil.method,
-        supplyCovered: signal.coil.supplyCovered,
-        coiledSupply: signal.coil.coiledSupply,
-        trappedSupply: signal.coil.trappedSupply,
-        insiderCoil: signal.coil.insiderCoil,
-        insiderRealized: signal.coil.insiderRealized,
-        velocityOfRealization: signal.coil.velocityOfRealization,
-        trapdoorUsd: signal.coil.trapdoorUsd,
-        ceilingUsd: signal.coil.ceilingUsd,
-        shelves: signal.coil.shelves,
-      },
-      ladder: signal.ladder,
-      signalId: stored?.id ?? null,
-      shareUrl: stored ? `/signal/${stored.shareSlug}` : null,
-    },
-    {
-      headers: {
-        'x-ratelimit-limit': String(API_DAILY_LIMIT),
-        'x-ratelimit-remaining': String(Math.max(0, API_DAILY_LIMIT - auth.key.callsToday)),
-      },
-    },
-  );
 }

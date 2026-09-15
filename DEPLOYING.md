@@ -141,6 +141,15 @@ The GitHub Actions workflow is still committed and still works, for running on
 Vercel or any serverless host. Do not enable both against the same deployment —
 you would double every alert.
 
+**Do not raise `railway.json`'s `numReplicas` above 1 without changing
+`lib/ratelimit.ts` first.** The rate limiter behind signup, login, password
+reset, and Target Lock is an in-process `Map` — correct and durable enough for
+one instance, but with two replicas each one keeps its own count, so every
+limit silently becomes `limit × replica count` with no error or warning. Fine
+at today's traffic; would matter the moment you scale out to handle an ads
+push. Swap `lib/ratelimit.ts` for a shared store (Redis via Railway's add-on,
+or Upstash) before adding replicas, not after.
+
 ## 9. Domain
 
 Railway → service → **Settings → Networking → Custom Domain** → add
