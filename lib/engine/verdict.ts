@@ -99,10 +99,17 @@ const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
  * page already promises: every tool is built for the entry, and entry is a race
  * you cannot win. The app was quietly racing anyway, and losing.
  *
- * APEX_ENTRY and SCALE_IN stay in the Verdict union and in VERDICT_META. All
- * 225 of them are published on the track record and they are staying there —
- * the record is the product's only real claim, and a record you edit after the
- * fact is not one. They are simply never emitted again.
+ * APEX_ENTRY and SCALE_IN stay in the Verdict union and in VERDICT_META even
+ * though the engine never emits them again — the grading rule in
+ * lib/scoring.ts still needs to know which side of the ledger a historical
+ * call belonged to, for as long as any exist.
+ *
+ * (An earlier version of this comment said those calls were staying on the
+ * track record permanently, because a record edited after the fact is not
+ * one. An operator-triggered full reset — see /api/admin/track-record — is a
+ * different act from quietly editing individual outcomes, but it is still a
+ * real loss of history, and this comment should not go on asserting a
+ * permanence guarantee the codebase no longer makes.)
  */
 
 /**

@@ -296,11 +296,14 @@ export default async function HomePage() {
           {/* The strongest thing on this page, and it was only on the track
               record. A tool that published evidence against itself and then
               acted on it is a different claim from one that publishes a number. */}
-          That ledger is also why the engine stopped making entry calls. Split by what a call told
-          you to do, the exit side graded 72% and the entry side graded 21% across 225 of them — so
-          the entry side was retired rather than tuned, and every one of those losses is still
-          published and still counted in the headline. The engine reads who still has to sell. It
-          turned out to have nothing to say about who wants to buy, so it stopped saying it.
+          That ledger is also why the engine stopped making entry calls: split by what a call told
+          you to do, the exit side graded 72% and the entry side graded 21% — so the entry side was
+          retired rather than tuned. The engine reads who still has to sell. It turned out to have
+          nothing to say about who wants to buy, so it stopped saying it. See{' '}
+          <Link href="/track-record" className="text-primary underline underline-offset-4">
+            the live ledger
+          </Link>{' '}
+          for what it&rsquo;s calling now.
         </p>
         <Button asChild variant="outline" className="mt-6">
           <Link href="/track-record">

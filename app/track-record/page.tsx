@@ -115,8 +115,8 @@ export default async function TrackRecordPage() {
               {(stats.entrySide.accuracy * 100).toFixed(0)}%
             </span>{' '}
             over {stats.entrySide.correct + stats.entrySide.incorrect} calls. So it stopped making
-            them. Every one of those losses is still on this page and still counted in the totals —
-            a record you edit after the fact is not a record.
+            them. Every one of those losses is on this page and counted in the totals below, exactly
+            as graded — nothing here is quietly re-graded or dropped to flatter the number.
           </p>
         </section>
       )}

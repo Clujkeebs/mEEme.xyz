@@ -7,9 +7,14 @@ const LINKS = [
   { href: '/admin/promo', label: 'Promo codes' },
   { href: '/admin/affiliates', label: 'Affiliates' },
   { href: '/admin/errors', label: 'Errors' },
+  { href: '/admin/track-record', label: 'Track record' },
 ];
 
-export function AdminNav({ active }: { active: 'analytics' | 'users' | 'promo' | 'affiliates' | 'errors' }) {
+export function AdminNav({
+  active,
+}: {
+  active: 'analytics' | 'users' | 'promo' | 'affiliates' | 'errors' | 'track-record';
+}) {
   return (
     <nav className="mt-4 flex gap-4 border-b border-border/60 pb-3 text-sm">
       {LINKS.map((link) => (
